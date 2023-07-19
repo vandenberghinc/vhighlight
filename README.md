@@ -4,8 +4,7 @@
 Syntax highlighter written in JavaScript for C++, C, Markdown, Python and JavaScript. 
 <br><br>
 <p align="center">
-    <img src="https://img.shields.io/badge/version-1.1.19-orange" alt="VHighlight">
-    <img src="https://img.shields.io/badge/std-c++20-orange" alt="VHighlight">
+    <img src="https://img.shields.io/badge/version-1.1.1-orange" alt="VHighlight">
     <img src="https://img.shields.io/badge/status-maintained-forestgreen" alt="VHighlight">
 </p> 
 <br><br>
