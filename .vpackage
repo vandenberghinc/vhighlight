@@ -1,0 +1,77 @@
+{
+    "name": "vhighlight",
+    "source": "$SOURCE",
+    "version": "1.1.1",
+    "author": {
+        "name": "Daan van den Bergh",
+        "email": "vandenberghinc@gmail.com"
+    },
+    "git": {
+        "main": "origin git@github.com:vandenberghinc/$NAME.git"
+    },
+    "ssh": {
+        "vinc": "/vserver/storages/vinc/$NAME/",
+        "vinc.wan": "/vserver/storages/vinc/$NAME/",
+        "dev.vinc": "/Volumes/persistance/private/vinc/$NAME/",
+        "dev.vinc.wan": "/Volumes/persistance/private/vinc/$NAME/",
+        "paperspace": "vinc/$NAME/",
+        "vandenberghinc.com": "vinc/$NAME/"
+    },
+    "build": {
+        "release": {
+            "compiler": "clang++",
+            "input": "$SOURCE/build.cpp",
+            "output": "$SOURCE/bin/build",
+            "std": "c++2a",
+            "include_paths": [
+                "/opt/vinc/include/",
+                "/usr/local/include/"
+            ],
+            "library_paths": [],
+            "linked_libraries": [],
+            "other_flags": [
+                "-g",
+                "-rdynamic"
+            ]
+        },
+        "debug": {
+            "compiler": "clang++",
+            "input": "$SOURCE/build.cpp",
+            "output": "$SOURCE/bin/build",
+            "std": "c++2a",
+            "include_paths": [
+                "/opt/vinc/include/",
+                "/usr/local/include/"
+            ],
+            "library_paths": [],
+            "linked_libraries": [],
+            "other_flags": [
+                "-g",
+                "-rdynamic"
+            ]
+        }
+    },
+    "install": {
+        "prefix": "/opt/vinc/",
+        "compiler": "clang++",
+        "std": "c++2a",
+        "include_paths": [
+            "/opt/vinc/include/",
+            "/usr/local/include/"
+        ],
+        "library_paths": [],
+        "linked_libraries": {
+            "macos": [
+                "-lz"
+            ],
+            "linux": [
+                "-lz",
+                "-lcrypt",
+                "-ldl"
+            ]
+        },
+        "other_flags": [
+            "-O3"
+        ]
+    }
+}
