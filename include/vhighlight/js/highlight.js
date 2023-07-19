@@ -53,6 +53,8 @@ vhighlight.highlight = function(element, options = {}) {
 			highlighted_code = vhighlight.md.highlight(code);
 		} else if (language == "js") {
 			highlighted_code = vhighlight.js.highlight(code);
+		} else if (language == "json") {
+			highlighted_code = vhighlight.json.highlight(code);
 		} else if (language == "python") {
 			highlighted_code = vhighlight.python.highlight(code);
 		} else {

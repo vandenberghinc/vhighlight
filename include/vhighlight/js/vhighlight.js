@@ -3,7 +3,7 @@
  * Copyright: © 2022 - 2023 Daan van den Bergh.
  */
 const vhighlight={};
-vhighlight.highlight=function(element){
+vhighlight.highlight=function(element,options={}){
 const language=element.getAttribute("language");
 if(language==""){
 return;
@@ -28,16 +28,17 @@ element.style.fontFamily="'Menlo', 'Consolas', monospace";
 }
 let highlighted_code;
 if(language=="cpp"){
-highlighted_code=vhighlight.cpp.highlight(code);
+highlighted_code=vhighlight.cpp.highlight(code,options);
 }else if(language=="markdown"){
 highlighted_code=vhighlight.md.highlight(code);
 }else if(language=="js"){
 highlighted_code=vhighlight.js.highlight(code);
+}else if(language=="json"){
+highlighted_code=vhighlight.json.highlight(code);
 }else if(language=="python"){
 highlighted_code=vhighlight.python.highlight(code);
 }else{
 console.error("Unsupported language \""+language+"\" for syntax highlighting.");
-element.innerHTML="<p style='color: red;'>Error: Unsupported language \""+language+"\" for syntax highlighting.</p>";
 return;
 }
 if(element.getAttribute('line_numbers')!="true"){
@@ -54,7 +55,7 @@ element.appendChild(code_pre);
 return;
 }
 element.style.alignItems='stretch';
-if(element.style.height==='undefined' || element.style.height=="100%"){
+if(element.style.height==='undefined'||element.style.height=="100%"){
 element.style.height='auto';
 }
 if(element.style.tabSize==='undefined'){
@@ -196,7 +197,7 @@ function replace_parameters(regex,replacement=null){
 let match;
 while((match=regex.exec(code))!==null){
 const head=vhighlight.utils.slice_parentheses(code,match.index);
-if(head !=null){
+if(head!=null){
 code=vhighlight.utils.replace_by_index(code,head.start,head.end,head.data.replace(vhighlight.js.parameter_regex,"$1<span class='token_parameter'>$2</span>"));
 regex.lastIndex=head.end+1;
 }
@@ -210,7 +211,7 @@ let match;
 const regex=vhighlight.js.type_def_body_regex;
 while((match=regex.exec(code))!==null){
 const body=vhighlight.utils.slice_curly_brackets(code,match.index);
-if(body !=null){
+if(body!=null){
 code=vhighlight.utils.replace_by_index(code,body.start,body.end,vhighlight.js.highlight(body.data,true,false));
 regex.lastIndex=body.end+1;
 }
@@ -351,13 +352,13 @@ vhighlight.cpp.call_regex=new RegExp(`${vhighlight.cpp.exclude_span}\\b([A-Za-z0
 vhighlight.cpp.type_regex=new RegExp(`${vhighlight.cpp.exclude_span}${vhighlight.cpp.html_open}(?<=\\b)(${vhighlight.cpp.keywords.join('\\s+|') + '\\s+'})*([A-Za-z0-9_]+${vhighlight.cpp.template_params})([&*]*\\s+(?!&gt;|&lt;)[A-Za-z0-9_&*]+)${vhighlight.cpp.html_close}`,'gm');
 vhighlight.cpp.namespace_regex=new RegExp(`${vhighlight.cpp.exclude_span}([A-Za-z0-9_]*)(::)([A-Za-z0-9_]+${vhighlight.cpp.template_params})`,'g');
 vhighlight.cpp.recorrect_regex=/(<span class="token_type">[^$2|<]*)(,|::|&lt;|&gt;)([^<]*<\/span>)/g;
-vhighlight.cpp.highlight=function(code,is_func=false,reformat=true){
-if(reformat){code=code.replaceAll("<","&lt;");
+vhighlight.cpp.highlight=function(code,options={is_func: false,reformat: true}){
+if(options.reformat){code=code.replaceAll("<","&lt;");
 code=code.replaceAll(">","&gt;");
 }
-if(!is_func){code=code.replace(vhighlight.cpp.comment_regex,'<span class="token_comment">$&</span>');code=code.replace(vhighlight.cpp.string_regex,'<span class="token_string">$&</span>');}
+if(!options.is_func){code=code.replace(vhighlight.cpp.comment_regex,'<span class="token_comment">$&</span>');code=code.replace(vhighlight.cpp.string_regex,'<span class="token_string">$&</span>');}
 let code_blocks=[];
-if(!is_func){
+if(!options.is_func){
 let match;
 const regex=vhighlight.cpp.func_regex;
 while((match=regex.exec(code))!==null){
@@ -373,7 +374,7 @@ let bend=0;
 let depth=0;
 let last_space=match.index;
 for(let index=match.index;index<code.length;index++){
-if(pstart==0 &&(code[index]==" " || code[index]=="\t")&& code[index+1] !="(" && code[index+1] !=" "){
+if(pstart==0&&(code[index]==" "||code[index]=="\t")&&code[index+1]!="("&&code[index+1]!=" "){
 last_space=index;
 }
 if(pend==0){
@@ -386,7 +387,7 @@ depth++;
 else if(code[index]==")"){
 depth--;
 }
-if(pstart !=0 && depth==0){
+if(pstart!=0&&depth==0){
 pend=index+1;
 depth=0;
 func_type=code.substr(match.index,last_space-match.index).trim();
@@ -397,7 +398,7 @@ break;
 }
 }
 }
-else if(bstart==0 && code[index]==";"){
+else if(bstart==0&&code[index]==";"){
 end_index=index+1;
 break;
 }
@@ -411,7 +412,7 @@ depth++;
 else if(code[index]=="}"){
 depth--;
 }
-if(bstart !=0 && depth==0){
+if(bstart!=0&&depth==0){
 bend=index+1;
 end_index=index+1;
 depth=0;
@@ -447,9 +448,9 @@ highlighted+="<span class='token_type_def'>";
 highlighted+=func_name;
 highlighted+="</span>";
 highlighted+=vhighlight.cpp.highlight_params(func_params);
-if(bend !=0){
+if(bend!=0){
 highlighted+=" ";
-highlighted+=this.highlight(func_code,true,false);
+highlighted+=this.highlight(func_code,{is_func: true,reformat: false});
 }else{
 highlighted+=";";
 }
@@ -465,7 +466,7 @@ code=code.replace(vhighlight.cpp.sys_include_regex,'$1<span class="token_string"
 code=code.replace(vhighlight.cpp.bool_regex,'<span class="token_bool">$&</span>');
 code=code.replace(vhighlight.cpp.typedef_regex,'<span class="token_keyword">$1</span><span class="token_type_def">$2</span>$3');
 code=code.replace(vhighlight.cpp.namespace_regex,'<span class="token_type">$1</span>$2<span class="token_type">$3</span>');code=code.replace(vhighlight.cpp.preprocessor_regex,'<span class="token_preprocessor">$&</span>');code=code.replace(vhighlight.cpp.keyword_regex,'<span class="token_keyword">$&</span>');
-if(is_func){
+if(options.is_func){
 code=code.replace(vhighlight.cpp.constructor_regex,'<span class="token_type">$1</span><span class="type_no">$2</span>$3');code=code.replace(vhighlight.cpp.call_regex,'<span class="token_type">$1</span>$2');
 }
 code=code.replace(vhighlight.cpp.type_regex,'$1<span class="token_type">$2</span>$3');
@@ -489,6 +490,78 @@ code=code.replace(vhighlight.cpp.param_type_regex,'$1$2<span class="token_type">
 code=code.replace(vhighlight.cpp.call_regex,'<span class="token_type">$1</span>$2');
 return code;
 }
+vhighlight.cpp.highlight_type=function(block){
+highlighted="";
+batch="";
+function append_batch(highlight=true){
+if(highlight&&keywords.includes(batch)){
+highlighted+="<span class='token_keyword'>";
+highlighted+=batch;
+highlighted+="</span>";
+}
+else if(highlight&&batch!='&'&&batch!='*'&&batch!='.'&&batch!=':'){
+highlighted+="<span class='token_type'>";
+highlighted+=batch;
+highlighted+="</span>";
+}
+else{
+highlighted+=batch;
+}
+batch="";
+};
+for(let i=0;i<block.length;i++){
+c=block[i];
+switch(c){
+case '*':
+case '&':
+case '.':
+case ':':
+append_batch();
+batch+=c;
+append_batch(false);
+break;
+case '<':
+append_batch();
+batch+="&lt;";
+append_batch(false);
+break;
+case '>':
+append_batch();
+batch+="&gt;";
+append_batch(false);
+break;
+case ' ':
+append_batch();
+batch+=c;
+append_batch(false);
+break;
+default:
+batch+=c;
+break;
+}
+}
+append_batch();
+return highlighted;
+}
+vhighlight.json={};
+vhighlight.json.keywords=[
+"true",
+"false",
+"null",
+];
+vhighlight.json.exclude_span="(?!(?:[^<]|<(?!/?span[^>]*>))*?<\\/span>)";vhighlight.json.html_open="(?<!<[^>]*)";vhighlight.json.html_close="(?![^<]*>)";
+vhighlight.json.comment_regex=/(\/\/.*|\/\*[\s\S]*?\*\/)(?!\S)/g;
+vhighlight.json.string_regex=new RegExp(`(${vhighlight.json.exclude_span}${vhighlight.json.html_open})(['"\`/]{1})(.*?)\\2${vhighlight.json.html_close}`,'gms');
+vhighlight.json.numeric_regex=new RegExp(`${vhighlight.json.exclude_span}\\b-?\\d+(?:\\.\\d+)?\\b`,'g');
+vhighlight.json.keyword_regex=new RegExp(`${vhighlight.json.exclude_span}\\b(${vhighlight.json.keywords.join('|')})\\b`,'gm');
+vhighlight.json.highlight=function(code){
+code=code.replaceAll("<","&lt;");
+code=code.replaceAll(">","&gt;");
+code=code.replace(vhighlight.json.comment_regex,'<span class="token_comment">$&</span>');
+code=code.replace(vhighlight.json.string_regex,'<span class="token_string">$&</span>');
+code=code.replace(vhighlight.json.keyword_regex,'<span class="token_keyword">$&</span>');code=code.replace(vhighlight.json.numeric_regex,'<span class="token_numeric">$&</span>');
+return code;
+}
 vhighlight.utils={};
 vhighlight.utils.replace_by_index=function(str,start,end,substr){
 let replaced=str.substr(0,start);
@@ -503,10 +576,10 @@ let end=-1;
 let sliced="";
 let string_char=null;
 for(let index=start_index;index<code.length;index++){
-if(string_char==null &&(code[index]=='"' || code[index]=="'" || code[index]=='`')){
+if(string_char==null&&(code[index]=='"'||code[index]=="'"||code[index]=='`')){
 string_char=code[index];
 }
-else if(string_char !=null && code[index]==string_char){
+else if(string_char!=null&&code[index]==string_char){
 string_char=null;
 }
 else if(string_char==null){
@@ -600,7 +673,7 @@ let match;
 const regex=func_regex;
 while((match=regex.exec(code))!==null){
 let result=vhighlight.utils.slice_parentheses(code,match.index,false);
-if(result !=null){
+if(result!=null){
 code=vhighlight.utils.replace_by_index(code,result.start,result.end,result.data.replace(replace_regex,replace_with));
 regex.lastIndex=result.start+1;
 }
