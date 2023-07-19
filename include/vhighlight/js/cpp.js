@@ -345,3 +345,73 @@ vhighlight.cpp.highlight_params = function(code) {
 	code = code.replace(vhighlight.cpp.call_regex, '<span class="token_type">$1</span>$2');
 	return code;
 }
+
+// Highlight type.
+// The full code block must be a type e.g. "const int&" or "Code".
+vhighlight.cpp.highlight_type = function(block) {
+	
+	// Vars.
+	highlighted = "";
+	batch = "";
+	
+	// Funcs.
+	function append_batch(highlight = true) {
+		if (highlight && keywords.includes(batch)) {
+			highlighted += "<span class='token_keyword'>";
+			highlighted += batch;
+			highlighted += "</span>";
+		}
+		else if (highlight && batch != '&' && batch != '*' && batch != '.' && batch != ':') {
+			highlighted += "<span class='token_type'>";
+			highlighted += batch;
+			highlighted += "</span>";
+		}
+		else {
+			highlighted += batch;
+		}
+		batch = "";
+	};
+	
+	// Iterate.
+	for (let i = 0; i < block.length; i++) {
+		c = block[i];
+		switch (c) {
+			
+		// Special chars.
+		case '*':
+		case '&':
+		case '.':
+		case ':':
+			append_batch();
+			batch += c;
+			append_batch(false);
+			break;
+		case '<':
+			append_batch();
+			batch += "&lt;";
+			append_batch(false);
+			break;
+		case '>':
+			append_batch();
+			batch += "&gt;";
+			append_batch(false);
+			break;
+		
+		// Space.
+		case ' ':
+			append_batch();
+			batch += c;
+			append_batch(false);
+			break;
+		
+		// Append.
+		default:
+			batch += c;
+			break;
+		}
+	}
+	append_batch();
+		
+	return highlighted;
+}
+

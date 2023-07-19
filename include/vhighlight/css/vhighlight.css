@@ -75,6 +75,11 @@ code:nth-child(1) {
 	display: none;
 }
 
+/* Set tab size of pre. */
+pre {
+	tab-size:  4;
+}
+
 /* Loader for when the highlighting is loading. */
 .vhighlight_loader {
   display: inline-block;

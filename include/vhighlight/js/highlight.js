@@ -57,7 +57,7 @@ vhighlight.highlight = function(element, options = {}) {
 			highlighted_code = vhighlight.python.highlight(code);
 		} else {
 			console.error("Unsupported language \"" + language + "\" for syntax highlighting.");
-			element.innerHTML = "<p style='color: red;'>Error: Unsupported language \"" + language + "\" for syntax highlighting.</p>";
+			// element.innerHTML = "<p style='color: red;'>Error: Unsupported language \"" + language + "\" for syntax highlighting.</p>";
 			return ;
 		}
 
