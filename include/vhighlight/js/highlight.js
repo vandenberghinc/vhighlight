@@ -47,11 +47,11 @@ vhighlight.highlight = function(element, options = {}) {
 
 		// Highlight.
 		let highlighted_code;
-		if (language == "cpp") {
+		if (language == "cpp" || language == "c++" || language == "c") {
 			highlighted_code = vhighlight.cpp.highlight(code, options);
-		} else if (language == "markdown") {
+		} else if (language == "markdown" || language == "md") {
 			highlighted_code = vhighlight.md.highlight(code);
-		} else if (language == "js") {
+		} else if (language == "js" || language == "javascript") {
 			highlighted_code = vhighlight.js.highlight(code);
 		} else if (language == "json") {
 			highlighted_code = vhighlight.json.highlight(code);
