@@ -70,6 +70,11 @@
 	background: #818C97;
 }
 
+/* Use display block otherwise the code may not show up. */
+code {
+	display: block;
+}
+
 /* Hide the unsyntaxed code of a code object by default. Since parsing may take some time. */
 code:nth-child(1) {
 	display: none;
