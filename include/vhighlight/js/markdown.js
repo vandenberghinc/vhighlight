@@ -337,10 +337,12 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 				this.append_forward_lookup_batch("token_codeblock", language + code);
 			} else {
 				this.append_forward_lookup_batch("token_keyword", language);
-				this.line += result.line_count;
 				for (let i = 0; i < result.tokens.length; i++) {
-					this.tokens.push(result.tokens[i]);
+					const token = result.tokens[i];
+					token.line += this.line;
+					this.tokens.push(token);
 				}
+				this.line += result.line_count;
 			}
 			this.append_forward_lookup_batch("token_keyword", "```");
 
