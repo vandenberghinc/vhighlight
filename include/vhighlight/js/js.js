@@ -250,7 +250,7 @@ vhighlight.js.highlight = function(code, return_tokens = false) {
 		
 			// Tokenize.
 			if (this.is_linebreak_whitespace_char(this.prev_char)) {
-				const prev = this.get_prev_token(tokens.length - 1, [" ", "\t", "\n"]);
+				const prev = this.get_prev_token(this.tokens.length - 1, [" ", "\t", "\n"]);
 				prev.token = "token_parameter";
 				this.append_batch();
 			} else {

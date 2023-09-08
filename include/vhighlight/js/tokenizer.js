@@ -206,14 +206,45 @@ class Tokenizer {
 	}
 
 	// Check if an a character is escaped by index.
-	is_escaped(index) {
-		if (this.code.charAt(index - 1) == "\\") {
-			if (this.code.charAt(index - 2) == "\\") {
-				return this.is_escaped(index - 2);
+	is_escaped(index, str = null) {
+		if (str == null) {
+			if (this.code.charAt(index - 1) == "\\") {
+				if (this.code.charAt(index - 2) == "\\") {
+					return this.is_escaped(index - 2);
+				}
+				return true;
 			}
-			return true;
+		} else {
+			if (str.charAt(index - 1) == "\\") {
+				if (str.charAt(index - 2) == "\\") {
+					return this.is_escaped(index - 2, str);
+				}
+				return true;
+			}
 		}
 		return false;
+	}
+
+	// Append lookup token.
+	// This function must be used when appending new tokens by a forward lookup.
+	// Since every line break should be a seperate line break token for VIDE.
+	append_forward_lookup_batch(token, data) {
+		if (this.batch.length > 0) {
+			this.append_batch();
+		}
+		this.batch = "";
+		for (let i = 0; i < data.length; i++) {
+			const c = data.charAt(i);
+			if (c == "\n" && !this.is_escaped(i, data)) {
+				this.append_batch(token);
+				++this.line;
+				this.batch = "\n";
+				this.append_batch("token_line");
+			} else {
+				this.batch += c;
+			}
+		}
+		this.append_batch(token);
 	}
 
 	// Resume the iteration at a certain index.
@@ -222,12 +253,13 @@ class Tokenizer {
 	resume_on_index(index) {
 		
 		// Increment line count.
-		const info_obj = {index: null, prev_char: null, next_char: null};
-		this.iterate_code(info_obj, this.index, index + 1, (char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped) => {
-			if (!is_escaped && char == "\n") {
-				++this.line;
-			}
-		})
+		// Became obsolete by "append_forward_lookup_batch()".
+		// const info_obj = {index: null, prev_char: null, next_char: null};
+		// this.iterate_code(info_obj, this.index, index + 1, (char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped) => {
+		// 	if (!is_escaped && char == "\n") {
+		// 		++this.line;
+		// 	}
+		// })
 
 		// Set index.
 		this.index = index;

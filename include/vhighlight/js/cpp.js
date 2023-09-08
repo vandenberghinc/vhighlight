@@ -284,10 +284,7 @@ vhighlight.cpp.highlight = function(code, return_tokens = false) {
 			// length - 1 since 
 			if (is_type) {
 				for (let i = 0; i <= last_append_index; i++) {
-					const append = append_to_batch[i];
-					const type = append[0];
-					this.batch = append[1];
-					this.append_batch(append[0]);
+					this.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
 				}
 				this.resume_on_index(last_index - 1);
 				return true;
@@ -486,9 +483,6 @@ vhighlight.cpp.highlight = function(code, return_tokens = false) {
 
 				// Non allowed characters.
 				else {
-					if (this.line == 15) {
-						console.log("STOP BY CHAR ", {x: c});
-					}
 					break;
 				}
 
@@ -497,10 +491,7 @@ vhighlight.cpp.highlight = function(code, return_tokens = false) {
 			// Add the batches when it is a template.
 			if (is_template) {
 				for (let i = 0; i < append_to_batch.length; i++) {
-					const append = append_to_batch[i];
-					const type = append[0];
-					this.batch = append[1];
-					this.append_batch(append[0]);
+					this.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
 				}
 				this.resume_on_index(index);
 				return true;

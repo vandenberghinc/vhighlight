@@ -99,8 +99,7 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 					last_index = this.code.length;
 				}
 				for (let i = 0; i < add.length; i++) {
-					this.batch = add[i][1];
-					this.append_batch(add[i][0]);
+					this.append_forward_lookup_batch(add[i][0], add[i][1]);
 				}
 				this.resume_on_index(last_index);
 				return true;
@@ -132,12 +131,9 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 			this.append_batch();
 
 			// Add tokens.
-			this.batch = char + char;
-			this.append_batch("token_keyword");
-			this.batch = this.code.substr(this.index + 2, closing_index - (this.index + 2));
-			this.append_batch("token_bold");
-			this.batch = char + char;
-			this.append_batch("token_keyword");
+			this.append_forward_lookup_batch("token_keyword", char + char);
+			this.append_forward_lookup_batch("token_bold", this.code.substr(this.index + 2, closing_index - (this.index + 2)));
+			this.append_forward_lookup_batch("token_keyword", char + char);
 
 			// Set resume index.
 			this.resume_on_index(closing_index + 1);
@@ -166,12 +162,9 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 			this.append_batch();
 
 			// Add tokens.
-			this.batch = char;
-			this.append_batch("token_keyword");
-			this.batch = this.code.substr(this.index + 1, closing_index - (this.index + 1));
-			this.append_batch("token_italic");
-			this.batch = char;
-			this.append_batch("token_keyword");
+			this.append_forward_lookup_batch("token_keyword", char);
+			this.append_forward_lookup_batch("token_italic", this.code.substr(this.index + 1, closing_index - (this.index + 1)));
+			this.append_forward_lookup_batch("token_keyword", char);
 
 			// Set resume index.
 			this.resume_on_index(closing_index);
@@ -225,8 +218,7 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 			// Check if finished successfully.
 			if (finished) {
 				this.append_batch();
-				this.batch = batch;
-				this.append_batch("token_keyword");
+				this.append_forward_lookup_batch("token_keyword", batch);
 				this.resume_on_index(last_index);
 				return true;
 			}
@@ -268,20 +260,14 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 			}
 
 			// Add text tokens.
-			this.batch = "[";
-			this.append_batch("token_keyword");
-			this.batch = this.code.substr(opening_bracket + 1, (closing_bracket - 1) - (opening_bracket + 1) + 1);
-			this.append_batch("token_string");
-			this.batch = "]";
-			this.append_batch("token_keyword");
+			this.append_forward_lookup_batch("token_keyword", "[");
+			this.append_forward_lookup_batch("token_string", this.code.substr(opening_bracket + 1, (closing_bracket - 1) - (opening_bracket + 1) + 1));
+			this.append_forward_lookup_batch("token_keyword", "]");
 
 			// Add url tokens.
-			this.batch = "(";
-			this.append_batch("token_keyword");
-			this.batch = this.code.substr(opening_parentheses + 1, (closing_parentheses - 1) - (opening_parentheses + 1) + 1);
-			this.append_batch("token_string");
-			this.batch = ")";
-			this.append_batch("token_keyword");
+			this.append_forward_lookup_batch("token_keyword", "(");
+			this.append_forward_lookup_batch("token_string", this.code.substr(opening_parentheses + 1, (closing_parentheses - 1) - (opening_parentheses + 1) + 1));
+			this.append_forward_lookup_batch("token_keyword", ")");
 
 			// Set resume index.
 			this.resume_on_index(closing_parentheses);
@@ -303,8 +289,7 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 			if (closing_index == null) { return false; }
 
 			// Add token.
-			this.batch = this.code.substr(this.index, closing_index - this.index + 1);
-			this.append_batch("token_codeblock");
+			this.append_forward_lookup_batch("token_codeblock", this.code.substr(this.index, closing_index - this.index + 1));
 
 			// Set resume index.
 			this.resume_on_index(closing_index);
@@ -347,21 +332,17 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 			}
 
 			// Add tokens.
-			this.batch = "```";
-			this.append_batch("token_keyword");
+			this.append_forward_lookup_batch("token_keyword", "```");
 			if (result == null) {
-				this.batch = language + code;
-				this.append_batch("token_codeblock");	
+				this.append_forward_lookup_batch("token_codeblock", language + code);
 			} else {
-				this.batch = language;
-				this.append_batch("token_keyword");
+				this.append_forward_lookup_batch("token_keyword", language);
 				this.line += result.line_count;
 				for (let i = 0; i < result.tokens.length; i++) {
 					this.tokens.push(result.tokens[i]);
 				}
 			}
-			this.batch = "```";
-			this.append_batch("token_keyword");
+			this.append_forward_lookup_batch("token_keyword", "```");
 
 			// Set resume index.
 			this.resume_on_index(closing_index);
@@ -377,88 +358,3 @@ vhighlight.md.highlight = function(code, return_tokens = false) {
 	// Tokenize.
 	return tokenizer.tokenize(return_tokens);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* Regex based highlighting, way too slow.
-
-// ---------------------------------------------------------
-// Markdown highlighter.
-
-vhighlight.md = {};
-	
-// supported codeblock languages.
-vhighlight.md.codeblock_languages = [
-	"cpp",
-	"md",
-];
-
-// Regexes helpers.
-vhighlight.md.exclude_span = "(?!(?:[^<]|<(?!/?span[^>]*>))*?<\\/span>)"; // exclude contents inside a "<span>HERE</span>"
-
-// Regexes.
-// vhighlight.md.heading_regex =  /^\s*(#{1,6})(\s*.*)/gm;
-vhighlight.md.heading_regex = new RegExp(`${vhighlight.md.exclude_span}(^\\s*#{1,6}\\s*)(.*)(\\n|$)`, 'gm');
-vhighlight.md.bold_regex = new RegExp(`${vhighlight.md.exclude_span}(^|\\s)(\\*|_)(\\*|_)(.*?)(\\*|_)(\\*|_)`, "gm");
-vhighlight.md.italic_regex = new RegExp(`${vhighlight.md.exclude_span}(^|\\s)([*_])(.*?)\\2(\\s|$)`, "gm");
-vhighlight.md.ul_regex = new RegExp(`${vhighlight.md.exclude_span}^(\\s*[-+*]\\s*)(.*)`, "gm");
-vhighlight.md.ol_regex = new RegExp(`${vhighlight.md.exclude_span}^(\\s*\\d+)(.+)$`, "gm");
-vhighlight.md.link_regex = new RegExp(`${vhighlight.md.exclude_span}\\[([^\\]]+)\\]\\(([^\\)]+)\\)`, "gm");
-vhighlight.md.image_regex = new RegExp(`${vhighlight.md.exclude_span}!\\[([^\\]]+)\\]\\(([^\\)]+)\\)`, "gm");
-// vhighlight.md.codeline_regex = new RegExp(`${vhighlight.md.exclude_span}\`(.*?)\``, "gm");
-vhighlight.md.codeline_regex = /(?<!`)(`{1})([^`]*?)\1(?!`)/gm;
-vhighlight.md.codeblock_regex = new RegExp(`${vhighlight.md.exclude_span}\`\`\`((?:${vhighlight.md.codeblock_languages.join('|')})*)([^\`]*)\`\`\``, "gm");
-
-// Highlight.
-vhighlight.md.highlight = function(code) {
-
-	// Replace < and >.
-	// Need to be replaced again, they should also be replaced before assigning the initial pre data.
-	// But because of the rendering they may need to be replaced again.
-	code = code.replaceAll("<", "&lt;");
-	code = code.replaceAll(">", "&gt;");
-
-	// Regex replacements.
-	code = code.replace(vhighlight.md.heading_regex, '<span class="token_preprocessor">$1</span><b>$2</b>$3');
-	code = code.replace(vhighlight.md.bold_regex, '<span class="token_bold">$&</span>'); // should be before italic regex.
-	code = code.replace(vhighlight.md.italic_regex, '<span class="token_italic">$&</span>'); // should be before ul and ol regex.
-	code = code.replace(vhighlight.md.ul_regex, '<span class="token_preprocessor">$1</span>$2');
-	code = code.replace(vhighlight.md.ol_regex, '<span class="token_preprocessor">$1</span>$2');
-	code = code.replace(vhighlight.md.image_regex, '<span class="token_string">!</span><span class="token_preprocessor">[</span><span class="token_string">$1</span><span class="token_preprocessor">]</span><span class="token_string">($2)</span>'); // should be before link regex.
-	code = code.replace(vhighlight.md.link_regex, '<span class="token_preprocessor">[</span><span class="token_string">$1</span><span class="token_preprocessor">]</span><span class="token_string">($2)</span>');
-	code = code.replace(vhighlight.md.codeblock_regex, (match, m1, m2) => { // should be last but before codeline regex.
-		if (m1 == "") {
-			return `<div class='token_codeblock'>\`\`\`${m2}\`\`\`</div>`
-		} else if (m1 == "cpp") {
-			return `<div class='token_codeblock'>\`\`\`${m1}${cpp.highlight(m2)}\`\`\`</div>`
-		} else {
-			return `<div class='token_codeblock'>\`\`\`${m1}${m2}\`\`\`</div>`
-		}
-	});
-	code = code.replace(vhighlight.md.codeline_regex, '<span class="token_codeline">$&</span>'); // should be last.
-
-	// Handler.
-	return code;
-}
-*/

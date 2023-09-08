@@ -101,8 +101,7 @@ vhighlight.bash.highlight = function(code, return_tokens = false) {
 			}
 			if (batch != null) {
 				this.append_batch();
-				this.batch = batch;
-				this.append_batch("token_operator");
+				this.append_forward_lookup_batch("token_operator", batch);
 				this.resume_on_index(this.index + batch.length - 1);
 				return true;
 			}
@@ -126,8 +125,7 @@ vhighlight.bash.highlight = function(code, return_tokens = false) {
 			}
 			if (batch.length > 1) {
 				this.append_batch();
-				this.batch = batch;
-				this.append_batch("token_keyword");
+				this.append_forward_lookup_batch("token_keyword", batch);
 				this.resume_on_index(this.index + batch.length - 1);
 				return true;
 			}
@@ -182,8 +180,7 @@ vhighlight.bash.highlight = function(code, return_tokens = false) {
 			}
 			if (finished && !this.keywords.includes(word)) {
 				this.append_batch();
-				this.batch = word;
-				this.append_batch("token_type");
+				this.append_forward_lookup_batch("token_type", word);
 				this.resume_on_index(end_index);
 				return true;
 			}
@@ -290,9 +287,7 @@ vhighlight.bash.highlight = function(code, return_tokens = false) {
 			// Append tokens.
 			if (end_index != null) {
 				this.append_batch();
-				this.batch = this.code.substr(this.index, end_index - this.index + 1);
-				console.log(this.batch);
-				this.append_batch("token_comment");
+				this.append_forward_lookup_batch("token_comment", this.code.substr(this.index, end_index - this.index + 1));
 				this.resume_on_index(end_index);
 				return true;
 			}
