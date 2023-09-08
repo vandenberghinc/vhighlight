@@ -1,0 +1,402 @@
+// JavaScript
+(
+
+    /****************************************************************************/
+    // MARK: JavaScript Syntax Coloring
+    /****************************************************************************/
+
+    {
+        Identifier = "xcode.lang.javascript";
+        Description = "JavaScript Coloring";
+        BasedOn = "xcode.lang.simpleColoring";
+        IncludeInMenu = YES;
+        UsesCLikeIndentation = YES;
+        Name = "JavaScript";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            ShouldTraverse = YES;
+            IncludeRules = (
+                "xcode.lang.javascript.class",
+                "xcode.lang.javascript.function",
+                "xcode.lang.javascript.function.closure",
+                "xcode.lang.javascript.property",
+                "xcode.lang.javascript.block",
+                "xcode.lang.javascript.bracketexpr",
+                "xcode.lang.javascript.parenexpr",
+            );
+            Type = "xcode.syntax.plain";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.javascript.identifier";
+        Syntax = {
+            StartChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_";
+            Chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+            Words = (
+                "as",
+                "async",
+                "await",
+                "break",
+                "case",
+                "catch",
+                "class",
+                "const",
+                "constructor",
+                "continue",
+                "debugger",
+                "default",
+                "delete",
+                "do",
+                "else",
+                "export",
+                "extends",
+                "false",
+                "finally",
+                "for",
+                "from",
+                "function",
+                "get",
+                "if",
+                "import",
+                "in",
+                "Infinity",
+                "instanceof",
+                "let",
+                "new",
+                "null",
+                "of",
+                "return",
+                "set",
+                "static",
+                "super",
+                "switch",
+                "this",
+                "throw",
+                "true",
+                "try",
+                "typeof",
+                "var",
+                "void",
+                "while",
+                "with",
+                "yield",
+             );
+            Type = "xcode.syntax.keyword";
+            AltType = "xcode.syntax.identifier";    // non-keywords are identifiers
+        };
+    },
+
+    // The following rule returns tokens to the other rules
+    {
+        Identifier = "xcode.lang.javascript.lexer";
+        Syntax = {
+            IncludeRules = (
+                "xcode.lang.comment",
+                "xcode.lang.comment.singleline",
+                "xcode.lang.string",
+                "xcode.lang.string.singlequote",
+                "xcode.lang.string.backquote.multiline",
+                "xcode.lang.javascript.regex",
+                "xcode.lang.javascript.identifier",
+                "xcode.lang.number",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.regex";
+        Syntax = {
+            StartChars = "/";
+            Match = "/([a-zA-Z0-9 +\\-*?{},:;~=|%#@!()&\'\"<>_\\.\\[\\]\\^$]|\\\\.)+/[gimsuy]*(?!/)";
+            Type = "xcode.syntax.string";
+        };
+    },
+
+    // MARK: - Classes
+    {
+        Identifier = "xcode.lang.javascript.class";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.class.declarator",
+                "xcode.lang.javascript.class.block",
+            );
+            Type = "xcode.syntax.definition.class";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.javascript.class.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "class",
+                "xcode.lang.javascript.declaration.name",
+                "xcode.lang.javascript.extendsclause?",
+            );
+            Type = "xcode.syntax.name.tree";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.javascript.extendsclause";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Start = "extends";
+            Until = "{";
+            IncludeRules = (
+                "xcode.lang.javascript.bracketexpr",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.class.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.javascript.constructor",
+                "xcode.lang.javascript.method",
+                "xcode.lang.javascript.function",
+                "xcode.lang.javascript.function.closure",
+                "xcode.lang.javascript.function.label",
+                "xcode.lang.javascript.property",
+                "xcode.lang.javascript.bracketexpr",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+
+    // MARK: - Class Methods
+    {
+        Identifier = "xcode.lang.javascript.constructor";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.constructor.name",
+                "xcode.lang.javascript.parenexpr",
+                "xcode.lang.javascript.block",
+            );
+            Type = "xcode.syntax.definition.method";
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.constructor.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "constructor",
+            );
+            Type = "xcode.syntax.name.partial";
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.method";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.method.declarator",
+                "xcode.lang.javascript.block",
+            );
+            Type = "xcode.syntax.definition.method";
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.method.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            StartAtBOL = YES;
+            Rules = (
+                "xcode.lang.javascript.declaration.name",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+
+    // MARK: - Property Getters/Setters
+    {
+        Identifier = "xcode.lang.javascript.property";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.property.declarator",
+                "xcode.lang.javascript.block",
+            );
+            Type = "xcode.syntax.definition.property";
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.property.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.property.name",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.property.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "get|set",
+                "xcode.lang.javascript.identifier",
+            );
+            Type = "xcode.syntax.name.partial";
+        };
+    },
+
+    // MARK: - Functions
+    {
+        Identifier = "xcode.lang.javascript.function";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.function.declarator",
+                "xcode.lang.javascript.block",
+            );
+            Type = "xcode.syntax.definition.function";
+        };
+    },
+    
+    {
+        Identifier = "xcode.lang.javascript.function.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "function",
+                "*?",
+                "xcode.lang.javascript.declaration.name",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+    
+    {
+        Identifier = "xcode.lang.javascript.function.closure";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.function.closure.declarator",
+                "xcode.lang.javascript.block",
+            );
+            Type = "xcode.syntax.definition.function";
+        };
+    },
+    
+     {
+        Identifier = "xcode.lang.javascript.function.closure.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.declaration.name",
+				"=",
+                "function",
+                "*?",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+    
+    {
+        Identifier = "xcode.lang.javascript.declaration.name";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.identifier",
+				"xcode.lang.javascript.declaration.name.more*",
+            );
+            Type = "xcode.syntax.name.partial";
+        };
+    },
+    
+    {
+        Identifier = "xcode.lang.javascript.declaration.name.more";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                ".",
+				"xcode.lang.javascript.identifier",
+            );
+            Type = "xcode.syntax.name.partial";
+        };
+    },
+
+    {
+        Identifier = "xcode.lang.javascript.function.label";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.function.label.declarator",
+                "xcode.lang.javascript.block",
+            );
+            Type = "xcode.syntax.definition.function";
+        };
+    },
+
+     {
+        Identifier = "xcode.lang.javascript.function.label.declarator";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Rules = (
+                "xcode.lang.javascript.declaration.name",
+                ":",
+                "function",
+                "*?",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+
+    // MARK: - Blocks
+    {
+        Identifier = "xcode.lang.javascript.block";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Start = "{";
+            End = "}";
+            Foldable = YES;
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.javascript.function",
+                "xcode.lang.javascript.function.closure",
+                "xcode.lang.javascript.function.label",
+                "xcode.lang.javascript.property",
+                "xcode.lang.javascript.bracketexpr",
+                "xcode.lang.javascript.parenexpr",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.parenexpr";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Start = "(";
+            End = ")";
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.javascript.bracketexpr",
+                "xcode.lang.javascript.block",
+            );
+        };
+    },
+    {
+        Identifier = "xcode.lang.javascript.bracketexpr";
+        Syntax = {
+            Tokenizer = "xcode.lang.javascript.lexer";
+            Start = "[";
+            End = "]";
+            Recursive = YES;
+            IncludeRules = (
+                "xcode.lang.javascript.parenexpr",
+                "xcode.lang.javascript.block",
+            );
+        };
+    },
+)
+

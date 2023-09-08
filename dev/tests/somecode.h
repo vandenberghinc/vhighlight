@@ -1,14 +1,117 @@
-/*
- * Author: Daan van den Bergh
- * Copyright: © 2022 Daan van den Bergh.
- */
+	// Test me
+	// Test me more \n
+	// Howdy!
+	\n
+	String x = "\n";
 
 #include "/Volumes/persistance/private/vinc/vlib/include/vlib/vlib.h"
 #include"/Volumes/persistance/private/vinc/vlib/include/vlib/vlib.h"
 #include </Volumes/persistance/private/vinc/vlib/include/vlib/vlib.h>
 #include</Volumes/persistance/private/vinc/vlib/include/vlib/vlib.h>
 
+String x = "";
+vlib::me::String x = "";
+const String x = "";
+const vlib::me::String x = "";
+Dict<String, Int> x = {};
+static const inline Dict<String, Int> x = {};
+static inline constexpr vlib::types::String* s = 0;
+
+String x {};
+vlib::me::String x {};
+const String x {};
+const vlib::me::String x {};
+Dict<String, Int> x {};
+static const inline Dict<String, Int> x {};
+static inline constexpr vlib::types::String* s {};
+
+void somefunc(
+	Int a,
+	Int c,
+	Func x = []() {
+		Int x = "Hello World!";
+	}
+) {
+
+	String x ();
+	vlib::me::String x ();
+	const String x ();
+	const vlib::me::String x ();
+	Dict<String, Int> x ();
+	static const inline Dict<String, Int> x ();
+	static inline constexpr vlib::types::String* s ();
+
+	String x();
+	String x ();
+	vlib::me::String x();
+	vlib::me::somefunc();
+
+	return String ();
+	return vlib::me::String ();
+	return Dict<String, Int> ();
+	return Dict<String, Int> ();
+	return vlib::types::String* ();
+
+	return String {};
+	return vlib::me::String {};
+	return Dict<String, Int> {};
+	return Dict<String, Int> {};
+	return vlib::types::String* {};
+
+	return Array<Array, Int> ();
+}
+
+void somefunc(
+	Int a,
+	Int c,
+	Func x = []() {
+		Int x = "Hello World!";
+	}) const {
+	
+}
+
+void somefunc(
+	Int a,
+	Int c,
+	Func x = []() {
+		Int x = "Hello World!";
+	}) requires (is_String<Me>::value) {
+	
+}
+
+void somefunc();
+
+void somefunc(
+	Int a,
+	Int c,
+	Func x = []() {
+		Int x = "Hello World!";
+	});
+
+void somefunc(
+	Int a,
+	Int c,
+	Func x = []() {
+		Int x = "Hello World!";
+	}) const;
+
+void somefunc(
+	Int a,
+	Int c,
+	Func x = []() {
+		Int x = "Hello World!";
+	}) requires (is_String<Me>::value);
+
+void vlib::String::somefunc(Int x);
+void vlib::String::somefunc(Int x) {
+	Int x ();
+}
+
 using namespace vlib::types::shortcuts;
+
+if (... = vlib::df::types::str) {
+
+}
 
 #define SOME PREPROCESSOR
 

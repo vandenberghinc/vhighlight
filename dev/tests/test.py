@@ -15,6 +15,20 @@ from django.http import JsonResponse
 import json as pypi_json
 import traceback as _traceback_
 
+
+def somefunc(a, b, c = 0, e = 1):
+	...
+def somefunc(a, b, c = 0, e = 1, x = [0, 1], y = {x: 0, y: 0}):
+	...
+
+lambda x, y: x - y;
+
+x = f"me";
+x = r"me";
+x = u"me";
+x = b"me";
+x = x"me";
+
 # the response manager class.
 class Response(object):
 	def __init__(self):

@@ -4,11 +4,131 @@
     comment
 */
 
+/* this.settings_button = ImageMask("../media/settings.grey.png")
+  .id(*/"settings")
+
+
+if (me) {
+	hello = true;
+}
+
+setTimeout(()=>{
+let highlighted_code;
+if(language=="cpp"||language=="c++"||language=="c"){
+highlighted_code=vhighlight.cpp.highlight(code,{is_func:is_func});
+}else if(language=="markdown"||language=="md"){
+highlighted_code=vhighlight.md.highlight(code);
+}else if(language=="js"||language=="javascript"){
+highlighted_code=vhighlight.js.highlight(code);
+}else if(language=="json"){
+highlighted_code=vhighlight.json.highlight(code);
+}else if(language=="python"){
+highlighted_code=vhighlight.python.highlight(code);
+}else{
+return;
+}
+})
+
+.then(me = (data) => {
+	console.log(data);
+})
+    
+const e = hello();
+const e = hello ();
+const e = hello	();
+const e = hello
+();
+const e = hello    ();
+
+function sayHello() {
+    console.log(`Howdy!`);
+    console.log('Howdy! {');
+    console.log(`Hello, my name is ${this.name}`);
+}
+function sayHello (me, you = true) {}
+function sayHello (
+	me,
+	you = true
+) {}
+function sayHello (
+	me,
+	you = true,
+	us = me(me, you),
+) {}
+function sayHello (
+	me,
+	me2,
+	you = true,
+	us = me(me, you),
+) {}
+function sayHello (
+	me,
+	you = true,
+	us = me(me, you = func()),
+) {}
+const sayHello = (
+	me,
+	you = true,
+	us = me(me, you = func(me, you = you())),
+) => {}
+const sayHello = () => {
+    console.log(`Howdy!`);
+    console.log('Howdy! {');
+    console.log(`Hello, my name is ${this.name}`);
+}
+const sayHello = (me, you = true) {}
+const sayHello = (
+	me,
+	you = true
+) => {}
+const sayHello = (
+	me,
+	you = true,
+	us = me(me, you),
+) => {}
+const sayHello = (
+	me,
+	me2,
+	you = true,
+	us = me(me, you),
+) => {}
+const sayHello = (
+	me,
+	you = true,
+	us = me(me, you = func()),
+) => {}
+const sayHello = (
+	me,
+	you = true,
+	us = me(me, you = func(me, you = you()), us = 0),
+) => {}
+((
+	me,
+	you = true,
+	us = me(me, you = func(me, you = you()), us = 0),
+) => {});
+
+const myoj = {
+	myfunc:function() {}
+	myfunc: function() {}
+	myfunc:
+	function() {}
+	myfunc:()=>() {}
+	myfunc: ()=>() {}
+	myfunc:
+	()=>() {}
+}
+
 class Me extends Person {
   constructor(name, age) {
     super(name, age);
   }  
   sayHello() {
+    console.log(`Howdy!`);
+    console.log('Howdy! {');
+    console.log(`Hello, my name is ${this.name}`);
+  }
+  sayHello (me, you = true) {
     console.log(`Howdy!`);
     console.log('Howdy! {');
     console.log(`Hello, my name is ${this.name}`);
@@ -53,6 +173,16 @@ let obj = { name: "John", age: 30 };
 
 // Functions
 function add(a, b) {
+    return a + b;
+}
+function add (a, b) {
+    return a + b;
+}
+function add	(a, b) {
+    return a + b;
+}
+function add
+(a, b) {
     return a + b;
 }
 
@@ -133,6 +263,7 @@ class Person {
       width = 10,
       width = "10",
       width = me(),
+      width = me (),
     ) {
       this.name = name;
       this.age = age;
@@ -214,6 +345,7 @@ class Me extends Person {
     console.log(`Hello, my name is ${this.name}`);
   }
 }
+
 class Me extends Person {
   constructor(name, age) {
     super(name, age);

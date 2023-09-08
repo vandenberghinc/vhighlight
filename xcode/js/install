@@ -1,0 +1,9 @@
+
+# Vars.
+DIR=$(readlink -f $(dirname $0))
+
+# Install xclangspec.
+sudo cp $DIR/Js.xclangspec /Applications/Xcode.app/Contents/SharedFrameworks/SourceModel.framework/Versions/A/Resources/LanguageSpecifications/Js.xclangspec
+
+# Install metadata.
+sudo cp $DIR/Xcode.SourceCodeLanguage.Js.plist /Applications/Xcode.app/Contents/SharedFrameworks/SourceModel.framework/Versions/A/Resources/LanguageMetadata/Xcode.SourceCodeLanguage.Js.plist

@@ -5,7 +5,7 @@
 
 using namespace vlib::types::shortcuts;
 
-int main() {
+void bundle() {
 	Path source = Path(__FILE__).base(2).join("include/vhighlight/js");
 	Path vinc = Path(__FILE__).base(3);
 	String js = vlib::JavaScript::bundle({

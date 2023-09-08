@@ -23,6 +23,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C36C8D452A75284F0086CF5E /* xcode */ = {isa = PBXFileReference; lastKnownFileType = folder; name = xcode; path = ../xcode; sourceTree = "<group>"; };
 		C380AA092A59A077001605F7 /* vhighlight */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = vhighlight; sourceTree = BUILT_PRODUCTS_DIR; };
 		C380AA152A59A0D9001605F7 /* .vpackage */ = {isa = PBXFileReference; lastKnownFileType = text; path = .vpackage; sourceTree = "<group>"; };
 		C380AA162A59A0D9001605F7 /* tests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = tests; sourceTree = "<group>"; };
@@ -54,6 +55,7 @@
 				C3AA12D82A681B9C00704A06 /* bundle.cpp */,
 				C3AA12D92A681B9C00704A06 /* main.cpp */,
 				C3AA12DA2A681B9C00704A06 /* test.cpp */,
+				C36C8D452A75284F0086CF5E /* xcode */,
 				C3AA12DB2A681BA300704A06 /* include */,
 				C380AA162A59A0D9001605F7 /* tests */,
 				C380AA0A2A59A077001605F7 /* Products */,

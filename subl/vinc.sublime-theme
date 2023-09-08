@@ -1,0 +1,17 @@
+// Documentation at https://www.sublimetext.com/docs/themes.html
+{
+    "variables":
+    {
+        "tabset_medium_dark_bg": "#28292E",
+        "status_bar_bg": "#1C1D21",
+    },
+    "rules":
+    [
+        // Sidebar.
+        {
+            "class": "sidebar_container",
+            "layer0.tint": "#1A1A1D",
+        },
+
+    ]
+}

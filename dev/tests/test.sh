@@ -1,39 +1,29 @@
-<link rel="stylesheet" href="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/css/vhighlight.css">
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/tokenizer.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/highlight.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/utils.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/cpp.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/markdown.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/python.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/js.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/bash.js"></script>
-<body style='position: absolute: top: 0; left: 0; right: 0; bottom: 0; background: black;'>
-<pre id='codetest' style='color: #FFFFFF; background: black; width: 100%; height: 100%;'>#!/bin/bash
+#!/bin/bash
 
 # This is a single-line comment
 
-: &lt;&lt;'MULTILINE_COMMENT'
+: <<'MULTILINE_COMMENT'
 This is a multi-line comment.
 You can add multiple lines here.
 MULTILINE_COMMENT
 
 a="Hello";
 
-: &lt;&lt;'MULTILINE_COMMENT'
+: <<'MULTILINE_COMMENT'
 This is a multi-line comment.
 You can add multiple lines here.
 MULTILINE_COMMENT
 
 a="Hello";
 
-: &lt;&lt; MULTILINE_COMMENT
+: << MULTILINE_COMMENT
 This is a multi-line comment.
 You can add multiple lines here.
 MULTILINE_COMMENT
 
 a="Hello";
 
-: &lt;&lt; '
+: << '
 This is a multi-line comment.
 You can add multiple lines here.
 '
@@ -164,4 +154,3 @@ trap
 true
 false
 test
-</pre><script type='text/javascript'>const start = performance.now();const e = document.getElementById('codetest');const result = vhighlight.highlight({code: e.textContent, language: 'bash'});e.innerHTML = result;const end = performance.now();console.log('Speed: ', ((end - start) / 1000) + 's');</script></body>

@@ -9,26 +9,26 @@
 const vhighlight = {};
 	
 // Highlight
-// Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
+// - Returns "null" when the language is not supported.
+// - Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
 vhighlight.highlight = function({
 	element = null,			// the html code element.
+	code = null,			// when the code is assigned the highlighted code will be returned.
 	language = null,		// code language, precedes element attribute "language".
 	line_numbers = null,	// show line numbers, precedes element attribute "line_numbers".
 	animate = false,		// animate code writing.
-	delay = 25,				// animation delay in milliseconds.
-	is_func = false	 		// enable when cpp code is inside a function.
+	delay = 25,				// animation delay in milliseconds, only used when providing parameter "element".
+	// is_func = false,	 	// enable when cpp code is inside a function.
+	return_tokens = false,	// return the tokens instead of the parsed html code.
 }) {
 
 	// Get language.
-	if (language == null) {
+	if (language == null && element != null) {
 		language = element.getAttribute("language");
-	}
-	if (language == "" || language == null) {
-		return ;
 	}
 	
 	// Line numbers.
-	if (line_numbers == null) {
+	if (line_numbers == null && element != null) {
 		line_numbers = element.getAttribute('line_numbers') == "true";
 	}
 	
@@ -37,8 +37,57 @@ vhighlight.highlight = function({
 		delay = 25;
 	}
 	
+	// When the code is assigned just highlight the code and return the highlighted code/
+	if (code != null) {
+		if (language == "cpp" || language == "c++" || language == "c") {
+			return vhighlight.cpp.highlight(code, return_tokens);
+		} else if (language == "markdown" || language == "md") {
+			return vhighlight.md.highlight(code, return_tokens);
+		} else if (language == "js" || language == "javascript") {
+			return vhighlight.js.highlight(code, return_tokens);
+		} else if (language == "json") {
+			return vhighlight.json.highlight(code, return_tokens);
+		} else if (language == "python") {
+			return vhighlight.python.highlight(code, return_tokens);
+		} else if (language == "bash" || language == "sh" || language == "zsh") {
+			return vhighlight.bash.highlight(code, return_tokens);
+		} else {
+			return null;
+		}
+	}
+
+	// When the element is a <pre> just highlight it.
+	else if (element.tagName == "PRE") {
+		return_tokens = false;
+		code = element.innerText.replaceAll(">", "&gt;").replaceAll("<", "&lt;");
+		let highlighted_code;
+		if (language == "cpp" || language == "c++" || language == "c") {
+			highlighted_code = vhighlight.cpp.highlight(code, {is_func: is_func});
+		} else if (language == "markdown" || language == "md") {
+			highlighted_code = vhighlight.md.highlight(code);
+		} else if (language == "js" || language == "javascript") {
+			highlighted_code = vhighlight.js.highlight(code);
+		} else if (language == "json") {
+			highlighted_code = vhighlight.json.highlight(code);
+		} else if (language == "python") {
+			highlighted_code = vhighlight.python.highlight(code);
+		} else if (language == "bash" || language == "sh" || language == "zsh") {
+			highlighted_code = vhighlight.bash.highlight(code);
+		} else {
+			return null;
+		}
+		element.innerHTML = highlighted_code;
+		return ;
+	}
+
+	// When the element is a <code> more options become available.
+	
+	// Stop when no language is defined.
+	if (language == "" || language == null) {
+		return ;
+	}
+	
 	// Create children.
-	let code;
 	let loader;
 	let line_numbers_div;
 	let line_numbers_divider;
@@ -94,14 +143,11 @@ vhighlight.highlight = function({
 	
 	// Get elements.
 	else {
-		console.log(element.children);
 		loader = element.children[0];
 		line_numbers_div = element.children[1];
 		line_numbers_divider = element.children[2];
 		code_pre = element.children[3];
 		code = code_pre.textContent;
-		console.log("CODE PRE: ", code_pre);
-		console.log("CODE: ", code);
 	}
 
 	// Functions.
@@ -213,6 +259,7 @@ vhighlight.highlight = function({
 	setTimeout(() => {
 
 		// Highlight.
+		return_tokens = false;
 		let highlighted_code;
 		if (language == "cpp" || language == "c++" || language == "c") {
 			highlighted_code = vhighlight.cpp.highlight(code, {is_func: is_func});
@@ -224,10 +271,12 @@ vhighlight.highlight = function({
 			highlighted_code = vhighlight.json.highlight(code);
 		} else if (language == "python") {
 			highlighted_code = vhighlight.python.highlight(code);
+		} else if (language == "bash" || language == "sh" || language == "zsh") {
+			highlighted_code = vhighlight.bash.highlight(code);
 		} else {
-			console.error("Unsupported language \"" + language + "\" for syntax highlighting.");
+			// console.error("Unsupported language \"" + language + "\" for syntax highlighting.");
 			// element.innerHTML = "<p style='color: red;'>Error: Unsupported language \"" + language + "\" for syntax highlighting.</p>";
-			return ;
+			return null;
 		}
 
 		// No line numbers.
@@ -288,36 +337,3 @@ vhighlight.highlight = function({
 		
 	}, 50);
 }
-
-// ---------------------------------------------------------
-// Observe all pre elements.
-
-// vhighlight.observe = function() {
-// 	window.addEventListener('DOMContentLoaded', function() {
-		
-// 		// Function to handle attribute changes
-// 		const handle_code_attribute_change = (mutations_list) => {
-// 			mutations_list.forEach((mutation) => {
-// 				if (mutation.attributeName === 'language') {
-// 					const language = mutation.target.getAttribute('language');
-// 					if (language) {
-// 						vhighlight.highlight(language);
-// 					}
-// 				}
-// 			});
-// 		};
-		
-// 		// Create a MutationObserver instance
-// 		const vhighlight_observer = new MutationObserver(handle_code_attribute_change);
-		
-// 		// Select all <code> elements
-// 		const vhighlight_elements = document.querySelectorAll('code');
-		
-// 		// Start observing attribute changes on each <code> element
-// 		vhighlight_elements.forEach((element) => {
-// 			vhighlight.highlight(element);
-// 			vhighlight_observer.observe(element, { attributes: true });
-// 		});
-		
-// 	});
-// }
