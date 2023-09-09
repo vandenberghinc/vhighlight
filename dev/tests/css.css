@@ -1,20 +1,9 @@
-<link rel="stylesheet" href="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/css/vhighlight.css">
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/tokenizer.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/highlight.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/utils.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/cpp.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/markdown.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/python.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/js.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/bash.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/css.js"></script>
-<body style='position: absolute: top: 0; left: 0; right: 0; bottom: 0; background: black;'>
-<pre id='codetest' style='color: #FFFFFF; background: black; width: 100%; height: 100%;'>/* Comments */
+/* Comments */
 /* This is a comment */
 
 /* Selector with properties */
 h1 {
-  color: red;
+  color: red; color: red; color: red;
   font-size: 24px;
   margin: 10px;
   padding: 5px;
@@ -190,4 +179,3 @@ h2, h3 {
 .transition-example:hover {
   background-color: #ddd;
 }
-</pre><script type='text/javascript'>const start = performance.now();const e = document.getElementById('codetest');const result = vhighlight.highlight({code: e.textContent, language: 'css'});e.innerHTML = result;const end = performance.now();console.log('Speed: ', ((end - start) / 1000) + 's');</script></body>

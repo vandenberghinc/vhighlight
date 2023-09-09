@@ -49,6 +49,8 @@ vhighlight.highlight = function({
 			return vhighlight.json.highlight(code, return_tokens);
 		} else if (language == "python") {
 			return vhighlight.python.highlight(code, return_tokens);
+		} else if (language == "css") {
+			return vhighlight.css.highlight(code, return_tokens);
 		} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
 			return vhighlight.bash.highlight(code, return_tokens);
 		} else {
@@ -71,6 +73,8 @@ vhighlight.highlight = function({
 			highlighted_code = vhighlight.json.highlight(code);
 		} else if (language == "python") {
 			highlighted_code = vhighlight.python.highlight(code);
+		} else if (language == "css") {
+			highlighted_code = vhighlight.css.highlight(code);
 		} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
 			highlighted_code = vhighlight.bash.highlight(code);
 		} else {
@@ -271,6 +275,8 @@ vhighlight.highlight = function({
 			highlighted_code = vhighlight.json.highlight(code);
 		} else if (language == "python") {
 			highlighted_code = vhighlight.python.highlight(code);
+		} else if (language == "css") {
+			highlighted_code = vhighlight.css.highlight(code);
 		} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
 			highlighted_code = vhighlight.bash.highlight(code);
 		} else {

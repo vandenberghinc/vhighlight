@@ -25,6 +25,8 @@ return vhighlight.js.highlight(code,return_tokens);
 return vhighlight.json.highlight(code,return_tokens);
 }else if(language=="python"){
 return vhighlight.python.highlight(code,return_tokens);
+}else if(language=="css"){
+return vhighlight.css.highlight(code,return_tokens);
 }else if(language=="bash"||language=="sh"||language=="zsh"||language=="shell"){
 return vhighlight.bash.highlight(code,return_tokens);
 }else{
@@ -45,6 +47,8 @@ highlighted_code=vhighlight.js.highlight(code);
 highlighted_code=vhighlight.json.highlight(code);
 }else if(language=="python"){
 highlighted_code=vhighlight.python.highlight(code);
+}else if(language=="css"){
+highlighted_code=vhighlight.css.highlight(code);
 }else if(language=="bash"||language=="sh"||language=="zsh"||language=="shell"){
 highlighted_code=vhighlight.bash.highlight(code);
 }else{
@@ -196,6 +200,8 @@ highlighted_code=vhighlight.js.highlight(code);
 highlighted_code=vhighlight.json.highlight(code);
 }else if(language=="python"){
 highlighted_code=vhighlight.python.highlight(code);
+}else if(language=="css"){
+highlighted_code=vhighlight.css.highlight(code);
 }else if(language=="bash"||language=="sh"||language=="zsh"||language=="shell"){
 highlighted_code=vhighlight.bash.highlight(code);
 }else{
@@ -1091,6 +1097,149 @@ let inserted=str.substr(0,start);
 inserted+=insert;
 inserted+=str.substr(start);
 return inserted;
+}
+vhighlight.css={};
+vhighlight.css.tokenizer_opts={
+keywords:[
+'ease',
+'ease-in',
+'ease-out',
+'ease-in-out',
+'linear',
+'step-start',
+'step-end',
+'ease-in-quad',
+'ease-in-cubic',
+'ease-in-quart',
+'ease-in-quint',
+'ease-in-sine',
+'ease-in-expo',
+'ease-in-circ',
+'ease-in-back',
+'ease-out-quad',
+'ease-out-cubic',
+'ease-out-quart',
+'ease-out-quint',
+'ease-out-sine',
+'ease-out-expo',
+'ease-out-circ',
+'ease-out-back',
+'ease-in-out-quad',
+'ease-in-out-cubic',
+'ease-in-out-quart',
+'ease-in-out-quint',
+'ease-in-out-sine',
+'ease-in-out-expo',
+'ease-in-out-circ',
+'ease-in-out-back',
+'none',
+'forwards',
+'backwards',
+'both',
+'paused',
+'running',
+'linear-gradient',
+'radial-gradient',
+'conic-gradient',
+'rgb',
+'rgba',
+'hsl',
+'hsla',
+'url',
+'from',
+'to',
+'infinite',
+'alternate',
+'alternate-reverse',
+'px',
+'em',
+'rem',
+'ex',
+'ch',
+'vw',
+'vh',
+'vmin',
+'vmax',
+'%',
+'in',
+'cm',
+'mm',
+'pt',
+'pc',
+'fr',
+'deg',
+'grad',
+'rad',
+'turn',
+'ms',
+'s',
+'Hz',
+'kHz',
+'dpi',
+'dpcm',
+'dppx',
+'x',
+'::after',
+'::before',
+'::first-letter',
+'::first-line',
+'::selection',
+'::backdrop',
+'::placeholder',
+'::marker',
+'::spelling-error',
+'::grammar-error',
+':active',
+':checked',
+':default',
+':dir',
+':disabled',
+':empty',
+':enabled',
+':first',
+':first-child',
+':first-of-type',
+':focus',
+':focus-within',
+':fullscreen',
+':hover',
+':indeterminate',
+':in-range',
+':invalid',
+':last-child',
+':last-of-type',
+':left',
+':link',
+':not',
+':nth-child',
+':nth-last-child',
+':nth-last-of-type',
+':nth-of-type',
+':only-child',
+':only-of-type',
+':optional',
+':out-of-range',
+':read-only',
+':read-write',
+':required',
+':right',
+':root',
+':scope',
+':target',
+':valid',
+':visited',
+],
+single_line_comment_start:false,
+multi_line_comment_start:"/*",
+multi_line_comment_end:"*/",
+}
+vhighlight.css.highlight=function(code,return_tokens=false){
+const tokenizer=new Tokenizer(vhighlight.bash.tokenizer_opts);
+tokenizer.code=code;
+tokenizer.callback=function(char,is_escaped){
+return false;
+}
+return tokenizer.tokenize(return_tokens);
 }
 class Tokenizer{
 constructor({

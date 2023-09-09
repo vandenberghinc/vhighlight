@@ -190,6 +190,19 @@ class Tokenizer {
 		return null;
 	}
 
+	// Get first word boundary index.
+	get_first_word_boundary(index) {
+		if (index == null) {
+			return null;
+		}
+		for (let i = index; i < this.code.length; i++) {
+			if (this.word_boundaries.includes(this.code.charAt(i))) {
+				return i;
+			}
+		}
+		return this.code.length;
+	}
+
 	// Is a whitespace character.
 	is_whitespace(char) {
 		return char == " " || char == "\t";

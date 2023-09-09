@@ -32,6 +32,7 @@ void test() {
 	"<script src=\"" << source << "/include/vhighlight/js/python.js\"></script>" << "\n" <<
 	"<script src=\"" << source << "/include/vhighlight/js/js.js\"></script>" << "\n" <<
 	"<script src=\"" << source << "/include/vhighlight/js/bash.js\"></script>" << "\n" <<
+	"<script src=\"" << source << "/include/vhighlight/js/css.js\"></script>" << "\n" <<
 	"<body style='position: absolute: top: 0; left: 0; right: 0; bottom: 0; background: black;'>\n" <<
 	// "<pre id='codetest' language='cpp' line_numbers='true' style='color: #FFFFFF; background: black; width: 100%; height: 100%;'>" <<
 	// source.join("dev/tests/somecode2.h").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
@@ -46,13 +47,14 @@ void test() {
 	// source.join("dev/tests/somecode.h").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	// source.join("dev/tests/test.py").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	// source.join("dev/tests/test.md").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
-	source.join("dev/tests/test.sh").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
+	// source.join("dev/tests/test.sh").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
+	source.join("dev/tests/css.css").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	"</pre>" <<
 	"<script type='text/javascript'>" <<
 	// "vhighlight.highlight({element: document.getElementById('codetest'), line_numbers: true});" <<
 	"const start = performance.now();"
 	"const e = document.getElementById('codetest');"
-	"const result = vhighlight.highlight({code: e.textContent, language: 'bash'});" <<
+	"const result = vhighlight.highlight({code: e.textContent, language: 'css'});" <<
 	// "console.log(result);" <<
 	// "e.innerHTML = result.code;" <<
 	"e.innerHTML = result;" <<
