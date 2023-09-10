@@ -1151,6 +1151,15 @@ keywords:[
 'infinite',
 'alternate',
 'alternate-reverse',
+],
+single_line_comment_start:false,
+multi_line_comment_start:"/*",
+multi_line_comment_end:"*/",
+}
+vhighlight.css.highlight=function(code,return_tokens=false){
+const tokenizer=new Tokenizer(vhighlight.css.tokenizer_opts);
+tokenizer.code=code;
+const numeric_suffixes=[
 'px',
 'em',
 'rem',
@@ -1178,65 +1187,133 @@ keywords:[
 'dpi',
 'dpcm',
 'dppx',
-'x',
-'::after',
-'::before',
-'::first-letter',
-'::first-line',
-'::selection',
-'::backdrop',
-'::placeholder',
-'::marker',
-'::spelling-error',
-'::grammar-error',
-':active',
-':checked',
-':default',
-':dir',
-':disabled',
-':empty',
-':enabled',
-':first',
-':first-child',
-':first-of-type',
-':focus',
-':focus-within',
-':fullscreen',
-':hover',
-':indeterminate',
-':in-range',
-':invalid',
-':last-child',
-':last-of-type',
-':left',
-':link',
-':not',
-':nth-child',
-':nth-last-child',
-':nth-last-of-type',
-':nth-of-type',
-':only-child',
-':only-of-type',
-':optional',
-':out-of-range',
-':read-only',
-':read-write',
-':required',
-':right',
-':root',
-':scope',
-':target',
-':valid',
-':visited',
-],
-single_line_comment_start:false,
-multi_line_comment_start:"/*",
-multi_line_comment_end:"*/",
-}
-vhighlight.css.highlight=function(code,return_tokens=false){
-const tokenizer=new Tokenizer(vhighlight.bash.tokenizer_opts);
-tokenizer.code=code;
+'x'
+].join("|");
+const numeric_regex=new RegExp(`^-?\\d+(\\.\\d+)?(${numeric_suffixes})*$`);
+let style_start=null;
+let style_end=null;
 tokenizer.callback=function(char,is_escaped){
+if(char=="@"){
+const end=this.get_first_word_boundary(this.index+1);
+this.append_batch();
+this.append_forward_lookup_batch("token_keyword",this.code.substr(this.index,end-this.index));
+this.resume_on_index(end-1);
+return true;
+}
+if(this.batch==""&&char=="#"){
+const end=this.get_first_word_boundary(this.index+1);
+this.append_batch();
+this.append_forward_lookup_batch("token_string",this.code.substr(this.index,end-this.index));
+this.resume_on_index(end-1);
+return true;
+}
+else if(char=="{"){
+this.append_batch();
+let index=this.tokens.length-1;
+while(true){
+const prev=this.get_prev_token(index,[" ",",","\t",":"]);
+if(prev==null||prev.data=="\n"){
+break;
+}
+else if(
+(prev.token=="token_string")||(prev.token=="token_keyword"&&prev.data.charAt(0)!="@")||
+(prev.token==null&&
+(
+prev.data=="#"||
+prev.data=="."||
+prev.data=="*"||
+prev.data=="-"||
+this.is_alphabetical(prev.data.charAt(0))
+)
+)
+){
+const pprev=this.tokens[prev.index-1];
+if(pprev!=null&&pprev.data==":"){
+prev.token="token_keyword";
+}else{
+prev.token="token_type_def";
+}
+}
+index=prev.index-1;
+}
+}
+else if(char=="("){
+this.append_batch();
+const prev=this.get_prev_token(this.tokens.length-1,[" ","\t","\n"]);
+if(prev!=null&&prev.token==null){
+prev.token="token_type";
+}
+}
+else if(this.curly_depth>0&&char==":"){
+this.append_batch();
+let index=this.tokens.length-1;
+let edits=[];
+let finished=false;
+while(true){
+const prev=this.get_prev_token(index,[" ","\t"]);
+if(prev==null){
+break;
+}
+else if(prev.data=="\n"||prev.data==";"){
+finished=true;
+break;
+}
+else if(prev.token==null){
+edits.push(prev);
+}
+index=prev.index-1;
+}
+if(finished){
+for(let i=0;i<edits.length;i++){
+edits[i].token="token_keyword";
+}
+style_start=this.index;
+for(let i=this.index+1;i<this.code.length;i++){
+const c=this.code.charAt(i);
+if(c=="\n"){
+style_start=null;
+break;
+}else if(c==";"){
+style_end=i;
+break;
+}
+}
+}
+}
+else if(char=="%"&&numeric_regex.test(this.batch+char)){
+this.batch+=char;
+this.append_batch("token_numeric");
+return true;
+}
+else if(this.word_boundaries.includes(char)&&numeric_regex.test(this.batch)){
+this.append_batch("token_numeric");
+}
+else if(style_end!=null&&this.index>=style_end){
+this.append_batch();
+let index=this.tokens.length-1;
+let finished=false;
+const edits=[];
+while(true){
+const prev=this.get_prev_token(index,[" ","\t"]);
+if(prev==null||prev=="\n"){
+break;
+}
+else if(prev.data==":"){
+finished=true;
+break;
+}
+else if(prev.token==null&&!this.str_includes_word_boundary(prev.data)){
+edits.push(prev);
+}
+index=prev.index-1;
+}
+if(finished){
+for(let i=0;i<edits.length;i++){
+edits[i].token="token_keyword";
+}
+}
+style_end=null;
+}
 return false;
 }
 return tokenizer.tokenize(return_tokens);
@@ -1363,6 +1440,17 @@ return end;
 }
 }
 return null;
+}
+get_first_word_boundary(index){
+if(index==null){
+return null;
+}
+for(let i=index;i<this.code.length;i++){
+if(this.word_boundaries.includes(this.code.charAt(i))){
+return i;
+}
+}
+return this.code.length;
 }
 is_whitespace(char){
 return char==" "||char=="\t";
