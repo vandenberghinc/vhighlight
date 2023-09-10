@@ -56,7 +56,7 @@ class Tokenizer {
 
 		// Attributes for JS.
 		this.class_depth = null;		// @TODO js does not allow class definitions inside a class, but it does allow it insice a functio which is a member of a class.
-									// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
+										// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
 
 		// Word boundaries.
 		this.word_boundaries = [
