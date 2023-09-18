@@ -6,7 +6,8 @@
 // The tokenizer class.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
 // - Parsing behaviour depends on that every word is seperated as a token, so each word boundary is a seperate token.
-// @todo highlight "@\\s+" patterns inside comments, but do not highlight escaped @ chars.
+// @todo highlight "@\\s+" patterns inside comments, but do not highlight escaped @ chars, but do create a "allow_at" parameter.
+// @todo highlight "@\\s+" patterns outside comments as token_type.
 // @todo highlight `` inside comments with a codeblock background in every language.
 class Tokenizer {
 	constructor({
