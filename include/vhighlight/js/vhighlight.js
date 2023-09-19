@@ -515,7 +515,8 @@ keywords:[
 "false",
 "null",
 "static",
-"=>",
+"async",
+"await",
 ],
 type_def_keywords:[
 "class"
@@ -539,70 +540,45 @@ tokenizer.code=code;
 let opening_parenth_curly_depth=0;let func_def_parenth_depth=null;let func_def_curly_depth=null;let last_param_was_assignment=false;
 tokenizer.callback=function(char){
 if(char=="("){
-if(this.parenth_depth==1){
-opening_parenth_curly_depth=this.curly_depth;
-last_param_was_assignment=false;
-}
-if(this.class_depth==this.curly_depth&&this.parenth_depth==1){
-if(this.is_linebreak_whitespace_char(this.prev_char)||this.is_linebreak_whitespace_char()){
+this.append_batch();
 const prev=this.get_prev_token(this.tokens.length-1,[" ","\t","\n"]);
-prev.token="token_type_def";
-this.append_batch(false)
-}else{
-this.append_batch("token_type_def")
+if(prev==null){
+return false;
 }
-this.batch+=char;
-this.append_batch(false);
-return true;
-}
-if(this.batch=="function"){
-const prev=this.get_prev_token(this.tokens.length-1,[" ","\t","\n","=",":"]);
-prev.token="token_type_def";
-this.append_batch("token_keyword");
-this.batch+=char;
-this.append_batch(false);
-func_def_parenth_depth=this.parenth_depth;
-func_def_curly_depth=this.curly_depth;
-return true;
-}
-const prev=this.get_prev_token(this.tokens.length-1,[" ","\t","\n"]);
+let prev_token_is_function_keyword=false;
+if(prev.token=="token_keyword"){
 if(prev.data=="function"){
-this.append_batch("token_type_def");
-this.batch+=char;
-this.append_batch(false);
-func_def_parenth_depth=this.parenth_depth;
-func_def_curly_depth=this.curly_depth;
-return true;
+prev_token_is_function_keyword=true;
+}else{
+return false;
 }
-const prev_prev=this.get_prev_token(prev.index-1,[" ","\t","\n"])
-if(prev_prev!=null&&this.batch.length==0&&(prev.data=="="||prev.data==":")){
-prev_prev.token="token_type_def";
-func_def_parenth_depth=this.parenth_depth;
-func_def_curly_depth=this.curly_depth;
+}else if(prev.token!=null&&prev.token!="token_operator"){
+return false;
 }
-else if(prev_prev!=null&&prev_prev.data=="function"){
-prev.token="token_type_def"
-func_def_parenth_depth=this.parenth_depth;
-func_def_curly_depth=this.curly_depth;
+const closing_parentheses=this.get_closing_parentheses(this.index);
+if(closing_parentheses==null){
+return false;
 }
-else{
-if(this.is_linebreak_whitespace_char(this.prev_char)||this.is_linebreak_whitespace_char()){
-if(prev.token==null&&!this.str_includes_word_boundary(prev.data)){
+const after_parenth=this.get_first_non_whitespace(closing_parentheses+1,true);
+const c=this.code.charAt(after_parenth);
+console.log(c+this.code.charAt(after_parenth+1));
+if(c=="{"||(c=="="&&this.code.charAt(after_parenth+1)==">")){
+console.log("OI!",prev.data);
+if(prev_token_is_function_keyword){
+const token=this.get_prev_token(prev.index-1,[" ","\t","\n","=",":","async"]);
+token.token="token_type_def";
+return false;
+}
+else if(!this.str_includes_word_boundary(prev.data)){
+prev.token="token_type_def";
+return false;
+}
+}
+else if(!this.str_includes_word_boundary(prev.data)){
 prev.token="token_type";
+return false;
 }
-this.append_batch(false);
-}
-else{
-if(this.keywords.includes(this.batch)){
-this.append_batch("token_keyword");
-opening_parenth_curly_depth=null;}else{
-this.append_batch("token_type");
-}
-}
-}
-this.batch+=char;
-this.append_batch(false);
-return true;
+return false;
 }
 else if(
 (this.class_depth==this.curly_depth&&
@@ -1428,14 +1404,14 @@ return info_obj.index;
 }
 });
 }
-get_first_non_whitespace(index){
+get_first_non_whitespace(index,skip_line_breaks=false){
 if(index==null){
 return null;
 }
 let end;
 for(end=index;end<this.code.length;end++){
 const c=this.code.charAt(end);
-if(c!=" "&&c!="\t"){
+if(c!=" "&&c!="\t"&&(skip_line_breaks||c!="\n")){
 return end;
 }
 }
@@ -1644,8 +1620,10 @@ continue;
 }
 else if(
 is_comment&&
-!is_escaped&&
-char=="\n"
+(
+(!is_escaped&&char=="\n")||
+info_obj.index==this.code.length-1
+)
 ){
 is_comment=false;
 const res=callback(char,false,true,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
@@ -1837,7 +1815,7 @@ this.batch+=char;
 }
 return null;
 });
-this.append_batch();
+auto_append_batch_switch();
 if(return_tokens){
 return{
 tokens:this.tokens,

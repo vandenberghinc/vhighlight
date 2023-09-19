@@ -9,6 +9,7 @@
 // @todo highlight "@\\s+" patterns inside comments, but do not highlight escaped @ chars, but do create a "allow_at" parameter.
 // @todo highlight "@\\s+" patterns outside comments as token_type.
 // @todo highlight `` inside comments with a codeblock background in every language.
+// @todo when the last line is a comment and there is no \n at the end of the section then the section is not recognized as a comment.
 class Tokenizer {
 	constructor({
 			keywords = [], 
@@ -179,14 +180,14 @@ class Tokenizer {
 	// Get the first non whitespace character from a given index.
 	// - Returns the index of the found char.
 	// - Returns "null" when the index is "null" to limit the if else statements.
-	get_first_non_whitespace(index) {
+	get_first_non_whitespace(index, skip_line_breaks = false) {
 		if (index == null) {
 			return null;
 		}
 		let end;
 		for (end = index; end < this.code.length; end++) {
 			const c = this.code.charAt(end);
-			if (c != " " && c != "\t") {
+			if (c != " " && c != "\t" && (skip_line_breaks || c != "\n")) {
 				return end;
 			}
 		}
@@ -511,8 +512,10 @@ class Tokenizer {
 			// End single line comments.
 			else if (
 				is_comment &&
-				!is_escaped &&
-				char == "\n"
+				(
+					(!is_escaped && char == "\n") || 
+					info_obj.index == this.code.length - 1
+				)
 			) {
 				is_comment = false;
 				const res = callback(char, false, true, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
@@ -808,7 +811,7 @@ class Tokenizer {
 		});
 
 		// Append last batch.
-		this.append_batch();
+		auto_append_batch_switch();
 
 		// Return tokens.
 		if (return_tokens) {

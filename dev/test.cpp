@@ -44,17 +44,18 @@ void test() {
 	// source.join("dev/tests/test.js").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	"<pre id='codetest' style='color: #FFFFFF; background: black; width: 100%; height: 100%;'>" <<
 	// vlib::Path::load("/Volumes/persistance/private/vinc/vide/test/vweb.js").replace_r("<", "&lt;").replace_r(">", "&gt;") <<
+	source.join("dev/tests/test2.js").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	// source.join("dev/tests/somecode.h").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	// source.join("dev/tests/test.py").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	// source.join("dev/tests/test.md").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	// source.join("dev/tests/test.sh").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
-	source.join("dev/tests/css.css").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
+	// source.join("dev/tests/css.css").load().replace_r("<", "&lt;").replace_r(">", "&gt;") <<
 	"</pre>" <<
 	"<script type='text/javascript'>" <<
 	// "vhighlight.highlight({element: document.getElementById('codetest'), line_numbers: true});" <<
 	"const start = performance.now();"
 	"const e = document.getElementById('codetest');"
-	"const result = vhighlight.highlight({code: e.textContent, language: 'css'});" <<
+	"const result = vhighlight.highlight({code: e.textContent, language: 'js'});" <<
 	// "console.log(result);" <<
 	// "e.innerHTML = result.code;" <<
 	"e.innerHTML = result;" <<

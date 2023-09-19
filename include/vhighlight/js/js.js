@@ -51,7 +51,8 @@ vhighlight.js.tokenizer_opts = {
 		"false",
 		"null",
 		"static",
-		"=>",
+		"async",
+		"await",
 	],
 	type_def_keywords: [
 		"class"
@@ -91,7 +92,85 @@ vhighlight.js.highlight = function(code, return_tokens = false) {
 		
 		// Opening parentheses.
 		if (char == "(") {
+
+			// V2.
+			// Uses a lookup.
+
+			// Append current batch by word seperator.
+			this.append_batch();
+
+			// Get the previous token.
+			const prev = this.get_prev_token(this.tokens.length - 1, [" ", "\t", "\n"]);
+
+			// No previous token or previous token is a keyword.
+			if (prev == null) {
+				return false;
+			}
+
+			// Check if the token is a keyword.
+			let prev_token_is_function_keyword = false;
+			if (prev.token == "token_keyword") {
+				if (prev.data == "function") {
+					prev_token_is_function_keyword = true;
+				} else if (prev.data != "async") {
+					return false;
+				}
+			} else if (prev.token != null && prev.token != "token_operator") {
+				return false;
+			}
+
+			// Get closing parentheses.
+			const closing_parentheses = this.get_closing_parentheses(this.index);
+			if (closing_parentheses == null) {
+				return false;
+			}
+
+			// Check character after closing parentheses.
+			const after_parenth = this.get_first_non_whitespace(closing_parentheses + 1, true);
+
+			// Valid characters for a function declaration.
+			const c = this.code.charAt(after_parenth);
+			if (c == "{") {
+
+				console.log(this.line, c, prev.data);
+
+				// Get the function name when the previous token is a keyword or when it is a "() => {}" function..
+				if (prev_token_is_function_keyword) {
+					const token = this.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", "async"]);
+					if (this.str_includes_word_boundary(token.data)) {
+						return false;
+					}
+					token.token = "token_type_def";
+				}
+
+				// Assign the token type def to the current token.
+				else if (!this.str_includes_word_boundary(prev.data)) {
+					prev.token = "token_type_def";
+				}
+			}
+
+			// Functions declared as "() => {}".
+			else if (c == "=" && this.code.charAt(after_parenth + 1) == ">") {
+				const token = this.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", "async"]);
+				if (this.str_includes_word_boundary(token.data)) {
+					return false;
+				}
+				token.token = "token_type_def";
+			}
+
+			// Otherwise it is a function call.
+			else if (!this.str_includes_word_boundary(prev.data)) {
+				prev.token = "token_type";
+			}
+
+			// Finished.
+			return false;
+
 			
+			/*
+			// V1.
+			// Uses a lookback.
+
 			// Assign the curly depth of the first opening parenthes ...
 			// This can be used to tokenize parameters while skipping ...
 			// Function bodies of a function as parameter.
@@ -134,6 +213,11 @@ vhighlight.js.highlight = function(code, return_tokens = false) {
 			
 			// Fetch previous batch.
 			const prev = this.get_prev_token(this.tokens.length - 1, [" ", "\t", "\n"]);
+
+			// No previous token.
+			if (prev === null) {
+				return false;
+			}
 			
 			// Function definition.
 			if (prev.data == "function") {
@@ -194,6 +278,7 @@ vhighlight.js.highlight = function(code, return_tokens = false) {
 			this.batch += char;
 			this.append_batch(false);
 			return true;
+			*/
 		}
 		
 		// Function parameter.

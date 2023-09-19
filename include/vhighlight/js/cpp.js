@@ -260,7 +260,7 @@ vhighlight.cpp.highlight = function(code, return_tokens = false) {
 						if (c == "*" || c == "&") {
 							append_to_batch.push(["token_operator", c]);
 						} else {
-							append_to_batch.push([false, c]);
+							append_to_batch.push([null, c]); // @todo changed jerre [false, c] to [null, c] still have to check but it should still highlight numerics in append_token called by append_forward_lookup_token
 						}
 					}
 
