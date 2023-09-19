@@ -12,6 +12,7 @@ void bundle() {
 		.source = source,
 		.include_order = {
 			"highlight.js",
+			"tokenizer.js",
 		},
 		.exclude = {
 			"vhighlight.js"

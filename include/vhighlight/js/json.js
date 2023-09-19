@@ -9,31 +9,30 @@
  */
 
 // ---------------------------------------------------------
-// Python highlighter.
+// Json highlighter.
 
-vhighlight.json = {};
+vhighlight.Json = class Json {
+	constructor() {
 
-// The tokenizer options.
-vhighlight.json.tokenizer_opts = {
-	keywords: [
-		"true",
-		"false",
-		"null",
-	],
-	single_line_comment_start: "//",
-	multi_line_comment_start: "/*",
-	multi_line_comment_end: "*/",
+		// Initialize the this.tokenizer.
+		this.tokenizer = new vhighlight.Tokenizer({
+			keywords: [
+				"true",
+				"false",
+				"null",
+			],
+			single_line_comment_start: "//",
+			multi_line_comment_start: "/*",
+			multi_line_comment_end: "*/",
+		});
+	}
+
+	// Highlight.
+	highlight(code, return_tokens = false) {
+		this.tokenizer.code = code;
+		return this.tokenizer.tokenize(return_tokens);
+	}
 }
 
-// Highlight.
-vhighlight.json.highlight = function(code, return_tokens = false) {
-
-	// Initialize the tokenizer.
-	const tokenizer = new Tokenizer(vhighlight.json.tokenizer_opts);
-
-	// Assign the code.
-	tokenizer.code = code;
-
-	// Tokenize.
-	return tokenizer.tokenize(return_tokens);
-}
+// Initialize.
+vhighlight.json = new vhighlight.Json();

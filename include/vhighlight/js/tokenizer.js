@@ -6,24 +6,25 @@
 // The tokenizer class.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
 // - Parsing behaviour depends on that every word is seperated as a token, so each word boundary is a seperate token.
-// @todo highlight "@\\s+" patterns inside comments, but do not highlight escaped @ chars, but do create a "allow_at" parameter.
+// @todo highlight "@\\s+" patterns inside comments, but do not highlight escaped @ chars, but do create a "allow_at" parameter. Dont forget to assign the comment id to these inserted tokens though.
 // @todo highlight "@\\s+" patterns outside comments as token_type.
-// @todo highlight `` inside comments with a codeblock background in every language.
+// @todo highlight `` inside comments with a codeblock background in every language.  Dont forget to assign the comment id to these inserted tokens though.
 // @todo when the last line is a comment and there is no \n at the end of the section then the section is not recognized as a comment.
-class Tokenizer {
+// @todo preprocessor after comment is highlighted as comment.
+vhighlight.Tokenizer = class Tokenizer {
 	constructor({
-			keywords = [], 
-			type_def_keywords = [], 
-			type_keywords = [],
-			operators = [],
-			special_string_prefixes = [],
-			single_line_comment_start = false,
-			multi_line_comment_start = false,
-			multi_line_comment_end = false,
-			allow_strings = true,
-			allow_numerics = true,
-			allow_preprocessors = false,
-			allow_slash_regexes = false,
+		keywords = [], 
+		type_def_keywords = [], 
+		type_keywords = [],
+		operators = [],
+		special_string_prefixes = [],
+		single_line_comment_start = false,
+		multi_line_comment_start = false,
+		multi_line_comment_end = false,
+		allow_strings = true,
+		allow_numerics = true,
+		allow_preprocessors = false,
+		allow_slash_regexes = false,
 	}) {
 
 		// Parameter attributes.
@@ -40,27 +41,6 @@ class Tokenizer {
 		this.allow_numerics = allow_numerics;						// if the language supports numerics.
 		this.allow_preprocessors = allow_preprocessors;				// if the language has "#..." based preprocessor statements.
 		this.allow_slash_regexes = allow_slash_regexes;				// if the language has "/.../" based regex statements.
-
-		// Attributes.
-		this.tokens = [];				// use an array with tokens since some tokens need to be edited after they have been appended.
-		this.index = null;				// the current index in the iteration, so it may be edited in case of forward lookup.
-		this.prev_char = null;			// the previous char in the iteration.
-		this.next_char = null;			// the next char in the iteration.
-		this.batch  = "";				// current batch.
-		this.line = 0;					// current line number.
-		this.is_comment = false;		// is currently a comment.
-		this.is_str = false;			// is currently a string.
-		this.is_regex = false;			// is currently a regex string "/hello/".
-		this.is_preprocessor = false;	// is currently a preprocessor statement.
-		this.parenth_depth = 0;			// parentheses depth "( )".
-		this.bracket_depth = 0;			// bracket depth "[ ]".
-		this.curly_depth = 0;			// curly brackets depth "{ }".
-		// this.template_depth = 0;		// template depth "< >".
-		this.next_token = null;			// the next token, defined by the previous token such ass "class" or "extends".
-
-		// Attributes for JS.
-		this.class_depth = null;		// @TODO js does not allow class definitions inside a class, but it does allow it insice a functio which is a member of a class.
-										// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
 
 		// Word boundaries.
 		this.word_boundaries = [
@@ -112,6 +92,36 @@ class Tokenizer {
 		// The default callback.
 		this.callback = function() { return false; }
 
+		// Init vars that should be reset before each tokenize.
+		this.reset();
+
+	}
+
+	// Attributes that should be reset before each tokenize.
+	reset() {
+		this.tokens = [];				// use an array with tokens since some tokens need to be edited after they have been appended.
+		this.index = null;				// the current index in the iteration, so it may be edited in case of forward lookup.
+		this.prev_char = null;			// the previous char in the iteration.
+		this.next_char = null;			// the next char in the iteration.
+		this.batch  = "";				// current batch.
+		this.line = 0;					// current line number.
+		this.is_comment = false;		// is currently a comment.
+		this.is_str = false;			// is currently a string.
+		this.is_regex = false;			// is currently a regex string "/hello/".
+		this.is_preprocessor = false;	// is currently a preprocessor statement.
+		this.parenth_depth = 0;			// parentheses depth "( )".
+		this.bracket_depth = 0;			// bracket depth "[ ]".
+		this.curly_depth = 0;			// curly brackets depth "{ }".
+		// this.template_depth = 0;		// template depth "< >".
+		this.next_token = null;			// the next token, defined by the previous token such ass "class" or "extends".
+		this.str_id = 0;				// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.comment_id = 0;			// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.regex_id = 0;				// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.preprocessor_id = 0;		// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+
+		// Attributes for JS.
+		this.class_depth = null;		// @TODO js does not allow class definitions inside a class, but it does allow it insice a functio which is a member of a class.
+										// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
 	}
 
 	// Fetch the first non whitespace token going backwards from the specified index.
@@ -162,7 +172,7 @@ class Tokenizer {
 	}
 	get_closing_template(index, open, close) {
 		let depth = 1;
-		const info_obj = {index: null};
+		const info_obj = {index: null, str_id: 0, comment_id: null, regex_id: null, preprocessor_id: 0};
 		return this.iterate_code(info_obj, index + 1, null, (char, is_str, is_comment, is_multi_line_comment, is_regex) => {
 			if (!is_str && !is_comment && !is_multi_line_comment && !is_regex) {
 				if (char == open) {
@@ -286,7 +296,43 @@ class Tokenizer {
 	// Do not join null tokens since that would clash with the prev batch function lookup and comparing it with data.
 	// For example when exlcuding whitespace in the prev token, it can still contain whitespace.
 	append_token(token = null) {
-		this.tokens.push({token: token, data: this.batch, index: this.tokens.length, line: this.line});
+		const obj = {
+			token: token, 
+			data: this.batch, 
+			index: this.tokens.length, 
+			line: this.line,
+		};
+		switch(token) {
+			case "token_string":
+				obj.str_id = this.str_id;
+				break;
+			case "token_comment":
+				obj.comment_id = this.comment_id;
+				break;
+			case "token_regex":
+				obj.regex_id = this.regex_id;
+				break;
+			case "token_preprocessor":
+				obj.preprocessor_id = this.preprocessor_id;
+				break;
+			case "token_line":
+				if (this.is_str) {
+					obj.str_id = this.str_id;
+				}
+				else if (this.is_comment) {
+					obj.comment_id = this.comment_id;
+				}
+				else if (this.is_regex) {
+					obj.regex_id = this.regex_id;
+				}
+				else if (this.is_preprocessor) {
+					obj.preprocessor_id = this.preprocessor_id;
+				}
+				break;
+			default:
+				break;
+		}
+		this.tokens.push(obj);
 	}
 	
 	// Append batch.
@@ -385,7 +431,7 @@ class Tokenizer {
 	// When the callback returns a non null value the iteration will stop and that value will be returned.
 	iterate_code(info_obj = {index: 0, prev_char: null, next_char: null}, start = null, end = null, callback) {
 		//
-		// DO NOT ASSIGN ANY ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
+		// DO NOT ASSIGN ANY "this" ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
 		//
 		
 		// Default start and end.
@@ -404,10 +450,26 @@ class Tokenizer {
 		let is_preprocessor = false; 			// only used for languages that have preprocessor statements such as cpp.
 		let prev_non_whitespace_char = null; 	// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
 
+		// Check if the first chars of the main string equals a substring, optionally with start index.
+		const eq_first = function(substr, start_index = 0) {
+		    if (start_index + substr.length > this.code.length) {
+		        return false;
+		    }
+		    const end = start_index + substr.length;
+		    let y = 0;
+		    for (let x = start_index; x < end; x++) {
+		        if (this.code.charAt(x) != substr.charAt(y)) {
+		            return false;
+		        }
+		        ++y;
+		    }
+		    return true;
+		}
+
 		// Iterate.
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
 			//
-			// DO NOT ASSIGN ANY ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
+			// DO NOT ASSIGN ANY "this" ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
 			//
 
 			// Get char.
@@ -425,20 +487,30 @@ class Tokenizer {
 			// Set is escaped.
 			const is_escaped = this.is_escaped(info_obj.index);
 
-			// Preprocessor.
+			// Start of preprocessors.
 			if (this.allow_preprocessors && !is_preprocessor && prev_non_whitespace_char == "\n" && char == "#") {
+				++info_obj.preprocessor_id;
 				is_preprocessor = true;
 				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
-			} else if (is_preprocessor && char == "\n" && prev_non_whitespace_char != "\\") {
+			}
+
+			// End of preprocessors.
+			else if (
+				is_preprocessor && 
+				(
+					(char == "\n" && prev_non_whitespace_char != "\\") ||
+					info_obj.index == this.code.length - 1
+				)
+			) {
 				is_preprocessor = false;
 				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
 			}
 			
-			// Strings.
+			// Open strings.
 			if (
 				this.allow_strings &&
 				!is_escaped &&
@@ -452,11 +524,14 @@ class Tokenizer {
 					char == '`'
 				)
 			) {
+				++info_obj.str_id;
 				string_char = char;
 				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
 			}
+
+			// Close strings.
 			else if (
 				!is_escaped &&
 				string_char != null &&
@@ -467,6 +542,8 @@ class Tokenizer {
 				if (res != null) { return res; }
 				continue;
 			}
+
+			// Inside strings.
 			else if (string_char != null) {
 				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
@@ -484,12 +561,16 @@ class Tokenizer {
 			
 				// Single line comments.
 				const comment_start = this.single_line_comment_start;
-				if (comment_start.length == 1 && char == comment_start) {
+				if (comment_start.length === 1 && char === comment_start) {
+					++info_obj.comment_id;
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
 					continue;
-				} else if (comment_start.length == 2 && char + info_obj.next_char == comment_start) {
+				}
+				// else if (comment_start.length == 2 && char + info_obj.next_char == comment_start) {
+				else if (comment_start.length !== 1 && eq_first(comment_start, info_obj.index)) {
+					++info_obj.comment_id;
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -498,9 +579,11 @@ class Tokenizer {
 				
 				// Multi line comments.
 				const mcomment_start = this.multi_line_comment_start;
-				if (mcomment_start == false) {
+				if (mcomment_start === false) {
 					// skip but do not use continue since the "No string or comment" should be checked.
-				} else if (mcomment_start.length == 2 && char + info_obj.next_char == mcomment_start) {
+				}
+				else if (mcomment_start.length !== 1 && eq_first(mcomment_start, info_obj.index)) {
+					++info_obj.comment_id;
 					is_multi_line_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -566,6 +649,7 @@ class Tokenizer {
 						this.operators.includes(prev)
 					)
 				) {
+					++info_obj.regex_id;
 					is_regex = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -602,6 +686,9 @@ class Tokenizer {
 	// - When performing a forward lookup and editing this.index afterwards, dont forget to incrrement the this.line var on line breaks.
 	tokenize(return_tokens = false) {
 
+		// Reset.
+		this.reset();
+
 		// Append previous batch when switching comment, string, regex, to something else.
 		const auto_append_batch_switch = () => {
 			if (this.is_comment) {
@@ -636,7 +723,7 @@ class Tokenizer {
 				if (!local_is_regex) {
 					this.is_regex = false;
 				}
-				if (!is_preprocessor) {
+				if (this.is_preprocessor && !is_preprocessor) {
 					this.is_preprocessor = false;
 					this.is_str = false; // also disable string in case of an unterminated < inside the #include preprocessor, since the flag is turned on inside the is preprocessor check.
 				}
