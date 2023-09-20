@@ -72,29 +72,30 @@ vhighlight.Bash = class Bash {
 
 		// Set callback.
 		this.tokenizer.callback = (char, is_escaped) => {
+			const tokenizer = this.tokenizer;
 			
 			// Is whitespace.
-			const is_whitespace = this.is_whitespace(char);
+			const is_whitespace = tokenizer.is_whitespace(char);
 
 			// Start of line excluding whitespace.
 			let start_of_line = false;
-			if (this.current_line != this.line && !is_whitespace) {
+			if (this.current_line != tokenizer.line && !is_whitespace) {
 				start_of_line = true;
-				this.current_line = this.line;
+				this.current_line = tokenizer.line;
 			}
 
 			// Special operators preceded by a "-" such as "-eq".
 			if (char == "-") {
 				let batch = null;
-				if (this.operators.includes(char + this.next_char)) {
-					batch = char + this.next_char;
-				} else if (this.operators.includes(char + this.next_char + this.code.charAt(this.index + 2))) {
-					batch = char + this.next_char + this.code.charAt(this.index + 2);
+				if (tokenizer.operators.includes(char + tokenizer.next_char)) {
+					batch = char + tokenizer.next_char;
+				} else if (tokenizer.operators.includes(char + tokenizer.next_char + tokenizer.code.charAt(tokenizer.index + 2))) {
+					batch = char + tokenizer.next_char + tokenizer.code.charAt(tokenizer.index + 2);
 				}
 				if (batch != null) {
-					this.append_batch();
-					this.append_forward_lookup_batch("token_operator", batch);
-					this.resume_on_index(this.index + batch.length - 1);
+					tokenizer.append_batch();
+					tokenizer.append_forward_lookup_batch("token_operator", batch);
+					tokenizer.resume_on_index(tokenizer.index + batch.length - 1);
 					return true;
 				}
 			}
@@ -102,23 +103,23 @@ vhighlight.Bash = class Bash {
 			// Special keywords preceded by a "$" such as "$1".
 			else if (char == "$") {
 				let batch = "$";
-				let index = this.index + 1;
+				let index = tokenizer.index + 1;
 				while (true) {
-					c = this.code.charAt(index);
-					if (this.is_numerical(c)) {
+					const c = tokenizer.code.charAt(index);
+					if (tokenizer.is_numerical(c)) {
 						batch += c;
 					} else {
 						break;
 					}
 					++index;
 				}
-				if (batch.length == 1 && (this.next_char == "#" || this.next_char == "@" || this.next_char == "?")) {
-					batch += this.next_char
+				if (batch.length == 1 && (tokenizer.next_char == "#" || tokenizer.next_char == "@" || tokenizer.next_char == "?")) {
+					batch += tokenizer.next_char
 				}
 				if (batch.length > 1) {
-					this.append_batch();
-					this.append_forward_lookup_batch("token_keyword", batch);
-					this.resume_on_index(this.index + batch.length - 1);
+					tokenizer.append_batch();
+					tokenizer.append_forward_lookup_batch("token_keyword", batch);
+					tokenizer.resume_on_index(tokenizer.index + batch.length - 1);
 					return true;
 				}
 			}
@@ -127,12 +128,12 @@ vhighlight.Bash = class Bash {
 			else if (char == "(") {
 
 				// Append batch by word boundary.
-				this.append_batch();
+				tokenizer.append_batch();
 
 				// Do a forward lookup to look for a "() {" pattern with optional whitespace and linebreaks in between.
 				let is_func_def = false;
-				for (let i = this.index + 1; i < this.code.length; i++) {
-					const c = this.code.charAt(i);
+				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
+					const c = tokenizer.code.charAt(i);
 					if (c == "{") {
 						is_func_def = true;
 					}
@@ -143,37 +144,37 @@ vhighlight.Bash = class Bash {
 
 				// Edit prev token.
 				if (is_func_def) {
-					const prev = this.get_prev_token(this.tokens.length - 1, [" ", "\t", "\n"]);
+					const prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
 					prev.token = "token_type_def";
 				}
 			}
 
 			// Function / command call.
-			else if (start_of_line && this.is_alphabetical(char)) {
+			else if (start_of_line && tokenizer.is_alphabetical(char)) {
 
 				// Do a forward lookup for a "AAA A" pattern, two consecutive words with only whitespace in between.
 				let finished = false;
 				let passed_whitespace = false;
 				let word = "";
 				let end_index = null;
-				for (let i = this.index; i < this.code.length; i++) {
-					const c = this.code.charAt(i);
+				for (let i = tokenizer.index; i < tokenizer.code.length; i++) {
+					const c = tokenizer.code.charAt(i);
 					if (c == " " || c == "\t") {
 						passed_whitespace = true;
-					} else if (!passed_whitespace && (this.is_alphabetical(c) || this.is_numerical(c))) {
+					} else if (!passed_whitespace && (tokenizer.is_alphabetical(c) || tokenizer.is_numerical(c))) {
 						word += c;
 						end_index = i;
-					} else if (passed_whitespace && (char == "\\" || !this.operators.includes(char))) {
+					} else if (passed_whitespace && (char == "\\" || !tokenizer.operators.includes(char))) {
 						finished = true;
 						break;
 					} else {
 						break;
 					}
 				}
-				if (finished && !this.keywords.includes(word)) {
-					this.append_batch();
-					this.append_forward_lookup_batch("token_type", word);
-					this.resume_on_index(end_index);
+				if (finished && !tokenizer.keywords.includes(word)) {
+					tokenizer.append_batch();
+					tokenizer.append_forward_lookup_batch("token_type", word);
+					tokenizer.resume_on_index(end_index);
 					return true;
 				}
 			}
@@ -185,12 +186,12 @@ vhighlight.Bash = class Bash {
 				let style = null;
 				let start_index = null; // the start after the ": <<" or the start after the ": '"
 				let end_index = null;
-				for (let i = this.index + 1; i < this.code.length; i++) {
-					const c = this.code.charAt(i);
+				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
+					const c = tokenizer.code.charAt(i);
 					if (c == " " || c == "\t") {
 						continue;
 					} else if (c == "<") {
-						if (this.code.charAt(i + 1) == "<") {
+						if (tokenizer.code.charAt(i + 1) == "<") {
 							start_index = i + 2;
 							style = 1;
 						}
@@ -212,13 +213,13 @@ vhighlight.Bash = class Bash {
 
 					// Eq first.
 					const eq_first = (start_index) => {
-						if (start_index + close_sequence.length > this.code.length) {
+						if (start_index + close_sequence.length > tokenizer.code.length) {
 					        return false;
 					    }
 					    const end = start_index + close_sequence.length;
 					    let y = 0;
 					    for (let x = start_index; x < end; x++) {
-					        if (this.code.charAt(x) != close_sequence.charAt(y)) {
+					        if (tokenizer.code.charAt(x) != close_sequence.charAt(y)) {
 					            return false;
 					        }
 					        ++y;
@@ -227,18 +228,18 @@ vhighlight.Bash = class Bash {
 					}
 
 					// Get the closing sequence.
-					for (let i = start_index; i < this.code.length; i++) {
-						const c = this.code.charAt(i);
+					for (let i = start_index; i < tokenizer.code.length; i++) {
+						const c = tokenizer.code.charAt(i);
 						if (!found_close_sequence) {
-							if (this.is_whitespace(c)) {
+							if (tokenizer.is_whitespace(c)) {
 								continue;
 							} else if (
 								c == '"' || 
 								c == "'" || 
 								c == "_" || 
 								c == "-" || 
-								this.is_numerical(c) || 
-								this.is_alphabetical(c)
+								tokenizer.is_numerical(c) || 
+								tokenizer.is_alphabetical(c)
 							) {
 								close_sequence += c;
 							} else {
@@ -266,9 +267,9 @@ vhighlight.Bash = class Bash {
 
 				// Style 2, ": ' ' " or ': " " '.
 				else if (style == 2) {
-					const closing_char = this.code.charAt(start_index - 1);
-					for (let i = start_index; i < this.code.length; i++) {
-						const c = this.code.charAt(i);
+					const closing_char = tokenizer.code.charAt(start_index - 1);
+					for (let i = start_index; i < tokenizer.code.length; i++) {
+						const c = tokenizer.code.charAt(i);
 						if (!is_escaped && c == closing_char) {
 							end_index = i;
 							break;
@@ -278,9 +279,9 @@ vhighlight.Bash = class Bash {
 
 				// Append tokens.
 				if (end_index != null) {
-					this.append_batch();
-					this.append_forward_lookup_batch("token_comment", this.code.substr(this.index, end_index - this.index + 1));
-					this.resume_on_index(end_index);
+					tokenizer.append_batch();
+					tokenizer.append_forward_lookup_batch("token_comment", tokenizer.code.substr(tokenizer.index, end_index - tokenizer.index + 1));
+					tokenizer.resume_on_index(end_index);
 					return true;
 				}
 			}
@@ -296,10 +297,82 @@ vhighlight.Bash = class Bash {
 	}
 
 	// Highlight.
-	highlight(code, return_tokens = false) {
+	highlight(code = null, return_tokens = false) {
 		this.reset();
-		this.tokenizer.code = code;
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
 		return this.tokenizer.tokenize(return_tokens);
+	}
+
+	// Partial highlight.
+	/*	@docs: {
+		@title Partial highlight.
+		@description: Partially highlight text based on edited lines.
+		@parameter: {
+			@name: data
+			@type: string
+			@description: The new code data.
+		}
+		@parameter: {
+			@name: edits_start
+			@type: string
+			@description: The start line of the new edits.
+		}
+		@parameter: {
+			@name: edits_end
+			@type: string
+			@description: The end line of the new edits. The end line includes the line itself.
+		}
+		@parameter: {
+			@name: insert_start
+			@type: string
+			@description: The start line from where to insert the new tokens into.
+		}
+		@parameter: {
+			@name: insert_end
+			@type: string
+			@description: The end line from where to insert the new tokens into. The end line includes the line itself.
+		}
+		@parameter: {
+			@name: tokens
+			@type: array[object]
+			@description: The old tokens.
+		}
+		@parameter: {
+			@name: update_offsets
+			@type: boolean
+			@description: Update the offsets of the new tokens.
+		}
+	} */
+	partial_highlight({
+		code = null,
+		edits_start = null,
+		edits_end = null,
+		insert_start = null,
+		insert_end = null,
+		tokens = [],
+		update_offsets = true,
+	}) {
+
+		// Assign code when not assigned.
+		// So the user can also assign it to the tokenizer without cause two copies.
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
+
+		// Reset.
+		this.reset();
+
+		// Partial tokenize.
+		return this.tokenizer.partial_tokenize({
+			edits_start: edits_start,
+			edits_end: edits_end,
+			insert_start: insert_start,
+			insert_end: insert_end,
+			tokens: tokens,
+			update_offsets: update_offsets,
+		})
 	}
 }
 

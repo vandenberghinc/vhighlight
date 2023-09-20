@@ -291,7 +291,7 @@ vhighlight.JS = class JS {
 					this.opening_parenth_curly_depth == this.tokenizer.curly_depth && // do not match code inside a func body of a nested parameter.
 					this.tokenizer.parenth_depth > 0 && // can be >0 since the last ')' does not need to be catched, only assignment parameters are highlighted.
 					char == '=' &&
-					code.charAt(this.tokenizer.index + 1) != '>'
+					this.tokenizer.code.charAt(this.tokenizer.index + 1) != '>'
 				)
 			) {
 			
@@ -350,9 +350,11 @@ vhighlight.JS = class JS {
 	}
 
 	// Highlight.
-	highlight(code, return_tokens = false) {
+	highlight(code = null, return_tokens = false) {
 		this.reset();
-		this.tokenizer.code = code;
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
 		return this.tokenizer.tokenize(return_tokens);
 	}
 
@@ -361,9 +363,9 @@ vhighlight.JS = class JS {
 		@title Partial highlight.
 		@description: Partially highlight text based on edited lines.
 		@parameter: {
-			@name: code
+			@name: data
 			@type: string
-			@description: The new code.
+			@description: The new code data.
 		}
 		@parameter: {
 			@name: edits_start
@@ -390,179 +392,40 @@ vhighlight.JS = class JS {
 			@type: array[object]
 			@description: The old tokens.
 		}
+		@parameter: {
+			@name: update_offsets
+			@type: boolean
+			@description: Update the offsets of the new tokens.
+		}
 	} */
-	partial_highlight(
-		code, 
+	partial_highlight({
+		code = null,
 		edits_start = null,
 		edits_end = null,
-		insert_start = null,
-		insert_end = null,
-		tokens [],
-	) {
+		line_deletions = 0,
+		line_additions = 0,
+		tokens = [],
+		update_offsets = true,
+	}) {
 
-		// Vars.
-		let scope_start = 0; 		// the line where the scope around the new edits starts.
-		let scope_end = null; 		// the line where the scope around the new edits ends.
-		const scope_seperators = [ 	// scope seperators.
-			";", 
-			"(", 
-			")", 
-			"{", 
-			"}", 
-			"[", 
-			"]"
-		]; 	
-
-		// Get the token index of the minimum line.
-		let min_start = edits_start < insert_start ? edits_start : insert_start;
-		let token_start;
-		if (min_start === 0) {
-			token_start = 0;
-		} else {
-			--min_start;
-			token_start = null;
-			tokens.iterate((token) => {
-				if (token.line == min_start) {
-					token_start = token.index;
-					break;
-				}
-			})
-			if (token_start === null) {
-				throw Error(`Unable to find the token of start line ${min_start}.`);
-			}
+		// Assign code when not assigned.
+		// So the user can also assign it to the tokenizer without cause two copies.
+		if (code !== null) {
+			this.tokenizer.code = code;
 		}
 
-		// Iterate backwards to find the scope start line.
-		if (token_start !== 0) {
-			let is_id = null;
-			let is_string = false;
-			let is_comment = false;
-			let is_regex = false;
-			let is_preprocessor = false;
-			tokens.iterate_reversed(0, token_start.index, (token) => {
-				if (is_string) {
-					if (token.str_id !== is_id) {
-						start_scope = token.line; // @todo there may still end another string etc on this line so this is not correct.
-					}
-				} else if (is_comment) {
+		// Reset.
+		this.reset();
 
-				} else if (is_regex) {
-
-				} else if (is_preprocessor)
-				switch (token.token) {
-					case "token_string":
-						is_string = true;
-						is_id = token.str_id;
-						break;
-					case "token_comment":
-						is_comment = true;
-						is_id = token.comment_id;
-						break;
-					case "token_regex":
-						is_regex = true;
-						is_id = token.regex_id;
-						break;
-					case "token_preprocessor":
-						is_preprocessor = true;
-						is_id = token.preprocessor_id;
-						break;
-					case null:
-						if (token.data.length == 0 && scope_seperators.includes(token.data)) {
-
-						}
-						break;
-					default:
-						break;
-				}
-			})
-		}
-
-		/*
-		// ---------------------------------------------------------
-		// First expand the scope of the new edits, so no context is missing.
-
-		// Vars.
-		const tokenizer = this.tokenizer;
-		let line = 0; 													// current line number.
-		const scope_seperators = [";", "(", ")", "{", "}", "[", "]"]; 	// scope seperators.
-		let is_str = false; 											// is inside a string.
-		let is_comment = false; 										// is inside a comment.
-		let is_regex = false; 											// is inside a regex.
-		let is_preprocessor = false; 									// is inside a preprocessor.
-		let last_scope_line = null; 									// the last scope changing line.
-		let last_scope_end_line = null; 								// the last scope end line, only used for string, comment, regex and preprocessor to avoid a scope end and start on one line.
-
-		// Determine the scope start.
-		tokenizer.code = code;
-		tokenizer.iterate_code(this, null, null, (char, l_is_str, l_is_comment, l_is_multi_line_comment, l_is_regex, is_escaped, l_is_preprocessor) => {
-
-			// Increment line.
-			if (char == "\n" && !is_escaped) {
-				++line;
-			}
-
-			// Combine single and multi line comments.
-			if (l_is_comment && l_is_multi_line_comment) {
-				l_is_comment = true;
-			}
-
-			// New scope by a new string, comment, regex or preprocessor.
-			// Prevent setting the new scope if another string, comment, regex or preprocessor has ended on the new scope line.
-			if (!is_str && l_is_str) {
-				is_str = true;
-				if (last_scope_end_line != line) { 
-					last_scope_line = line;
-				}
-			} else if (!is_comment && l_is_comment) {
-				is_comment = true;
-				if (last_scope_end_line != line) {
-					last_scope_line = line;
-				}
-			} else if (!is_regex && l_is_regex) {
-				is_regex = true;
-				if (last_scope_end_line != line) {
-					last_scope_line = line;
-				}
-			} else if (!is_preprocessor && l_is_preprocessor) {
-				is_preprocessor = true;
-				if (last_scope_end_line != line) {
-					last_scope_line = line;
-				}
-			}
-
-			// Scope by scope seperator.
-			else if (!is_str && !is_comment && !is_regex && !is_preprocessor && scope_seperators.includes(char)) {
-				last_scope_line = line;
-			}
-
-			// Close string, comment, regex or pattern.
-			if (is_str && !l_is_str) {
-				is_str = false;
-				last_scope_end_line = line;
-			} else if (is_comment && !l_is_comment) {
-				is_comment = false;
-				last_scope_end_line = line;
-			} else if (is_regex && !l_is_regex) {
-				is_regex = false;
-				last_scope_end_line = line;
-			} else if (is_preprocessor && !l_is_preprocessor) {
-				is_preprocessor = false;
-				last_scope_end_line = line;
-			}
-
-			// Set last scope.
-
+		// Partial tokenize.
+		return this.tokenizer.partial_tokenize({
+			edits_start: edits_start,
+			edits_end: edits_end,
+			line_deletions: line_deletions,
+			line_additions: line_additions,
+			tokens: tokens,
+			update_offsets: update_offsets,
 		})
-
-		// Add a few lines since some coders code like "const myfunc = function () \n {}".
-
-
-		// ---------------------------------------------------------
-		// Highlight the new edits.
-
-		// ---------------------------------------------------------
-		// Insert the new edits from the original edited lines into the existing tokens.
-		*/
 	}
 }
 

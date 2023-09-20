@@ -357,9 +357,11 @@ vhighlight.Markdown = class Markdown {
 	}
 
 	// Highlight.
-	highlight(code, return_tokens = false) {
+	highlight(code = null, return_tokens = false) {
 		this.reset();
-		this.tokenizer.code = code;
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
 		return this.tokenizer.tokenize(return_tokens);
 	}
 }
