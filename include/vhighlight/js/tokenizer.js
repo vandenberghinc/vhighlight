@@ -29,12 +29,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Attributes for partial tokenizing.
 		scope_seperators = [
 			";", 
-			"(", 
-			")", 
 			"{", 
 			"}", 
-			"[", 
-			"]",
 		],
 		allow_string_scope_seperator = false,
 		allow_comment_scope_seperator = false,
