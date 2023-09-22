@@ -1012,9 +1012,9 @@ vhighlight.Tokenizer = class Tokenizer {
 				throw Error(`Unable to find the token of start line ${min_start}.`);
 			}
 		}
-		// console.log("edits_start:",edits_start);
-		// console.log("edits_end:",edits_end);
-		// console.log("min_start: ", min_start);
+		console.log("edits_start:",edits_start);
+		console.log("edits_end:",edits_end);
+		console.log("min_start: ", min_start);
 
 		// Iterate backwards to find the scope start line.
 		// Do not stop if another string, comment, regex or preprocessor has just ended on the line that the start scope has been detected.
@@ -1102,9 +1102,9 @@ vhighlight.Tokenizer = class Tokenizer {
 			})
 		}
 
-		// console.log("token_start:",token_start);
-		// console.log("scope_start_offset:",scope_start_offset);
-		// console.log("scope_start:",scope_start);
+		console.log("token_start:",token_start);
+		console.log("scope_start_offset:",scope_start_offset);
+		console.log("scope_start:",scope_start);
 		// console.log("Find the scope start:", Date.now() - now, "ms.");
 
 		// ---------------------------------------------------------
@@ -1197,7 +1197,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 				}
 			})
-			// console.log("old scope_end:",scope_end);
+			console.log("old scope_end:",scope_end);
 
 			// Get the offset of the line after the scope end line from the new code data.
 			let line = scope_start > 0 ? scope_start - 1 : scope_start; // since a line break is the start of a new line.
@@ -1214,7 +1214,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 				}
 			})
-			// console.log("old scope_end_offset:",scope_end_offset);
+			console.log("old scope_end_offset:",scope_end_offset);
 
 			return {line:scope_end, offset:scope_end_offset};
 		}
@@ -1354,18 +1354,29 @@ vhighlight.Tokenizer = class Tokenizer {
 
 				// 
 			})
-			// console.log("new scope_end:",scope_end);
-			// console.log("new scope_end_offset:",scope_end_offset);
+			console.log("new scope_end:",scope_end);
+			console.log("new scope_end_offset:",scope_end_offset);
 
 			return {line:scope_end, offset:scope_end_offset};
 		}
 
 		const old_scope_end = get_scope_end_by_old_tokens();
 		const new_scope_end = get_scope_end_by_new_code();
-		if (new_scope_end.line >= old_scope_end.line) {
+
+		// When the last lines have been deleted.
+		if (new_scope_end == edits_end && edits_start == edits_end && line_additions < 0) {
 			scope_end = new_scope_end.line;
 			scope_end_offset = new_scope_end.offset;
-		} else {
+		}
+
+		// Use new scope end.
+		else if (new_scope_end.line >= old_scope_end.line) {
+			scope_end = new_scope_end.line;
+			scope_end_offset = new_scope_end.offset;
+		}
+
+		// Use old scope end.
+		else {
 			scope_end = old_scope_end.line;
 			scope_end_offset = old_scope_end.offset;
 		}
@@ -1377,12 +1388,12 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Slice the data edits.
 		this.code = this.code.substr(scope_start_offset, (scope_end_offset - scope_start_offset) + 1);
-		// console.log("scope:",this.code);
+		console.log("scope:",this.code);
 
 		// Highlight the edits.
 		const results = this.tokenize(true);
 		const insert_tokens = results.tokens;
-		// console.log("insert_tokens:",insert_tokens)
+		console.log("insert_tokens:",insert_tokens)
 
 		// console.log("Highlight the edits:", Date.now() - now, ".");
 		// now = Date.now();
@@ -1392,9 +1403,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		let insert = true;
 		let line_count = 0;
 		let insert_end = scope_end - line_additions;
-		// console.log("insert_end:",insert_end);
-		// console.log("line_deletions:",line_deletions);
-		// console.log("line_additions:",line_additions);
+		console.log("insert_end:",insert_end);
+		console.log("line_additions:",line_additions);
 		for (let i = 0; i < tokens.length; i++) {
 			const token = tokens[i];
 			const line = token.line;
@@ -1417,7 +1427,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				combined_tokens.push(token);
 			}
 		}
-		// console.log("combined_tokens:",combined_tokens);
+		console.log("line_count:",line_count);
+		console.log("combined_tokens:",combined_tokens);
 
 		// console.log("Combine the tokens:", Date.now() - now, "ms.");
 		// now = Date.now();
