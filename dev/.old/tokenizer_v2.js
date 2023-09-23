@@ -269,6 +269,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (!exclude.includes(token.data)) {
 					return token;
 				}
+			} else {
+				console.log("OI!");
 			}
 		})
 		this.get_prev_token_time += Date.now() - now;
@@ -444,16 +446,16 @@ vhighlight.Tokenizer = class Tokenizer {
 		};
 
 		// Set is word boundary.
-		if (
-			(is_word_boundary === true) ||
-			(
-				this.batch.length === 1 && 
-				(token === null || token === "token_operator") && // token is null or is token operator in case the language class appends the token as token_operator without the is_word_boundary param.
-				this.word_boundaries.includes(this.batch)
-			)
-		) {
-			obj.is_word_boundary = true;
-		}
+		// if (
+		// 	(is_word_boundary === true) ||
+		// 	(
+		// 		this.batch.length === 1 && 
+		// 		(token === null || token === "token_operator") && // token is null or is token operator in case the language class appends the token as token_operator without the is_word_boundary param.
+		// 		this.word_boundaries.includes(this.batch)
+		// 	)
+		// ) {
+		// 	obj.is_word_boundary = true;
+		// }
 
 		// Update offset.
 		this.offset += this.batch.length;
@@ -461,21 +463,21 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Concat to previous token.
 		// Do this after the update offset.
 		// Exclude certain scope characters
-		if (token === null && obj.is_word_boundary === true) {
-			const line_tokens = this.tokens[this.line];
-			if (line_tokens !== undefined) {
-				const last = line_tokens.last();
-				if (
-					last !== undefined &&
-					last.is_word_boundary === true && 
-					(last.data.length > 1 || !this.excluded_word_boundary_joinings.includes(last.data)) &&
-					!this.excluded_word_boundary_joinings.includes(obj.data)
-				) {
-					last.data += obj.data;
-					return null; // STOP.
-				}
-			}
-		}
+		// if (token === null && obj.is_word_boundary === true) {
+		// 	const line_tokens = this.tokens[this.line];
+		// 	if (line_tokens !== undefined) {
+		// 		const last = line_tokens.last();
+		// 		if (
+		// 			last !== undefined &&
+		// 			last.is_word_boundary === true && 
+		// 			(last.data.length > 1 || !this.excluded_word_boundary_joinings.includes(last.data)) &&
+		// 			!this.excluded_word_boundary_joinings.includes(obj.data)
+		// 		) {
+		// 			last.data += obj.data;
+		// 			return null; // STOP.
+		// 		}
+		// 	}
+		// }
 
 		// Increment added tokens after concat to previous tokens.
 		++this.added_tokens;
@@ -554,8 +556,8 @@ vhighlight.Tokenizer = class Tokenizer {
 			}
 
 			// Reset next token when the batch is a word boundary for example in "struct { ... } X".
-			else if (is_word_boundary === true || this.word_boundaries.includes(this.batch)) {
-				this.append_token(null, true);
+			else if (this.word_boundaries.includes(this.batch)) {
+				this.append_token(null, is_word_boundary);
 				this.next_token = null;
 			}
 
@@ -1251,8 +1253,8 @@ vhighlight.Tokenizer = class Tokenizer {
 			})
 		}
 
-		console.log("scope_start_offset:",scope_start_offset);
-		console.log("scope_start:",scope_start);
+		// console.log("scope_start_offset:",scope_start_offset);
+		// console.log("scope_start:",scope_start);
 		console.log("Find the scope start:", Date.now() - now, "ms.");
 
 		// ---------------------------------------------------------
@@ -1345,6 +1347,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 				}
 			})
+			// console.log("old scope_end:",scope_end);
 
 			// Get the offset of the line after the scope end line from the new code data.
 			let line = scope_start > 0 ? scope_start - 1 : scope_start; // since a line break is the start of a new line.
@@ -1361,8 +1364,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 				}
 			})
-			console.log("old scope_end:",scope_end);
-			console.log("old scope_end_offset:",scope_end_offset);
+			// console.log("old scope_end_offset:",scope_end_offset);
 			// console.log("old scope:", this.code.substr(scope_start_offset, scope_end_offset - scope_start_offset));
 
 			return {line:scope_end, offset:scope_end_offset};
@@ -1503,8 +1505,8 @@ vhighlight.Tokenizer = class Tokenizer {
 
 				// 
 			})
-			console.log("new scope_end:",scope_end);
-			console.log("new scope_end_offset:",scope_end_offset);
+			// console.log("new scope_end:",scope_end);
+			// console.log("new scope_end_offset:",scope_end_offset);
 			// console.log("new scope:", this.code.substr(scope_start_offset, scope_end_offset - scope_start_offset));
 
 			return {line:scope_end, offset:scope_end_offset};
@@ -1515,8 +1517,8 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// When the last lines have been deleted.
 		if (
-			(new_scope_end.offset === this.code.length) || // when the new scope end is at the end of the new code data.
-			(new_scope_end.line === edits_end && edits_start === edits_end && line_additions < 0) // last lines deleted.
+			(new_scope_end.offset = this.code.length) || // when the new scope end is at the end of the new code data.
+			(new_scope_end.line == edits_end && edits_start == edits_end && line_additions < 0) // last lines deleted.
 		) {
 			scope_end = new_scope_end.line;
 			scope_end_offset = new_scope_end.offset;
@@ -1535,27 +1537,22 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		console.log("Find the scope end:", Date.now() - now, "ms.");
-		now = Date.now();
-
 		// ---------------------------------------------------------
 		// Highlight and insert the edits.
+		now = Date.now();
 
 		// Slice the data edits.
-		console.log("scope_end:",scope_end);
-		console.log("scope_end_offset:",scope_end_offset);
+		// console.log("scope_end:",scope_end);
+		// console.log("scope_end_offset:",scope_end_offset);
 		// console.log("code length:",this.code.length);
 		this.code = this.code.substr(scope_start_offset, (scope_end_offset - scope_start_offset) + 1);
-		// console.log("scope:",this.code);
-
-		console.log("Slice scope:", Date.now() - now, "ms.");
-		now = Date.now();
+		console.log("scope:",{code:this.code});
 
 		// Highlight the edits.
 		const insert_tokens = this.tokenize(true);
-		console.log("Tokenized lines:",insert_tokens.length);
 
 		// console.log("insert_tokens:",insert_tokens)
-		console.log("Highlight the edits:", Date.now() - now, "ms.");
+		console.log("Highlight the edits:", Date.now() - now, ".");
 		now = Date.now();
 
 		// Combine the tokens.
