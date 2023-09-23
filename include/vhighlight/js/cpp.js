@@ -300,7 +300,7 @@ vhighlight.CPP = class CPP {
 
 					// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
 					// And skip lambda functions with a "]" before the "(".
-					let prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n", "*", "&"]);
+					let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
 					const prev_prev_is_colon = tokenizer.get_prev_token(prev.index - 1).data == ":";
 					if (
 						(prev.token == null && prev.data != "]") || // when no token is specified and exclude lambda funcs.
@@ -391,7 +391,7 @@ vhighlight.CPP = class CPP {
 				// Edit the previous token when the token is not already assigned and when the data is not "(" for a func or "if", and skip operators etc.
 				// Skip where the token before the previous is already type for example "String x {}".
 				// Also skip the tokens between < and > when the initial prev and the prev prev token is a ">".
-				let prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n", "&", "*"]);
+				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "&", "*"]);
 				if (prev.data == ">") {
 					const opening_token_index = find_opening_template_token(prev.index);
 					if (opening_token_index != null) {
@@ -508,7 +508,7 @@ vhighlight.CPP = class CPP {
 
 				// Set prev token.
 				// Skip the tokens between < and > when the initial prev token is a ">".
-				let prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [":"]);
+				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [":"]);
 				if (prev.data == ">") {
 					let depth = 1;
 					for (let i = prev.index - 1; i >= 0; i--) {

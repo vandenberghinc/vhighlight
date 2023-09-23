@@ -307,7 +307,7 @@ vhighlight.CSS = class CSS {
 			// Css class definitions.
 			else if (char == "{") {
 				tokenizer.append_batch();
-				let index = tokenizer.tokens.length - 1;
+				let index = tokenizer.added_tokens - 1;
 				while (true) {
 					const prev = tokenizer.get_prev_token(index, [" ", ",", "\t", ":"]);
 					if (prev == null || prev.data == "\n") {
@@ -345,7 +345,7 @@ vhighlight.CSS = class CSS {
 			// CSS function calls such as "translateX(...)"
 			else if (char == "(") {
 				tokenizer.append_batch();
-				const prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 				if (prev != null && prev.token == null) {
 					prev.token = "token_type";
 				}
@@ -354,7 +354,7 @@ vhighlight.CSS = class CSS {
 			// CSS style attribute, curly depth is higher then 1 with pattern "^\s*XXX:" or ";\s*XXX:".
 			else if (tokenizer.curly_depth > 0 && char == ":") {
 				tokenizer.append_batch();
-				let index = tokenizer.tokens.length - 1;
+				let index = tokenizer.added_tokens - 1;
 				let edits = [];
 				let finished = false;
 				while (true) {
@@ -407,7 +407,7 @@ vhighlight.CSS = class CSS {
 			// Must be after numerics.
 			else if (this.style_end != null && tokenizer.index >= this.style_end) {
 				tokenizer.append_batch();
-				let index = tokenizer.tokens.length - 1;
+				let index = tokenizer.added_tokens - 1;
 				let finished = false;
 				const edits = [];
 				while (true) {

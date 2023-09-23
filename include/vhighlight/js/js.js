@@ -91,7 +91,7 @@ vhighlight.JS = class JS {
 				this.tokenizer.append_batch();
 
 				// Get the previous token.
-				const prev = this.tokenizer.get_prev_token(this.tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+				const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 
 				// No previous token or previous token is a keyword.
 				if (prev == null) {
@@ -175,7 +175,7 @@ vhighlight.JS = class JS {
 				// - Parentheses depth should be 1 though, otherwise it will also match a parameter with a function call.
 				if (this.tokenizer.class_depth == this.tokenizer.curly_depth && this.tokenizer.parenth_depth == 1) {
 					if (this.tokenizer.is_linebreak_whitespace_char(this.tokenizer.prev_char) || this.tokenizer.is_linebreak_whitespace_char()) {
-						const prev = this.tokenizer.get_prev_token(this.tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+						const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 						prev.token = "token_type_def";
 						this.tokenizer.append_batch(false)
 					} else {
@@ -190,7 +190,7 @@ vhighlight.JS = class JS {
 				// When the current batch is keyword "function" it means
 				// The function was assigned to a variable.
 				if (this.tokenizer.batch == "function") {
-					const prev = this.tokenizer.get_prev_token(this.tokenizer.tokens.length - 1, [" ", "\t", "\n", "=", ":"]);
+					const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n", "=", ":"]);
 					prev.token = "token_type_def";
 					this.tokenizer.append_batch("token_keyword");
 					this.tokenizer.batch += char;
@@ -201,7 +201,7 @@ vhighlight.JS = class JS {
 				}
 				
 				// Fetch previous batch.
-				const prev = this.tokenizer.get_prev_token(this.tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+				const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 
 				// No previous token.
 				if (prev === null) {
@@ -324,7 +324,7 @@ vhighlight.JS = class JS {
 			
 				// Tokenize.
 				if (this.tokenizer.is_linebreak_whitespace_char(this.tokenizer.prev_char)) {
-					const prev = this.tokenizer.get_prev_token(this.tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+					const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 					prev.token = "token_parameter";
 					this.tokenizer.append_batch();
 				} else {

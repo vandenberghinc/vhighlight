@@ -144,7 +144,7 @@ vhighlight.Bash = class Bash {
 
 				// Edit prev token.
 				if (is_func_def) {
-					const prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+					const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 					prev.token = "token_type_def";
 				}
 			}

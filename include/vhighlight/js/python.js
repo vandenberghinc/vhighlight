@@ -79,7 +79,7 @@ vhighlight.Python = class Python {
 				// Get prev token.
 				// Prev token must be null since "token_type_def" is already assigned.
 				// And also skip tuples by checking if the prev contains a word boundary.
-				const prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n"]);
+				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
 				if (prev != null && prev.token == null && !tokenizer.str_includes_word_boundary(prev.data)) {
 					prev.token = "token_type";
 				}
@@ -95,7 +95,7 @@ vhighlight.Python = class Python {
 				// Get the token index of the opening parentheses.
 				let opening_index = null;
 				let depth = 0;
-				for (let i = tokenizer.tokens.length - 1; i >= 0; i--) {
+				for (let i = tokenizer.added_tokens - 1; i >= 0; i--) {
 					const token = tokenizer.tokens[i];
 					if (token.token == null && token.data == "(") {
 						--depth;
@@ -134,7 +134,7 @@ vhighlight.Python = class Python {
 				}
 
 				// Get prev token.
-				const prev = tokenizer.get_prev_token(tokenizer.tokens.length - 1, [" ", "\t", "\n", "=", ")", ","]);
+				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "=", ")", ","]);
 				if (prev == null) {
 					return false;
 				}
