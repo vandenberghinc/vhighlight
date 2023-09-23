@@ -260,8 +260,8 @@ vhighlight.Tokenizer = class Tokenizer {
 	// Fetch the first non whitespace token going backwards from the specified index.
 	// So it also tests the specified index. If the previous token data is excluded it checks one further back.
 	get_prev_token(index, exclude = [" ", "\t", "\n"], exclude_comments = false) {
-		const now = Date.now();
-		const res = this.tokens.iterate_tokens_reversed((token) => {
+		// const now = Date.now();
+		return this.tokens.iterate_tokens_reversed((token) => {
 			if (token.index <= index) {
 				if (exclude_comments && token.token === "token_comment") {
 					return null;
@@ -271,8 +271,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 			}
 		})
-		this.get_prev_token_time += Date.now() - now;
-		return res;
+		// this.get_prev_token_time += Date.now() - now;
+		// return res;
 	}
 	
 	// Check if a string contains a word boundary character.
@@ -432,7 +432,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	// Do not join null tokens since that would clash with the prev batch function lookup and comparing it with data.
 	// For example when exlcuding whitespace in the prev token, it can still contain whitespace.
 	append_token(token = null, is_word_boundary = null) {
-		const now = Date.now();
+		// const now = Date.now();
 
 		// Create default object.
 		const obj = {
@@ -521,7 +521,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Performance.
-		this.append_time += Date.now() - now;
+		// this.append_time += Date.now() - now;
 	}
 	
 	// Append batch.
@@ -1093,8 +1093,8 @@ vhighlight.Tokenizer = class Tokenizer {
 			this.tokens.push([]);
 		}
 
-		console.log(`append_token time: ${this.append_token_time}ms.`);
-		console.log(`get_prev_token time: ${this.get_prev_token_time}ms.`);
+		// console.log(`append_token time: ${this.append_token_time}ms.`);
+		// console.log(`get_prev_token time: ${this.get_prev_token_time}ms.`);
 
 		// Return tokens.
 		if (return_tokens) {
@@ -1159,7 +1159,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// ---------------------------------------------------------
 		// Find the scope start.
-		now = Date.now();
+		// now = Date.now();
 
 		// console.log("code:",this.code);
 		// console.log("edits_start:",edits_start);
@@ -1251,13 +1251,13 @@ vhighlight.Tokenizer = class Tokenizer {
 			})
 		}
 
-		console.log("scope_start_offset:",scope_start_offset);
-		console.log("scope_start:",scope_start);
-		console.log("Find the scope start:", Date.now() - now, "ms.");
+		// console.log("scope_start_offset:",scope_start_offset);
+		// console.log("scope_start:",scope_start);
+		// console.log("Find the scope start:", Date.now() - now, "ms.");
 
 		// ---------------------------------------------------------
 		// Find the scope end.
-		now = Date.now();
+		// now = Date.now();
 
 		const get_scope_end_by_old_tokens = () => {
 			let scope_end = null; 		// the line where the scope around the new edits ends.
@@ -1361,8 +1361,8 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 				}
 			})
-			console.log("old scope_end:",scope_end);
-			console.log("old scope_end_offset:",scope_end_offset);
+			// console.log("old scope_end:",scope_end);
+			// console.log("old scope_end_offset:",scope_end_offset);
 			// console.log("old scope:", this.code.substr(scope_start_offset, scope_end_offset - scope_start_offset));
 
 			return {line:scope_end, offset:scope_end_offset};
@@ -1503,8 +1503,8 @@ vhighlight.Tokenizer = class Tokenizer {
 
 				// 
 			})
-			console.log("new scope_end:",scope_end);
-			console.log("new scope_end_offset:",scope_end_offset);
+			// console.log("new scope_end:",scope_end);
+			// console.log("new scope_end_offset:",scope_end_offset);
 			// console.log("new scope:", this.code.substr(scope_start_offset, scope_end_offset - scope_start_offset));
 
 			return {line:scope_end, offset:scope_end_offset};
@@ -1534,29 +1534,35 @@ vhighlight.Tokenizer = class Tokenizer {
 			scope_end_offset = old_scope_end.offset;
 		}
 
-		console.log("Find the scope end:", Date.now() - now, "ms.");
-		now = Date.now();
+		// console.log("Find the scope end:", Date.now() - now, "ms.");
+		// now = Date.now();
 
 		// ---------------------------------------------------------
 		// Highlight and insert the edits.
 
 		// Slice the data edits.
-		console.log("scope_end:",scope_end);
-		console.log("scope_end_offset:",scope_end_offset);
+		// console.log("scope_end:",scope_end);
+		// console.log("scope_end_offset:",scope_end_offset);
 		// console.log("code length:",this.code.length);
 		this.code = this.code.substr(scope_start_offset, (scope_end_offset - scope_start_offset) + 1);
 		// console.log("scope:",this.code);
 
-		console.log("Slice scope:", Date.now() - now, "ms.");
-		now = Date.now();
+		// console.log("Slice scope:", Date.now() - now, "ms.");
+		// now = Date.now();
 
 		// Highlight the edits.
 		const insert_tokens = this.tokenize(true);
-		console.log("Tokenized lines:",insert_tokens.length);
 
+		// Remove the last line if it does not contain any tokens since this was manually added by tokenize.
+		// Otherwise it will insert a line that was not present in the scope.
+		if (insert_tokens.length > 0 && insert_tokens.last().length === 0) {
+			--insert_tokens.length;
+		}
+		
+		// console.log("Tokenized lines:",insert_tokens.length);
 		// console.log("insert_tokens:",insert_tokens)
-		console.log("Highlight the edits:", Date.now() - now, "ms.");
-		now = Date.now();
+		// console.log("Highlight the edits:", Date.now() - now, "ms.");
+		// now = Date.now();
 
 		// Combine the tokens.
 		let combined_tokens = new vhighlight.Tokens();
@@ -1602,7 +1608,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// console.log("line_count:",line_count);
 		// console.log("combined_tokens:",combined_tokens);
-		console.log("Combine the tokens:", Date.now() - now, "ms.");
+		// console.log("Combine the tokens:", Date.now() - now, "ms.");
 
 		// Handler.
 		return combined_tokens;
