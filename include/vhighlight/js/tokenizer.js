@@ -886,12 +886,43 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Reset.
 		this.reset();
 
+		// Check seperate batch append token comment codeblock for the first " * " in languages with /* */ multi line comment style
+		const append_comment_codeblock_batch = () => {
+			if (this.multi_line_comment_start === "/*") {
+				let i, separate = false;
+				for (i = 0; i < this.batch.length; i++) {
+					const c = this.batch.charAt(i);
+					if (c === "*") {
+						separate = true;
+						const next = this.batch.charAt(i + 1);
+						if (next === " " || next === "\t") {
+							i += 2;
+						}
+						break;
+					}
+					else if (c === " " || c === "\t") {
+						continue;
+					}
+					else {
+						break;
+					}
+				}
+				if (separate) {
+					const after = this.batch.substr(i);
+					this.batch = this.batch.substr(0, i);
+					this.append_batch("token_comment");
+					this.batch = after;
+				}
+			}
+			this.append_batch("token_comment_codeblock");
+		}
+
 		// Append previous batch when switching comment, string, regex, to something else.
 		const auto_append_batch_switch = (default_append = true) => {
 			if (this.is_comment_keyword) {
 				this.append_batch("token_comment_keyword");
 			} else if (this.is_comment_codeblock) {
-				this.append_batch("token_comment_codeblock");
+				append_comment_codeblock_batch();
 			} else if (this.is_comment) {
 				this.append_batch("token_comment");
 			} else if (this.is_str) {
@@ -1087,7 +1118,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.is_comment_keyword = false;
 				}
 				else if (this.is_comment_codeblock) {
-					this.append_batch("token_comment_codeblock");
+					append_comment_codeblock_batch();
 					this.is_comment_codeblock = false;
 				}
 				else if (this.is_comment) {
