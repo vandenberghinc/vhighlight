@@ -316,7 +316,7 @@ vhighlight.CSS = class CSS {
 					else if (
 						(prev.token == "token_string") || // for "#myid" which will otherwise be treated as hex strings.
 						(prev.token == "token_keyword" && prev.data.charAt(0) != "@") ||
-						(prev.token == null && 
+						(prev.token === undefined && 
 							(
 								prev.data == "#" || 
 								prev.data == "." || 
@@ -346,7 +346,7 @@ vhighlight.CSS = class CSS {
 			else if (char == "(") {
 				tokenizer.append_batch();
 				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-				if (prev != null && prev.token == null) {
+				if (prev != null && prev.token === undefined) {
 					prev.token = "token_type";
 				}
 			}
@@ -366,7 +366,7 @@ vhighlight.CSS = class CSS {
 						finished = true;
 						break;
 					}
-					else if (prev.token == null/* || prev.data == "-"*/) {
+					else if (prev.token === undefined/* || prev.data == "-"*/) {
 						edits.push(prev);
 					}
 					index = prev.index - 1;
@@ -419,7 +419,7 @@ vhighlight.CSS = class CSS {
 						finished = true;
 						break;
 					}
-					else if (prev.token == null && !tokenizer.str_includes_word_boundary(prev.data)) {
+					else if (prev.token === undefined && !tokenizer.str_includes_word_boundary(prev.data)) {
 						edits.push(prev);
 					}
 					index = prev.index - 1;

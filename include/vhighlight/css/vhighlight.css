@@ -18,6 +18,15 @@
 .token_comment {
 	color: #818C97;
 }
+.token_comment_keyword {
+	color: #EE8378;
+}
+.token_comment_codeblock {
+	color: #818C97;
+	font-style: italic;
+	background: #FFFFFF20;
+  border-radius: 5px;
+}
 .token_url {
 	color: #818C97;
 }

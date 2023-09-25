@@ -106,7 +106,7 @@ vhighlight.JS = class JS {
 					} else if (prev.data != "async") {
 						return false;
 					}
-				} else if (prev.token != null && prev.token != "token_operator") {
+				} else if (prev.token !== undefined && prev.token != "token_operator") {
 					return false;
 				}
 
@@ -246,7 +246,7 @@ vhighlight.JS = class JS {
 					// The prev data should not include a word boundary otherwise it ...
 					// Will also match the first "(" in something like "((foi,foi)=>{...})".
 					if (this.tokenizer.is_linebreak_whitespace_char(this.tokenizer.prev_char) || this.tokenizer.is_linebreak_whitespace_char()) {
-						if (prev.token == null && !this.tokenizer.str_includes_word_boundary(prev.data)) {
+						if (prev.token === undefined && !this.tokenizer.str_includes_word_boundary(prev.data)) {
 							prev.token = "token_type";
 						}
 						this.tokenizer.append_batch(false);

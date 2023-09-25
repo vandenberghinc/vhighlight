@@ -303,7 +303,7 @@ vhighlight.CPP = class CPP {
 					let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
 					const prev_prev_is_colon = tokenizer.get_prev_token(prev.index - 1).data == ":";
 					if (
-						(prev.token == null && prev.data != "]") || // when no token is specified and exclude lambda funcs.
+						(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
 						(prev.token == "token_type" && prev_prev_is_colon) // when the previous token is token_type by a double colon.
 					) {
 
@@ -405,7 +405,7 @@ vhighlight.CPP = class CPP {
 						prev_prev = tokenizer.tokens[opening_token_index - 1];
 					}
 				}
-				if (prev_prev.token != "token_type" && prev.token == null && prev.data != ")") {
+				if (prev_prev.token != "token_type" && prev.token === undefined && prev.data != ")") {
 					prev.token = "token_type";
 				}
 
@@ -528,7 +528,7 @@ vhighlight.CPP = class CPP {
 					return false;
 				}
 				if (
-					(prev.token == null || prev.token == "token_type_def") // when token is null or prev token from like "using namespace a::b::c;"
+					(prev.token === undefined || prev.token == "token_type_def") // when token is null or prev token from like "using namespace a::b::c;"
 					&& !tokenizer.str_includes_word_boundary(prev.data)) {
 					prev.token = "token_type";
 				}

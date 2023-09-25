@@ -80,7 +80,7 @@ vhighlight.Python = class Python {
 				// Prev token must be null since "token_type_def" is already assigned.
 				// And also skip tuples by checking if the prev contains a word boundary.
 				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-				if (prev != null && prev.token == null && !tokenizer.str_includes_word_boundary(prev.data)) {
+				if (prev != null && prev.token === undefined && !tokenizer.str_includes_word_boundary(prev.data)) {
 					prev.token = "token_type";
 				}
 
@@ -97,13 +97,13 @@ vhighlight.Python = class Python {
 				let depth = 0;
 				for (let i = tokenizer.added_tokens - 1; i >= 0; i--) {
 					const token = tokenizer.tokens[i];
-					if (token.token == null && token.data == "(") {
+					if (token.token === undefined && token.data == "(") {
 						--depth;
 						if (depth <= 0) {
 							opening_index = i;
 							break;
 						}
-					} else if (token.token == null && token.data == ")") {
+					} else if (token.token === undefined && token.data == ")") {
 						++depth;
 					}
 				}
@@ -144,9 +144,9 @@ vhighlight.Python = class Python {
 
 				// When the prev prev is a "," or a "(" then the prev is a parameter.
 				if (
-					prev.token == null && 
+					prev.token === undefined && 
 					prev_prev != null && 
-					prev_prev.token == null && 
+					prev_prev.token === undefined && 
 					(prev_prev.data == "(" || prev_prev.data == ",")
 				) {
 					prev.token = "token_parameter";

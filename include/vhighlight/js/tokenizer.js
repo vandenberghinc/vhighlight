@@ -111,8 +111,6 @@ vhighlight.Tokens = class Tokens extends Array {
 // @todo highlight `` inside comments with a codeblock background in every language.  Dont forget to assign the comment id to these inserted tokens though.
 // @todo when the last line is a comment and there is no \n at the end of the section then the section is not recognized as a comment.
 // @todo preprocessor after comment is highlighted as comment.
-// @todo remove "token = null" in token objects for performance.
-// @todo perhaps change the linebreak token not to start a new line itself, but the token after.
 vhighlight.Tokenizer = class Tokenizer {
 	constructor({
 		// Attributes for tokenizing.
@@ -227,34 +225,36 @@ vhighlight.Tokenizer = class Tokenizer {
 	// Attributes that should be reset before each tokenize.
 	reset() {
 		this.tokens = new vhighlight.Tokens();		// use an array with tokens since some tokens need to be edited after they have been appended.
-		this.added_tokens = 0;			// the currently added tokens.
-		this.index = null;				// the current index in the iteration, so it may be edited in case of forward lookup.
-		this.prev_char = null;			// the previous char in the iteration.
-		this.next_char = null;			// the next char in the iteration.
-		this.batch  = "";				// current batch.
-		this.line = 0;					// current line number.
-		this.is_comment = false;		// is currently a comment.
-		this.is_str = false;			// is currently a string.
-		this.is_regex = false;			// is currently a regex string "/hello/".
-		this.is_preprocessor = false;	// is currently a preprocessor statement.
-		this.parenth_depth = 0;			// parentheses depth "( )".
-		this.bracket_depth = 0;			// bracket depth "[ ]".
-		this.curly_depth = 0;			// curly brackets depth "{ }".
-		// this.template_depth = 0;		// template depth "< >".
-		this.next_token = null;			// the next token, defined by the previous token such ass "class" or "extends".
-		this.str_id = 0;				// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.comment_id = 0;			// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.regex_id = 0;				// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.preprocessor_id = 0;		// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.offset = 0;				// the offset of the previously appended tokens.
+		this.added_tokens = 0;				// the currently added tokens.
+		this.index = null;					// the current index in the iteration, so it may be edited in case of forward lookup.
+		this.prev_char = null;				// the previous char in the iteration.
+		this.next_char = null;				// the next char in the iteration.
+		this.batch  = "";					// current batch.
+		this.line = 0;						// current line number.
+		this.is_comment = false;			// is currently a comment.
+		this.is_str = false;				// is currently a string.
+		this.is_regex = false;				// is currently a regex string "/hello/".
+		this.is_preprocessor = false;		// is currently a preprocessor statement.
+		this.is_comment_keyword = false;	// is currently a "@keyword" inside a comment.
+		this.is_comment_codeblock = false;	// is currently a "`somefunc()`" codeblock inside a comment.
+		this.parenth_depth = 0;				// parentheses depth "( )".
+		this.bracket_depth = 0;				// bracket depth "[ ]".
+		this.curly_depth = 0;				// curly brackets depth "{ }".
+		// this.template_depth = 0;			// template depth "< >".
+		this.next_token = null;				// the next token, defined by the previous token such ass "class" or "extends".
+		this.str_id = 0;					// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.comment_id = 0;				// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.regex_id = 0;					// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.preprocessor_id = 0;			// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.offset = 0;					// the offset of the previously appended tokens.
 
 		// Attributes for JS.
-		this.class_depth = null;		// @TODO js does not allow class definitions inside a class, but it does allow it insice a functio which is a member of a class.
-										// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
+		this.class_depth = null;			// @TODO js does not allow class definitions inside a class, but it does allow it insice a functio which is a member of a class.
+											// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
 
 		// Performance.
-		this.get_prev_token_time = 0;
-		this.append_token_time = 0;
+		// this.get_prev_token_time = 0;
+		// this.append_token_time = 0;
 	}
 
 	// Fetch the first non whitespace token going backwards from the specified index.
@@ -434,14 +434,17 @@ vhighlight.Tokenizer = class Tokenizer {
 	append_token(token = null, is_word_boundary = null) {
 		// const now = Date.now();
 
+
 		// Create default object.
 		const obj = {
-			token: token, 
 			data: this.batch, 
 			index: this.added_tokens, 
 			line: this.line,
 			offset: this.offset,
 		};
+		if (token != null) {
+			obj.token = token;
+		}
 
 		// Set is word boundary.
 		if (
@@ -677,7 +680,12 @@ vhighlight.Tokenizer = class Tokenizer {
 			const is_escaped = this.is_escaped(info_obj.index);
 
 			// Start of preprocessors.
-			if (this.allow_preprocessors && !is_preprocessor && prev_non_whitespace_char == "\n" && char == "#") {
+			if (
+				this.allow_preprocessors && 
+				!is_preprocessor && 
+				(prev_non_whitespace_char == "\n" || info_obj.index === 0) && 
+				char == "#"
+			) {
 				++info_obj.preprocessor_id;
 				is_preprocessor = true;
 				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
@@ -747,7 +755,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				!is_regex
 				// && string_char == null
 			) {
-			
+				
 				// Single line comments.
 				const comment_start = this.single_line_comment_start;
 				if (comment_start.length === 1 && char === comment_start) {
@@ -790,7 +798,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				)
 			) {
 				is_comment = false;
-				const res = callback(char, false, true, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
 			}
@@ -879,8 +887,12 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.reset();
 
 		// Append previous batch when switching comment, string, regex, to something else.
-		const auto_append_batch_switch = () => {
-			if (this.is_comment) {
+		const auto_append_batch_switch = (default_append = true) => {
+			if (this.is_comment_keyword) {
+				this.append_batch("token_comment_keyword");
+			} else if (this.is_comment_codeblock) {
+				this.append_batch("token_comment_codeblock");
+			} else if (this.is_comment) {
 				this.append_batch("token_comment");
 			} else if (this.is_str) {
 				this.append_batch("token_string");
@@ -889,8 +901,13 @@ vhighlight.Tokenizer = class Tokenizer {
 			} else if (this.is_preprocessor) {
 				this.append_batch("token_preprocessor");
 			} else {
-				this.append_batch();
+				if (default_append) {
+					this.append_batch();
+				} else {
+					return false;
+				}
 			}
+			return true;
 		}
 
 		// Iterate code.
@@ -908,6 +925,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 				if (!local_is_comment && !is_multi_line_comment) {
 					this.is_comment = false;
+					this.is_comment_keyword = false;
+					// this.is_comment_codeblock = false; // may be multi line.
 				}
 				if (!local_is_regex) {
 					this.is_regex = false;
@@ -925,11 +944,50 @@ vhighlight.Tokenizer = class Tokenizer {
 			
 			// Start of and during comment.
 			else if (local_is_comment || is_multi_line_comment) {
+
+				// Start of comment.
 				if (!this.is_comment) {
 					auto_append_batch_switch();
 					this.is_comment = true;
+					this.batch += char;
 				}
-				this.batch += char;
+
+				// During comment.
+				else {
+
+					// End of comment codeblock.
+					if (this.is_comment_codeblock && char === "`" && this.next_char !== "`") {
+						this.batch += char;
+						auto_append_batch_switch();
+						this.is_comment_codeblock = false;
+					}
+
+					// Start of comment codeblock.
+					else if (!this.is_comment_codeblock && char === "`") {
+						auto_append_batch_switch();
+						this.is_comment_codeblock = true;
+						this.batch += char;
+					}
+
+					// Check for @ keywords.
+					else if (!this.is_comment_codeblock && char === "@" && !is_escaped) {
+						auto_append_batch_switch();
+						this.is_comment_keyword = true;
+						this.batch += char;
+					}
+
+					// Check for end of @ keywords.
+					else if (this.is_comment_keyword && this.word_boundaries.includes(char)) {
+						auto_append_batch_switch();
+						this.is_comment_keyword = false;	
+						this.batch += char;
+					}
+
+					// Append to batch.
+					else {
+						this.batch += char;
+					}
+				}
 			}
 			
 			// Start of and during string.
@@ -937,15 +995,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (!this.is_str) {
 
 					// Check for special prefix chars.
-					if (this.is_comment) {
-						this.append_batch("token_comment");
-					} else if (this.is_str) {
-						this.append_batch("token_string");
-					} else if (this.is_regex) {
-						this.append_batch("token_string");
-					} else if (this.is_preprocessor) {
-						this.append_batch("token_preprocessor");
-					} else {
+					if (auto_append_batch_switch(false) === false) {
 						if (this.special_string_prefixes.includes(this.batch)) {
 							this.append_batch("token_keyword");
 						} else {
@@ -1032,9 +1082,19 @@ vhighlight.Tokenizer = class Tokenizer {
 				
 				// End of comment.
 				// Should proceed with the callback since the next character needs to be parsed.
-				if (this.is_comment) {
+				if (this.is_comment_keyword) {
+					this.append_batch("token_comment_keyword");
+					this.is_comment_keyword = false;
+				}
+				else if (this.is_comment_codeblock) {
+					this.append_batch("token_comment_codeblock");
+					this.is_comment_codeblock = false;
+				}
+				else if (this.is_comment) {
 					this.append_batch("token_comment");
 					this.is_comment = false;
+					this.is_comment_keyword = false;
+					this.is_comment_codeblock = false;
 				}
 				
 				// End of string.
@@ -1623,7 +1683,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Iterate an array with token objects.
 		tokens.iterate((line_tokens) => {
 			line_tokens.iterate((token) => {
-				if (token.token == null) {
+				if (token.token === undefined) {
 					if (reformat) {
 						html += token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 					} else {
