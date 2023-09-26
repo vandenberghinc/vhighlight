@@ -1200,6 +1200,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Partial tokenize.
 	// @todo this fucks with the str_id etc if the users just created a new string.
+	// @todo scope end foes not work correctly when a user types the first / for a comment in js, then it thinks it is a regex and on the second / the regex is not closed.
 	/*	@docs: {
 		@title Partial tokenize
 		@description: Partially tokenize text based on edited lines.
