@@ -330,12 +330,7 @@ vhighlight.Markdown = class Markdown {
 					tokenizer.append_forward_lookup_batch("token_codeblock", language + code);
 				} else {
 					tokenizer.append_forward_lookup_batch("token_keyword", language);
-					for (let i = 0; i < result.tokens.length; i++) {
-						const token = result.tokens[i];
-						token.line += tokenizer.line;
-						tokenizer.tokens.push(token);
-					}
-					tokenizer.line += result.line_count;
+					tokenizer.insert_tokens(result);
 				}
 				tokenizer.append_forward_lookup_batch("token_keyword", "```");
 

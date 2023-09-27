@@ -483,6 +483,25 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.index = index;
 	}
 
+	// Insert tokens.
+	insert_tokens(tokens) {
+		const start_line = this.line;
+		const start_offset = this.offset;
+		tokens.iterate_tokens((token) => {
+			token.line += start_line;
+			token.offset += start_offset;
+			this.offset += token.data.length;
+			if (token.is_line_break) {
+				++this.line;
+			}
+			if (this.tokens[token.line] === undefined) {
+				this.tokens[token.line] = [token];
+			} else {
+				this.tokens[token.line].push(token);
+			}
+		})
+	}
+
 	// Append a token.
 	// Do not join null tokens since that would clash with the prev batch function lookup and comparing it with data.
 	// For example when exlcuding whitespace in the prev token, it can still contain whitespace.
@@ -813,7 +832,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				
 				// Single line comments.
 				const comment_start = this.single_line_comment_start;
-				if (comment_start.length === 1 && char === comment_start) {
+				if (comment_start !== false && comment_start.length === 1 && char === comment_start) {
 					++info_obj.comment_id;
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
@@ -821,7 +840,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					continue;
 				}
 				// else if (comment_start.length == 2 && char + info_obj.next_char == comment_start) {
-				else if (comment_start.length !== 1 && eq_first(comment_start, info_obj.index)) {
+				else if (comment_start !== false && comment_start.length !== 1 && eq_first(comment_start, info_obj.index)) {
 					++info_obj.comment_id;
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
