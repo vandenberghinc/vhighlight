@@ -271,6 +271,7 @@ vhighlight.JS = class JS {
 			}
 			
 			// Function parameter.
+			// @todo replace with python like.
 			else if (
 				// Inside a class.
 				(this.tokenizer.class_depth == this.tokenizer.curly_depth &&

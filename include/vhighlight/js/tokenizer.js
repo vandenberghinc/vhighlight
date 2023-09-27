@@ -106,11 +106,8 @@ vhighlight.Tokens = class Tokens extends Array {
 // The tokenizer class.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
 // - Parsing behaviour depends on that every word is seperated as a token, so each word boundary is a seperate token.
-// @todo highlight "@\\s+" patterns inside comments, but do not highlight escaped @ chars, but do create a "allow_at" parameter. Dont forget to assign the comment id to these inserted tokens though.
 // @todo highlight "@\\s+" patterns outside comments as token_type.
-// @todo highlight `` inside comments with a codeblock background in every language.  Dont forget to assign the comment id to these inserted tokens though.
-// @todo when the last line is a comment and there is no \n at the end of the section then the section is not recognized as a comment.
-// @todo preprocessor after comment is highlighted as comment.
+// @todo add support for each language to get parameters, so that vdocs can use this.
 vhighlight.Tokenizer = class Tokenizer {
 	constructor({
 		// Attributes for tokenizing.
@@ -136,6 +133,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		allow_comment_scope_seperator = false,
 		allow_regex_scope_seperator = false,
 		allow_preprocessor_scope_seperator = false,
+		allow_comment_keyword = true,
+		allow_comment_codeblock = true,
 	}) {
 
 		// Parameter attributes.
@@ -157,6 +156,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.allow_comment_scope_seperator = allow_comment_scope_seperator;				// allow comments to seperate scopes for partial tokenize.
 		this.allow_regex_scope_seperator = allow_regex_scope_seperator;					// allow regexes to seperate scopes for partial tokenize.
 		this.allow_preprocessor_scope_seperator = allow_preprocessor_scope_seperator;	// allow preprocessors to seperate scopes for partial tokenize.
+		this.allow_comment_keyword = allow_comment_keyword;								// allow comment keywords.
+		this.allow_comment_codeblock = allow_comment_codeblock;							// allow comment codeblocks.
 
 		// Word boundaries.
 		this.word_boundaries = [
@@ -1048,14 +1049,14 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Start of comment codeblock.
-					else if (!this.is_comment_codeblock && char === "`") {
+					else if (this.allow_comment_codeblock && !this.is_comment_codeblock && char === "`") {
 						auto_append_batch_switch();
 						this.is_comment_codeblock = true;
 						this.batch += char;
 					}
 
 					// Check for @ keywords.
-					else if (!this.is_comment_codeblock && char === "@" && !is_escaped) {
+					else if (this.allow_comment_keyword && !this.is_comment_codeblock && char === "@" && !is_escaped) {
 						auto_append_batch_switch();
 						this.is_comment_keyword = true;
 						this.batch += char;
