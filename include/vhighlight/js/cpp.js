@@ -154,24 +154,6 @@ vhighlight.CPP = class CPP {
 		// Assign attributes.
 		this.reset();
 
-		// Iterate tokens backwards till the opening templae.
-		// Parameter "index" should be the index of the closing ">" token.
-		const find_opening_template_token = (index) => {
-			let depth = 1;
-			for (let i = index - 1; i >= 0; i--) {
-				const token = this.tokenizer.tokens[i];
-				if (token.data == "<") {
-					--depth;
-					if (depth == 0) {
-						return i;
-					}
-				} else if (token.data == ">") {
-					++depth;
-				}
-			}
-			return null;
-		}
-
 		// Set callback.
 		this.tokenizer.callback = (char) => {
 			const tokenizer = this.tokenizer;
@@ -360,18 +342,18 @@ vhighlight.CPP = class CPP {
 
 							// Check if the prev token is a template closing.
 							if (prev.data == ">") {
-								const opening_token_index = find_opening_template_token(prev.index);
-								if (opening_token_index != null) {
-									prev = tokenizer.get_prev_token(opening_token_index - 1, [" ", "\t", "\n"]);
+								const token = tokenizer.get_opening_template(prev.index);
+								if (token != null) {
+									prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 								}
 							}
 
 							// Make sure the token before the prev is not a keyword such as "if ()".
 							let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
 							if (prev_prev.data == ">") {
-								const opening_token_index = find_opening_template_token(prev_prev.index);
-								if (opening_token_index != null) {
-									prev_prev = tokenizer.get_prev_token(opening_token_index - 1, [" ", "\t", "\n"]);
+								const token = tokenizer.get_opening_template(prev_prev.index);
+								if (token != null) {
+									prev_prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 								}
 							}
 							if (prev_prev.token != "token_type") {
@@ -393,16 +375,16 @@ vhighlight.CPP = class CPP {
 				// Also skip the tokens between < and > when the initial prev and the prev prev token is a ">".
 				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "&", "*"]);
 				if (prev.data == ">") {
-					const opening_token_index = find_opening_template_token(prev.index);
-					if (opening_token_index != null) {
-						prev = tokenizer.tokens[opening_token_index - 1];
+					const token = tokenizer.get_opening_template(prev.index);
+					if (token != null) {
+						prev = tokenizer.get_prev_token(token.index - 1, []);
 					}
 				}
 				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "&", "*"]);
 				if (prev_prev.data == ">") {
-					const opening_token_index = find_opening_template_token(prev_prev.index);
-					if (opening_token_index != null) {
-						prev_prev = tokenizer.tokens[opening_token_index - 1];
+					const token = tokenizer.get_opening_template(prev_prev.index);
+					if (token != null) {
+						prev_prev = tokenizer.get_prev_token(token.index - 1, []);
 					}
 				}
 				if (prev_prev.token != "token_type" && prev.token === undefined && prev.data != ")") {
@@ -510,18 +492,9 @@ vhighlight.CPP = class CPP {
 				// Skip the tokens between < and > when the initial prev token is a ">".
 				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [":"]);
 				if (prev.data == ">") {
-					let depth = 1;
-					for (let i = prev.index - 1; i >= 0; i--) {
-						const token = tokenizer.tokens[i];
-						if (token.data == "<") {
-							--depth;
-							if (depth == 0) {
-								prev = tokenizer.tokens[i - 1];
-								break;
-							}
-						} else if (token.data == ">") {
-							++depth;
-						}
+					prev = tokenizer.get_opening_template(prev.index);
+					if (prev !== null) {
+						prev = tokenizer.get_prev_token(prev.index - 1, [])
 					}
 				}
 				if (prev == null) {

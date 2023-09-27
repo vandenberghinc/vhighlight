@@ -95,19 +95,10 @@ vhighlight.Python = class Python {
 				// Get the token index of the opening parentheses.
 				let opening_index = null;
 				let depth = 0;
-				for (let i = tokenizer.added_tokens - 1; i >= 0; i--) {
-					const token = tokenizer.tokens[i];
-					if (token.token === undefined && token.data == "(") {
-						--depth;
-						if (depth <= 0) {
-							opening_index = i;
-							break;
-						}
-					} else if (token.token === undefined && token.data == ")") {
-						++depth;
-					}
-				}
-				if (opening_index == null) {
+				let token = tokenizer.get_opening_parentheses(tokenizer.index);
+				if (token !== null) {
+					opening_index = token.index;
+				} else {
 					return false;
 				}
 

@@ -206,7 +206,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
-		this.excluded_word_boundary_joinings = ["{", "}", "[", "]", "(", ")"].concat(this.scope_seperators); // always exclude default {}[]() for vide.
+		this.excluded_word_boundary_joinings = ["{", "}", "[", "]", "(", ")", "<", ">"].concat(this.scope_seperators); // always exclude default {}[]() for vide.
 		this.excluded_word_boundary_joinings = this.excluded_word_boundary_joinings.reduce((accumulator, val) => { // drop duplicates.
 			if (!accumulator.includes(val)) {
 				accumulator.push(val);
@@ -296,20 +296,29 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Get the index of the closing parentheses / curly from the opening's index.
+	// Parameter `index` should be the index of the closing ">" token.
 	// - Returns "null" when it has not been found.
 	get_closing_parentheses(index) {
-		return this.get_closing_template(index, "(", ")");
+		return this.get_closing_wrapper(index, "(", ")");
 	}
 	get_closing_curly(index) {
-		return this.get_closing_template(index, "{", "}");
+		return this.get_closing_wrapper(index, "{", "}");
 	}
 	get_closing_bracket(index) {
-		return this.get_closing_template(index, "[", "]");
+		return this.get_closing_wrapper(index, "[", "]");
 	}
-	get_closing_template(index, open, close) {
-		let depth = 1;
+	get_closing_template(index) {
+		return this.get_closing_wrapper(index, "<", ">");
+	}
+	get_closing_wrapper(index, open, close) {
+		let depth = 0;
+		let start_index = index;
+		if (this.code.charAt(index) === opener) {
+			depth = 1;
+			start_index = index + 1;
+		}
 		const info_obj = {index: null, str_id: 0, comment_id: null, regex_id: null, preprocessor_id: 0};
-		return this.iterate_code(info_obj, index + 1, null, (char, is_str, is_comment, is_multi_line_comment, is_regex) => {
+		return this.iterate_code(info_obj, start_index, null, (char, is_str, is_comment, is_multi_line_comment, is_regex) => {
 			if (!is_str && !is_comment && !is_multi_line_comment && !is_regex) {
 				if (char == open) {
 					++depth;
@@ -321,6 +330,51 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 			}
 		});
+	}
+
+	// Get the token of the opening parentheses / curly / bracket.
+	// - Returns "null" when it has not been found.
+	get_opening_parentheses(index) {
+		return this.get_opening_wrapper(index, "(", ")");
+	}
+	get_opening_curly(index) {
+		return this.get_opening_wrapper(index, "{", "}");
+	}
+	get_opening_bracket(index) {
+		return this.get_opening_wrapper(index, "[", "]");
+	}
+	get_opening_template(index) {
+		return this.get_opening_wrapper(index, "<", ">");
+	}
+	get_opening_wrapper = (index, opener, closer) => {
+		let depth = 0;
+		let start_index = index;
+		if (this.code.charAt(index) === closer) {
+			depth = 1;
+			start_index = index - 1;
+		}
+		let result = null;
+		this.tokens.iterate_reversed((line_tokens) => {
+			if (line_tokens.length > 0) {
+				line_tokens.iterate_reversed((token) => {
+					if (token.offset <= start_index) {
+						if (token.data == opener) {
+							--depth;
+							if (depth == 0) {
+								result = token;
+								return false;
+							}
+						} else if (token.data == closer) {
+							++depth;
+						}
+					}
+				})
+				if (result !== null) {
+					return false;
+				}
+			}
+		})
+		return result;
 	}
 
 	// Get the first non whitespace character from a given index.
