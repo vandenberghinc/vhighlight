@@ -140,15 +140,12 @@ vhighlight.CPP = class CPP {
 			multi_line_comment_start: "/*",
 			multi_line_comment_end: "*/",
 			allow_preprocessors: true,
+
 			// Attributes for partial tokenizing.
-			scope_seperators: [
+			scope_separators: [
 				"{", 
 				"}", 
 			],
-			allow_string_scope_seperator: false,
-			allow_comment_scope_seperator: false,
-			allow_regex_scope_seperator: false,
-			allow_preprocessor_scope_seperator: false,
 		});
 
 		// Assign attributes.
@@ -216,7 +213,7 @@ vhighlight.CPP = class CPP {
 					// Did not hit any template.
 					else {
 
-						// Allowed seperator characters.
+						// Allowed separator characters.
 						if (c == " " || c == "\t" || c == ":" || c == "*" || c == "&" || (words == 0 && c == "<")) {
 							if (c == "<") {
 								hit_template = 1;
@@ -272,7 +269,7 @@ vhighlight.CPP = class CPP {
 			// Opening parentheses.
 			else if (char == "(") {
 
-				// Append current batch by word boundary seperator.
+				// Append current batch by word boundary separator.
 				tokenizer.append_batch();
 
 				// Get the closing parentheses.
@@ -367,7 +364,7 @@ vhighlight.CPP = class CPP {
 			// Braced initialiatons, depends on a ">" from a template on not being an operator.
 			else if (char == "{") {
 
-				// Append current batch by word boundary seperator.
+				// Append current batch by word boundary separator.
 				tokenizer.append_batch();
 
 				// Edit the previous token when the token is not already assigned and when the data is not "(" for a func or "if", and skip operators etc.
@@ -406,7 +403,7 @@ vhighlight.CPP = class CPP {
 				let word = "";
 				let append_to_batch = [[false, char]];
 				let index;
-				let first_word_in_seperator = true;
+				let first_word_in_separator = true;
 				for (index = tokenizer.index + 1; index < tokenizer.code.length; index++) {
 					const c = tokenizer.code.charAt(index);
 
@@ -418,7 +415,7 @@ vhighlight.CPP = class CPP {
 						if (word.length > 0) {
 							if (tokenizer.keywords.includes(word)) {
 								append_to_batch.push(["token_keyword", word]);
-							} else if (first_word_in_seperator) {
+							} else if (first_word_in_separator) {
 								append_to_batch.push(["token_type", word]);
 							} else {
 								append_to_batch.push([false, word]);
@@ -433,21 +430,21 @@ vhighlight.CPP = class CPP {
 						}
 					}
 
-					// Allowed seperator characters.
+					// Allowed separator characters.
 					else if (tokenizer.is_whitespace(c) || c == "," || c == ":" || c == "*" || c == "&" || c == "\n") {
 						if (word.length > 0) {
 							if (tokenizer.keywords.includes(word)) {
 								append_to_batch.push(["token_keyword", word]);
-							} else if (first_word_in_seperator) {
+							} else if (first_word_in_separator) {
 								append_to_batch.push(["token_type", word]);
 							} else {
 								append_to_batch.push([false, word]);
 							}
 							word = "";
 							if (c == " ") {
-								first_word_in_seperator = false;
+								first_word_in_separator = false;
 							} else if (c == ",") {
-								first_word_in_seperator = true;
+								first_word_in_separator = true;
 							}
 						}
 						append_to_batch.push([false, c]);
@@ -478,7 +475,7 @@ vhighlight.CPP = class CPP {
 			// Double colon.
 			else if (char == ":" && tokenizer.prev_char == ":") {
 
-				// Append batch by seperator.
+				// Append batch by separator.
 				tokenizer.append_batch();
 
 				// Append to new batch.
@@ -535,12 +532,11 @@ vhighlight.CPP = class CPP {
 	}
 
 	// Partial highlight.
-	// @todo should still account for the is inside func to distinguish a func header definition of a type constructor init.
 	/*	@docs: {
 		@title Partial highlight.
 		@description: Partially highlight text based on edited lines.
 		@parameter: {
-			@name: data
+			@name: code
 			@type: string
 			@description: The new code data.
 		}
@@ -555,34 +551,17 @@ vhighlight.CPP = class CPP {
 			@description: The end line of the new edits. The end line includes the line itself.
 		}
 		@parameter: {
-			@name: insert_start
-			@type: string
-			@description: The start line from where to insert the new tokens into.
-		}
-		@parameter: {
-			@name: insert_end
-			@type: string
-			@description: The end line from where to insert the new tokens into. The end line includes the line itself.
-		}
-		@parameter: {
 			@name: tokens
 			@type: array[object]
 			@description: The old tokens.
 		}
-		@parameter: {
-			@name: update_offsets
-			@type: boolean
-			@description: Update the offsets of the new tokens.
-		}
-	} 
+	} */
 	partial_highlight({
 		code = null,
 		edits_start = null,
 		edits_end = null,
-		insert_start = null,
-		insert_end = null,
+		line_additions = 0,
 		tokens = [],
-		update_offsets = true,
 	}) {
 
 		// Assign code when not assigned.
@@ -592,19 +571,18 @@ vhighlight.CPP = class CPP {
 		}
 
 		// Reset.
-		this.reset();
+		if (this.reset != undefined) {
+			this.reset();
+		}
 
 		// Partial tokenize.
 		return this.tokenizer.partial_tokenize({
 			edits_start: edits_start,
 			edits_end: edits_end,
-			insert_start: insert_start,
-			insert_end: insert_end,
+			line_additions: line_additions,
 			tokens: tokens,
-			update_offsets: update_offsets,
 		})
 	}
-	*/
 }
 
 // Initialize.

@@ -27,6 +27,8 @@ return vhighlight.json.highlight(code,return_tokens);
 return vhighlight.python.highlight(code,return_tokens);
 }else if(language=="css"){
 return vhighlight.css.highlight(code,return_tokens);
+}else if(language=="html"){
+return vhighlight.html.highlight(code,return_tokens);
 }else if(language=="bash"||language=="sh"||language=="zsh"||language=="shell"){
 return vhighlight.bash.highlight(code,return_tokens);
 }else{
@@ -49,6 +51,8 @@ highlighted_code=vhighlight.json.highlight(code);
 highlighted_code=vhighlight.python.highlight(code);
 }else if(language=="css"){
 highlighted_code=vhighlight.css.highlight(code);
+}else if(language=="html"){
+highlighted_code=vhighlight.html.highlight(code);
 }else if(language=="bash"||language=="sh"||language=="zsh"||language=="shell"){
 highlighted_code=vhighlight.bash.highlight(code);
 }else{
@@ -202,6 +206,8 @@ highlighted_code=vhighlight.json.highlight(code);
 highlighted_code=vhighlight.python.highlight(code);
 }else if(language=="css"){
 highlighted_code=vhighlight.css.highlight(code);
+}else if(language=="html"){
+highlighted_code=vhighlight.html.highlight(code);
 }else if(language=="bash"||language=="sh"||language=="zsh"||language=="shell"){
 highlighted_code=vhighlight.bash.highlight(code);
 }else{
@@ -352,19 +358,15 @@ allow_strings=true,
 allow_numerics=true,
 allow_preprocessors=false,
 allow_slash_regexes=false,
-scope_seperators=[
-";",
+allow_comment_keyword=true,
+allow_comment_codeblock=true,
+allow_parameters=true,
+scope_separators=[
 "{",
 "}",
 ],
-allow_string_scope_seperator=false,
-allow_comment_scope_seperator=false,
-allow_regex_scope_seperator=false,
-allow_preprocessor_scope_seperator=false,
-allow_comment_keyword=true,
-allow_comment_codeblock=true,
 }){
-this.code=null;this.keywords=keywords;this.type_def_keywords=type_def_keywords;this.type_keywords=type_keywords;this.operators=operators;this.special_string_prefixes=special_string_prefixes;this.single_line_comment_start=single_line_comment_start;this.multi_line_comment_start=multi_line_comment_start;this.multi_line_comment_end=multi_line_comment_end;this.allow_strings=allow_strings;this.allow_numerics=allow_numerics;this.allow_preprocessors=allow_preprocessors;this.allow_slash_regexes=allow_slash_regexes;this.scope_seperators=scope_seperators;this.allow_string_scope_seperator=allow_string_scope_seperator;this.allow_comment_scope_seperator=allow_comment_scope_seperator;this.allow_regex_scope_seperator=allow_regex_scope_seperator;this.allow_preprocessor_scope_seperator=allow_preprocessor_scope_seperator;this.allow_comment_keyword=allow_comment_keyword;this.allow_comment_codeblock=allow_comment_codeblock;
+this.code=null;this.keywords=keywords;this.type_def_keywords=type_def_keywords;this.type_keywords=type_keywords;this.operators=operators;this.special_string_prefixes=special_string_prefixes;this.single_line_comment_start=single_line_comment_start;this.multi_line_comment_start=multi_line_comment_start;this.multi_line_comment_end=multi_line_comment_end;this.allow_strings=allow_strings;this.allow_numerics=allow_numerics;this.allow_preprocessors=allow_preprocessors;this.allow_slash_regexes=allow_slash_regexes;this.allow_comment_keyword=allow_comment_keyword;this.allow_comment_codeblock=allow_comment_codeblock;this.allow_parameters=allow_parameters;this.scope_separators=scope_separators;
 this.word_boundaries=[
 ' ',
 '\t',
@@ -403,7 +405,8 @@ this.word_boundaries=[
 '\u2019','\u2018','\u201d','\u201c',];
 this.alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 this.numerics="0123456789";
-this.excluded_word_boundary_joinings=["{","}","[","]","(",")","<",">"].concat(this.scope_seperators);this.excluded_word_boundary_joinings=this.excluded_word_boundary_joinings.reduce((accumulator,val)=>{if(!accumulator.includes(val)){
+this.excluded_word_boundary_joinings=[
+"{","}","[","]","(",")","<",">",",","=",].concat(this.scope_separators);this.excluded_word_boundary_joinings=this.excluded_word_boundary_joinings.reduce((accumulator,val)=>{if(!accumulator.includes(val)){
 accumulator.push(val);
 }
 return accumulator;
@@ -412,8 +415,7 @@ this.callback=function(){return false;}
 this.reset();
 }
 reset(){
-this.tokens=new vhighlight.Tokens();this.added_tokens=0;this.index=null;this.prev_char=null;this.next_char=null;this.batch ="";this.line=0;this.is_comment=false;this.is_str=false;this.is_regex=false;this.is_preprocessor=false;this.is_comment_keyword=false;this.is_comment_codeblock=false;this.parenth_depth=0;this.bracket_depth=0;this.curly_depth=0;this.next_token=null;this.str_id=0;this.comment_id=0;this.regex_id=0;this.preprocessor_id=0;this.offset=0;
-this.class_depth=null;
+this.tokens=new vhighlight.Tokens();this.added_tokens=0;this.index=null;this.prev_char=null;this.next_char=null;this.batch ="";this.line=0;this.is_comment=false;this.is_str=false;this.is_regex=false;this.is_preprocessor=false;this.is_comment_keyword=false;this.is_comment_codeblock=false;this.parenth_depth=0;this.bracket_depth=0;this.curly_depth=0;this.next_token=null;this.offset=0;
 }
 get_prev_token(index,exclude=[" ","\t","\n"],exclude_comments=false){
 return this.tokens.iterate_tokens_reversed((token)=>{
@@ -461,7 +463,7 @@ if(this.code.charAt(index)===opener){
 depth=1;
 start_index=index+1;
 }
-const info_obj={index:null,str_id:0,comment_id:null,regex_id:null,preprocessor_id:0};
+const info_obj={index:null};
 return this.iterate_code(info_obj,start_index,null,(char,is_str,is_comment,is_multi_line_comment,is_regex)=>{
 if(!is_str&&!is_comment&&!is_multi_line_comment&&!is_regex){
 if(char==open){
@@ -589,16 +591,18 @@ this.append_batch(token);
 resume_on_index(index){
 this.index=index;
 }
-insert_tokens(tokens){
+concat_tokens(tokens){
 const start_line=this.line;
 const start_offset=this.offset;
 tokens.iterate_tokens((token)=>{
 token.line+=start_line;
-token.offset+=start_offset;
-this.offset+=token.data.length;
 if(token.is_line_break){
 ++this.line;
 }
+token.offset+=start_offset;
+this.offset+=token.data.length;
+token.index=this.added_tokens;
+++this.added_tokens;
 if(this.tokens[token.line]===undefined){
 this.tokens[token.line]=[token];
 }else{
@@ -629,7 +633,7 @@ this.offset+=this.batch.length;
 if(token===null&&obj.is_word_boundary===true){
 const line_tokens=this.tokens[this.line];
 if(line_tokens!==undefined){
-const last=line_tokens.last();
+const last=line_tokens[line_tokens.length-1];
 if(
 last!==undefined&&
 last.is_word_boundary===true&&
@@ -641,36 +645,8 @@ return null;}
 }
 }
 ++this.added_tokens;
-switch(token){
-case "token_string":
-obj.str_id=this.str_id;
-break;
-case "token_comment":
-obj.comment_id=this.comment_id;
-break;
-case "token_regex":
-obj.regex_id=this.regex_id;
-break;
-case "token_preprocessor":
-obj.preprocessor_id=this.preprocessor_id;
-break;
-case "token_line":
+if(token==="token_line"){
 obj.is_line_break=true;
-if(this.is_str){
-obj.str_id=this.str_id;
-}
-else if(this.is_comment){
-obj.comment_id=this.comment_id;
-}
-else if(this.is_regex){
-obj.regex_id=this.regex_id;
-}
-else if(this.is_preprocessor){
-obj.preprocessor_id=this.preprocessor_id;
-}
-break;
-default:
-break;
 }
 if(this.tokens[this.line]===undefined){
 this.tokens[this.line]=[obj];
@@ -766,7 +742,6 @@ this.allow_preprocessors&&
 (prev_non_whitespace_char=="\n"||info_obj.index===0)&&
 char=="#"
 ){
-++info_obj.preprocessor_id;
 is_preprocessor=true;
 const res=callback(char,false,is_comment,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
@@ -797,7 +772,6 @@ char=="'"||
 char=='`'
 )
 ){
-++info_obj.str_id;
 string_char=char;
 const res=callback(char,true,is_comment,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
@@ -826,14 +800,12 @@ if(
 ){
 const comment_start=this.single_line_comment_start;
 if(comment_start!==false&&comment_start.length===1&&char===comment_start){
-++info_obj.comment_id;
 is_comment=true;
 const res=callback(char,false,is_comment,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
 continue;
 }
 else if(comment_start!==false&&comment_start.length!==1&&eq_first(comment_start,info_obj.index)){
-++info_obj.comment_id;
 is_comment=true;
 const res=callback(char,false,is_comment,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
@@ -843,7 +815,6 @@ const mcomment_start=this.multi_line_comment_start;
 if(mcomment_start===false){
 }
 else if(mcomment_start.length!==1&&eq_first(mcomment_start,info_obj.index)){
-++info_obj.comment_id;
 is_multi_line_comment=true;
 const res=callback(char,false,is_comment,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
@@ -867,7 +838,10 @@ is_multi_line_comment&&
 !is_escaped
 ){
 const mcomment_end=this.multi_line_comment_end;
-if(mcomment_end.length==2&&info_obj.prev_char+char==mcomment_end){
+if(
+(mcomment_end.length==2&&info_obj.prev_char+char==mcomment_end)||
+(mcomment_end.length>2&&this.code.substr(info_obj.index-mcomment_end.length,mcomment_end.length)==mcomment_end)
+){
 is_multi_line_comment=false;
 const res=callback(char,false,is_comment,true,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
@@ -896,7 +870,6 @@ prev=="["||prev=="{"||prev==":"||
 this.operators.includes(prev)
 )
 ){
-++info_obj.regex_id;
 is_regex=true;
 const res=callback(char,false,is_comment,is_multi_line_comment,is_regex,is_escaped,is_preprocessor);
 if(res!=null){return res;}
@@ -915,7 +888,7 @@ if(res!=null){return res;}
 }
 return null;
 };
-tokenize(return_tokens=false){
+tokenize(return_tokens=false,stop_callback=undefined){
 this.reset();
 const append_comment_codeblock_batch=()=>{
 if(this.multi_line_comment_start==="/*"){
@@ -968,7 +941,7 @@ return false;
 }
 return true;
 }
-this.iterate_code(this,null,null,(char,local_is_str,local_is_comment,is_multi_line_comment,local_is_regex,is_escaped,is_preprocessor)=>{
+const stopped=this.iterate_code(this,null,null,(char,local_is_str,local_is_comment,is_multi_line_comment,local_is_regex,is_escaped,is_preprocessor)=>{
 if(!is_escaped&&char=="\n"){
 auto_append_batch_switch();
 if(!local_is_str){
@@ -986,6 +959,12 @@ this.is_preprocessor=false;
 this.is_str=false;}
 this.batch+=char;
 this.append_batch("token_line");
+if(stop_callback!==undefined){
+const stop=stop_callback(this.line,this.tokens[this.line]);
+if(stop){
+return true;
+}
+}
 ++this.line;
 }
 else if(local_is_comment||is_multi_line_comment){
@@ -1068,9 +1047,6 @@ if(char=="{"){
 ++this.curly_depth;
 }else if(char=="}"){
 --this.curly_depth;
-if(this.class_depth!=null&&this.curly_depth<this.class_depth){
-this.class_depth=null;
-}
 }
 if(char=="("){
 ++this.parenth_depth;
@@ -1103,7 +1079,134 @@ else if(this.is_preprocessor){
 this.append_batch("token_preprocessor");
 this.is_preprocessor=false;
 }
-if(!this.callback(char,is_escaped,this.is_preprocessor)){
+if(char==")"){
+this.append_batch();
+let type_token,parenth_depth=0,curly_depth=0,bracket_depth=0,parenth_tokens=[];
+this.tokens.iterate_tokens_reversed((token)=>{
+if(token.token===undefined&&token.data.length===1){
+if(token.data===")"){
+++parenth_depth;
+}else if(token.data==="("){
+if(parenth_depth===0){
+type_token=this.get_prev_token(token.index-1,[" ","\t","\n","=",":"]);
+return false;
+}
+--parenth_depth;
+}else if(token.data==="}"){
+++curly_depth;
+}else if(token.data==="{"){
+--curly_depth;
+}else if(token.data==="]"){
+++bracket_depth;
+}else if(token.data==="["){
+--bracket_depth;
+}
+}
+token.at_correct_depth=parenth_depth===0&&curly_depth===0&&bracket_depth===0;
+parenth_tokens.push(token);
+});
+let is_type_def=type_token.token==="token_type_def";
+const is_type=type_token.token==="token_type";
+let is_anonymous_type_def=false;
+if(!is_type&&!is_type_def){
+for(let i=this.index+1;i<this.code.length;i++){
+const c=this.code.charAt(i);
+if(c==" "||c=="\t"||c=="\n"){
+continue;
+}else if(c==="="&&this.code.charAt(i+1)===">"){
+is_anonymous_type_def=true;
+is_type_def=true;
+}else{
+break;
+}
+}
+}
+if(!is_anonymous_type_def&&!is_type_def&&!is_type){
+parenth_tokens.iterate((token)=>{
+delete token.at_correct_depth;
+})
+this.batch+=char;
+this.append_batch(null,true);
+return null;
+}
+let mode=1;const params=[];
+const init_param=(param)=>{
+return{
+name:null,
+default:null,
+tags:[],
+type:null,
+};
+}
+const append_param=(param)=>{
+if(param!==undefined){
+if(param.default!=null){
+param.default=param.default.trim();
+}
+params.push(param);
+};
+}
+let param=init_param();
+let i=parenth_tokens.length;
+parenth_tokens.iterate_reversed((token)=>{
+--i;
+const at_correct_depth=token.at_correct_depth;
+delete token.at_correct_depth;
+if(at_correct_depth&&token.is_word_boundary===true&&token.data===","){
+append_param(param);
+param=init_param();
+mode=1;
+}
+else if(at_correct_depth&&token.is_word_boundary===true&&token.data==="="){
+mode=2;
+}
+else if(mode===1){
+if(
+at_correct_depth===false||
+token.is_word_boundary===true||
+token.is_line_break===true
+){
+return null;
+}
+if(token.token==="token_keyword"){
+param.tags.push(token.data.trim());
+}else if(token.token==="token_type"){
+param.type=token.data.trim();
+}else if(token.token===undefined){
+if(is_type_def){
+param.name=token.data.trim();
+token.token="token_parameter";
+}
+else{
+let next_i=i-1,next;
+while((next=parenth_tokens[next_i])!=null){
+if(next.data.length===1&&next.data==="="){
+param.name=token.data.trim();
+token.token="token_parameter";
+break;
+}else if(next.data.length!==1||(next.data!==" "&&next.data!=="\t"&&next.data==="\n")){
+break;
+}
+--next_i;
+}
+}
+}
+}
+else if(is_type_def&&mode===2){
+if(param.default===null){
+param.default=token.data;
+}else{
+param.default+=token.data;
+}
+}
+})
+append_param(param);
+if(is_type_def&&!is_anonymous_type_def){
+type_token.parameters=params;
+}
+this.batch+=char;
+this.append_batch(null,true);}
+else if(!this.callback(char,is_escaped,this.is_preprocessor)){
 if(this.word_boundaries.includes(char)){
 this.append_batch();
 this.batch+=char;
@@ -1117,7 +1220,10 @@ return null;
 });
 auto_append_batch_switch();
 const last_line=this.tokens[this.tokens.length-1];
-if(last_line===undefined||(last_line.length>0&&last_line[last_line.length-1].is_line_break)){
+if(
+stop_callback==null&&
+(last_line===undefined||(last_line.length>0&&last_line[last_line.length-1].is_line_break))
+){
 this.tokens.push([]);
 }
 if(return_tokens){
@@ -1137,316 +1243,71 @@ if(line_additions===undefined||isNaN(line_additions)){
 line_additions=0;
 }
 let scope_start=0;let scope_start_offset=0;let scope_end=null;let scope_end_offset=0;let now;
-if(edits_start!==0){
-let is_id=null;
-let is_string=false;
-let is_comment=false;
-let is_regex=false;
-let is_preprocessor=false;
-let stop_on_line=null;
-tokens.iterate_tokens_reversed(0,edits_start+1,(token)=>{
-if(token.line===stop_on_line){
-scope_start_offset=token.offset+token.data.length;
-return false;
-}
-else if(is_string){
-if(token.str_id!==is_id){
-is_string=false;
-if(this.allow_string_scope_seperator){
-scope_start=token.line;
-stop_on_line=token.line-1;
-}
-}
-}
-else if(is_comment){
-if(token.comment_id!==is_id){
-is_comment=false;
-if(this.allow_comment_scope_seperator){
-scope_start=token.line;
-stop_on_line=token.line-1;
-}
-}
-}
-else if(is_regex){
-if(token.regex_id!==is_id){
-is_regex=false;
-if(this.allow_regex_scope_seperator){
-scope_start=token.line;
-stop_on_line=token.line-1;
-}
-}
-}
-else if(is_preprocessor){
-if(token.preprocessor_id!==is_id){
-is_preprocessor=false;
-if(this.allow_preprocessor_scope_seperator){
-scope_start=token.line;
-stop_on_line=token.line-1;
-}
-}
-}
-else{
-switch(token.token){
-case "token_string":
-is_string=true;
-is_id=token.str_id;
-stop_on_line=null;
-break;
-case "token_comment":
-is_comment=true;
-is_id=token.comment_id;
-stop_on_line=null;
-break;
-case "token_regex":
-is_regex=true;
-is_id=token.regex_id;
-stop_on_line=null;
-break;
-case "token_preprocessor":
-is_preprocessor=true;
-is_id=token.preprocessor_id;
-stop_on_line=null;
-break;
-case null:
-if(token.data.length==1&&this.scope_seperators.includes(token.data)){
-scope_start=token.line;
-stop_on_line=token.line-1;
-scope_start_offset=token.offset;
-}
-break;
-default:
-break;
-}
-}
-})
-}
-const get_scope_end_by_old_tokens=()=>{
-let scope_end=null;let scope_end_offset=0;
-const max_end=edits_end;
-let is_id=null;
-let is_string=false;
-let is_comment=false;
-let is_regex=false;
-let is_preprocessor=false;
-let stop_on_line=null;
-tokens.iterate_tokens(edits_start,null,(token)=>{
-if(token.line===stop_on_line){
-return false;
-}
-else if(is_string){
-if(token.str_id!==is_id){
-is_string=false;
-if(this.allow_string_scope_seperator&&token.line>max_end){
-scope_end=token.line;
-stop_on_line=token.line+1;
-}
-}
-}
-else if(is_comment){
-if(token.comment_id!==is_id){
-is_comment=false;
-if(this.allow_comment_scope_seperator&&token.line>max_end){
-scope_end=token.line;
-stop_on_line=token.line+1;
-}
-}
-}
-else if(is_regex){
-if(token.regex_id!==is_id){
-is_regex=false;
-if(this.allow_regex_scope_seperator&&token.line>max_end){
-scope_end=token.line;
-stop_on_line=token.line+1;
-}
-}
-}
-else if(is_preprocessor){
-if(token.preprocessor_id!==is_id){
-is_preprocessor=false;
-if(this.allow_preprocessor_scope_seperator&&token.line>max_end){
-scope_end=token.line;
-stop_on_line=token.line+1;
-}
-}
-}
-else{
-switch(token.token){
-case "token_string":
-is_string=true;
-is_id=token.str_id;
-stop_on_line=null;
-break;
-case "token_comment":
-is_comment=true;
-is_id=token.comment_id;
-stop_on_line=null;
-break;
-case "token_regex":
-is_regex=true;
-is_id=token.regex_id;
-stop_on_line=null;
-break;
-case "token_preprocessor":
-is_preprocessor=true;
-is_id=token.preprocessor_id;
-stop_on_line=null;
-break;
-case null:
-if(token.line>max_end&&token.data.length==1&&this.scope_seperators.includes(token.data)){
-scope_end=token.line;
-stop_on_line=token.line+1;
-}
-break;
-default:
-break;
-}
-}
-})
-let line=scope_start>0 ? scope_start-1:scope_start;this.iterate_code(this,scope_start_offset,null,(char,l_is_str,l_is_comment,l_is_multi_line_comment,l_is_regex,is_escaped,l_is_preprocessor)=>{
-if(char=="\n"&&!is_escaped){
-++line;
-if(line==scope_end){
-scope_end_offset=this.index;
-return false;
-}
-}
-})
-return{line:scope_end,offset:scope_end_offset};
-}
-const get_scope_end_by_new_code=()=>{
-let scope_end=null;let scope_end_offset=0;
-let line=scope_start;
-let is_string=false;
-let is_comment=false;
-let is_regex=false;
-let is_preprocessor=false;
-let stop_on_line=null;
-this.iterate_code(this,scope_start_offset,null,(char,l_is_str,l_is_comment,l_is_multi_line_comment,l_is_regex,is_escaped,l_is_preprocessor)=>{
-let line_break=false;
-if(char=="\n"&&!is_escaped){
-line_break=true;
-++line;
-}
-if(line_break&&line==stop_on_line){
-scope_end_offset=this.index;
-return false;
-}
-if(this.index==this.code.length-1){
-scope_end_offset=this.index;
-scope_end=line;
-return false;
-}
-l_is_comment=l_is_comment||l_is_multi_line_comment;
-if(line>edits_end){
-if(is_string){
-if(!l_is_str){
-is_string=false;
-if(this.allow_string_scope_seperator){
-scope_end=line;
-stop_on_line=line+1;
-}
-}
-}else if(is_comment){
-if(!l_is_comment){
-is_comment=false;
-if(this.allow_comment_scope_seperator){
-scope_end=line;
-stop_on_line=line+1;
-}
-}
-}else if(is_regex){
-if(!l_is_regex){
-is_regex=false;
-if(this.allow_regex_scope_seperator){
-scope_end=line;
-stop_on_line=line+1;
-}
-}
-}else if(is_preprocessor){
-if(!l_is_preprocessor){
-is_preprocessor=false;
-if(this.allow_preprocessor_scope_seperator){
-scope_end=line;
-stop_on_line=line+1;
-}
-}
-}
-else if(l_is_str){
-is_string=true;
-stop_on_line=null;
-}
-else if(l_is_comment){
-is_comment=true;
-stop_on_line=null;
-}
-else if(l_is_regex){
-is_regex=true;
-stop_on_line=null;
-}
-else if(l_is_preprocessor){
-is_preprocessor=true;
-stop_on_line=null;
-}
-else if(this.scope_seperators.includes(char)){
-scope_end=line;
-stop_on_line=line+1;
-}
-}
-else{
-if(is_string&&!l_is_str){
-is_string=false;
-}
-else if(is_comment&&!l_is_comment){
-is_comment=false;
-}
-else if(is_regex&&!l_is_regex){
-is_regex=false;
-}
-else if(is_preprocessor&&!l_is_preprocessor){
-is_preprocessor=false;
-}
-else if(l_is_str){
-is_string=true;
-}
-else if(l_is_comment){
-is_comment=true;
-}
-else if(l_is_regex){
-is_regex=true;
-}
-else if(l_is_preprocessor){
-is_preprocessor=true;
-}
-}
-})
-return{line:scope_end,offset:scope_end_offset};
-}
-const old_scope_end=get_scope_end_by_old_tokens();
-const new_scope_end=get_scope_end_by_new_code();
+if(edits_start!=0){
+tokens.iterate_reversed(0,edits_start+1,(line_tokens)=>{
+if(line_tokens.length===0){
+return null;
+}
+let found_separator=null;
+line_tokens.iterate_reversed((token)=>{
 if(
-(new_scope_end.offset===this.code.length)||(new_scope_end.line===edits_end&&edits_start===edits_end&&line_additions<0)){
-scope_end=new_scope_end.line;
-scope_end_offset=new_scope_end.offset;
+(token.token===undefined||token.token==="token_operator")&&
+token.data.length===1&&
+this.scope_separators.includes(token.data)
+){
+found_separator=token.line;
+return true;
 }
-else if(new_scope_end.line>=old_scope_end.line){
-scope_end=new_scope_end.line;
-scope_end_offset=new_scope_end.offset;
+})
+const first_token=line_tokens[0];
+if(
+found_separator!==null&&
+first_token.token!=="token_comment"&&
+first_token.token!=="token_string"&&
+first_token.token!=="token_regex"&&
+first_token.token!=="token_preprocessor"
+){
+scope_start=first_token.line;
+scope_start_offset=first_token.offset;
+return true;
 }
-else{
-scope_end=old_scope_end.line;
-scope_end_offset=old_scope_end.offset;
+})
 }
-this.code=this.code.substr(scope_start_offset,(scope_end_offset-scope_start_offset)+1);
-const insert_tokens=this.tokenize(true);
-if(insert_tokens.length>0&&insert_tokens.last().length===0){
---insert_tokens.length;
+const match_lines=(x,y)=>{
+if(x.length!==y.length){
+return false;
 }
+if(x.length<=1){return false;
+}
+for(let i=0;i<x.length;i++){
+const x_token=x[i];
+const y_token=y[i];
+if(
+x_token.token!==y_token.token||
+x_token.data!==y_token.data
+){
+return false;
+}
+}
+return true;
+}
+let insert_start_line=scope_start;
+let insert_end_line=null;
+const stop_callback=(line,line_tokens)=>{
+const og_line=line+scope_start+line_additions;
+if(line+scope_start>edits_end&&match_lines(tokens[og_line],line_tokens)){
+insert_end_line=og_line;
+return true;
+}
+return false;
+};
+this.code=this.code.substr(scope_start_offset,this.code.length-scope_start_offset);
+const insert_tokens=this.tokenize(true,stop_callback);
 let combined_tokens=new vhighlight.Tokens();
 let insert=true;
 let line_count=0,token_index=0,offset=0;;
-let insert_end=scope_end-line_additions;
 for(let line=0;line<tokens.length;line++){
-if(insert&&line==scope_start){
+if(insert&&line==insert_start_line){
 insert=false;
 insert_tokens.iterate((line_tokens)=>{
 line_tokens.iterate((token)=>{
@@ -1460,7 +1321,7 @@ offset+=token.data.length;
 combined_tokens.push(line_tokens);
 })
 }
-else if(line<scope_start||line>insert_end){
+else if(line<insert_start_line||(insert_end_line!==null&&line>insert_end_line)){
 const line_tokens=tokens[line];
 line_tokens.iterate((token)=>{
 token.line=line_count;
@@ -1481,7 +1342,7 @@ return combined_tokens;
 }
 build_tokens(reformat=true){
 let html="";
-tokens.iterate((line_tokens)=>{
+this.tokens.iterate((line_tokens)=>{
 line_tokens.iterate((token)=>{
 if(token.token===undefined){
 if(reformat){
@@ -1501,6 +1362,55 @@ html+=`<span class='${token.token}'>${token.data}</span>`
 return html;
 }
 }
+vhighlight.HTML=class HTML{
+constructor(){
+this.tokenizer=new vhighlight.Tokenizer({
+multi_line_comment_start:"<!--",
+multi_line_comment_end:"-->",
+scope_separators:[
+"<div>","</div>",
+"<body>","</body>",
+"<script>","</script>",
+"<head>","</head>",
+],
+});
+this.tokenizer.callback=(char)=>{
+const tokenizer=this.tokenizer;
+console.log({char:char});
+if(char==="&"){
+tokenizer.append_batch();
+let batch="*";
+let success=false;
+let index=0;
+for(index=this.index+1;index<this.code.length;index++){
+const c=this.code.charAt(index);
+batch+=c;
+if(c===" "||c==="\t"||c==="\n"){
+break;
+}else if(c===";"){
+success=true;
+break;
+}
+}
+console.log(batch,success);
+if(success){
+this.batch=batch;
+this.append_batch("token_keyword");
+tokenizer.resume_on_index(index);
+return true;
+}
+}
+return false;
+}
+}
+highlight(code=null,return_tokens=false){
+if(code!==null){
+this.tokenizer.code=code;
+}
+return this.tokenizer.tokenize(return_tokens);
+}
+}
+vhighlight.html=new vhighlight.HTML();
 vhighlight.Bash=class Bash{
 constructor(){
 this.tokenizer=new vhighlight.Tokenizer({
@@ -1537,8 +1447,10 @@ operators:[
 '+','-','*','/','%','=','!=','!','-o','-a','-eq','-ne','-lt','-le','-gt','-ge','-e','-f','-d','-s','-r','-w','-x','&','|','^','~','<<','>>','$',
 ],
 single_line_comment_start:"#",
-multi_line_comment_start:false,
-multi_line_comment_end:false,
+scope_separators:[
+"{",
+"}",
+],
 });
 this.reset();
 this.tokenizer.callback=(char,is_escaped)=>{
@@ -1733,22 +1645,20 @@ partial_highlight({
 code=null,
 edits_start=null,
 edits_end=null,
-insert_start=null,
-insert_end=null,
+line_additions=0,
 tokens=[],
-update_offsets=true,
 }){
 if(code!==null){
 this.tokenizer.code=code;
 }
+if(this.reset!=undefined){
 this.reset();
+}
 return this.tokenizer.partial_tokenize({
 edits_start:edits_start,
 edits_end:edits_end,
-insert_start:insert_start,
-insert_end:insert_end,
+line_additions:line_additions,
 tokens:tokens,
-update_offsets:update_offsets,
 })
 }
 }
@@ -1818,6 +1728,10 @@ single_line_comment_start:"//",
 multi_line_comment_start:"/*",
 multi_line_comment_end:"*/",
 allow_slash_regexes:true,
+scope_separators:[
+"{",
+"}",
+],
 });
 this.reset();
 this.tokenizer.callback=(char)=>{
@@ -1865,52 +1779,6 @@ token.token="token_type_def";
 else if(!this.tokenizer.str_includes_word_boundary(prev.data)){
 prev.token="token_type";
 }
-return false;
-}
-else if(
-(this.tokenizer.class_depth==this.tokenizer.curly_depth&&
-(
-(this.tokenizer.parenth_depth==1&&((char==','&&!this.last_param_was_assignment)||(char=='='&&this.tokenizer.next_char!='>')))||
-(this.tokenizer.parenth_depth==0&&char==')')
-))||
-(
-this.func_def_curly_depth==this.tokenizer.curly_depth&&(
-(this.tokenizer.parenth_depth==this.func_def_parenth_depth&&((char==','&&!this.last_param_was_assignment)||(char=='='&&this.tokenizer.next_char!='>')))||
-(this.tokenizer.parenth_depth==this.func_def_parenth_depth-1&&char==')')
-)
-)||
-(
-this.opening_parenth_curly_depth==this.tokenizer.curly_depth&&this.tokenizer.parenth_depth>0&&char=='='&&
-this.tokenizer.code.charAt(this.tokenizer.index+1)!='>'
-)
-){
-if(char==')'){
-if(this.func_def_parenth_depth!=null&&this.tokenizer.parenth_depth<this.func_def_parenth_depth){
-this.func_def_parenth_depth=null;
-}
-if(this.last_param_was_assignment){
-this.last_param_was_assignment=false;
-this.tokenizer.append_batch();
-this.tokenizer.batch+=char;
-this.tokenizer.append_batch();
-return true;
-}
-}
-if(char=='='){
-this.last_param_was_assignment=true;
-}else{
-this.last_param_was_assignment=false;
-}
-if(this.tokenizer.is_linebreak_whitespace_char(this.tokenizer.prev_char)){
-const prev=this.tokenizer.get_prev_token(this.tokenizer.added_tokens-1,[" ","\t","\n"]);
-prev.token="token_parameter";
-this.tokenizer.append_batch();
-}else{
-this.tokenizer.append_batch("token_parameter");
-}
-this.tokenizer.batch+=char;
-this.tokenizer.append_batch();
-return true;
 }
 return false;
 }
@@ -1928,22 +1796,20 @@ partial_highlight({
 code=null,
 edits_start=null,
 edits_end=null,
-line_deletions=0,
 line_additions=0,
 tokens=[],
-update_offsets=true,
 }){
 if(code!==null){
 this.tokenizer.code=code;
 }
+if(this.reset!=undefined){
 this.reset();
+}
 return this.tokenizer.partial_tokenize({
 edits_start:edits_start,
 edits_end:edits_end,
-line_deletions:line_deletions,
 line_additions:line_additions,
 tokens:tokens,
-update_offsets:update_offsets,
 })
 }
 }
@@ -2080,14 +1946,10 @@ single_line_comment_start:"//",
 multi_line_comment_start:"/*",
 multi_line_comment_end:"*/",
 allow_preprocessors:true,
-scope_seperators:[
+scope_separators:[
 "{",
 "}",
 ],
-allow_string_scope_seperator:false,
-allow_comment_scope_seperator:false,
-allow_regex_scope_seperator:false,
-allow_preprocessor_scope_seperator:false,
 });
 this.reset();
 this.tokenizer.callback=(char)=>{
@@ -2253,7 +2115,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=tokenizer.index+1;index<tokenizer.code.length;index++){
 const c=tokenizer.code.charAt(index);
 if(c=="<"){
@@ -2263,7 +2125,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(tokenizer.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -2281,16 +2143,16 @@ else if(tokenizer.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(tokenizer.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -2346,6 +2208,26 @@ this.tokenizer.code=code;
 }
 return this.tokenizer.tokenize(return_tokens);
 }
+partial_highlight({
+code=null,
+edits_start=null,
+edits_end=null,
+line_additions=0,
+tokens=[],
+}){
+if(code!==null){
+this.tokenizer.code=code;
+}
+if(this.reset!=undefined){
+this.reset();
+}
+return this.tokenizer.partial_tokenize({
+edits_start:edits_start,
+edits_end:edits_end,
+line_additions:line_additions,
+tokens:tokens,
+})
+}
 }
 vhighlight.cpp=new vhighlight.CPP();
 vhighlight.Json=class Json{
@@ -2359,6 +2241,11 @@ keywords:[
 single_line_comment_start:"//",
 multi_line_comment_start:"/*",
 multi_line_comment_end:"*/",
+scope_separators:[
+"{",
+"}",
+",",
+],
 });
 }
 highlight(code=null,return_tokens=false){
@@ -2371,25 +2258,62 @@ partial_highlight({
 code=null,
 edits_start=null,
 edits_end=null,
-insert_start=null,
-insert_end=null,
+line_additions=0,
 tokens=[],
-update_offsets=true,
 }){
 if(code!==null){
 this.tokenizer.code=code;
 }
+if(this.reset!=undefined){
+this.reset();
+}
 return this.tokenizer.partial_tokenize({
 edits_start:edits_start,
 edits_end:edits_end,
-insert_start:insert_start,
-insert_end:insert_end,
+line_additions:line_additions,
 tokens:tokens,
-update_offsets:update_offsets,
 })
 }
 }
 vhighlight.json=new vhighlight.Json();
+Array.prototype.iterate=function(start,end,handler){
+if(typeof start==="function"){
+handler=start;
+start=null;
+}
+if(start==null){
+start=0;
+}
+if(end==null){
+end=this.length;
+}
+for(let i=start;i<end;i++){
+const res=handler(this[i]);
+if(res!=null){
+return res;
+}
+}
+return null;
+};
+Array.prototype.iterate_reversed=function(start,end,handler){
+if(handler==null&&start!=null){
+handler=start;
+start=null;
+}
+if(start==null){
+start=0;
+}
+if(end==null){
+end=this.length;
+}
+for(let i=end-1;i>=start;i--){
+const res=handler(this[i]);
+if(res!=null){
+return res;
+}
+}
+return null;
+};
 vhighlight.utils={};
 vhighlight.utils.replace_by_index=function(str,start,end,substr){
 let replaced=str.substr(0,start);
@@ -2467,9 +2391,12 @@ keywords:[
 'alternate',
 'alternate-reverse',
 ],
-single_line_comment_start:false,
 multi_line_comment_start:"/*",
 multi_line_comment_end:"*/",
+scope_separators:[
+"{",
+"}",
+],
 });
 this.reset();
 const numeric_suffixes=[
@@ -2644,22 +2571,20 @@ partial_highlight({
 code=null,
 edits_start=null,
 edits_end=null,
-insert_start=null,
-insert_end=null,
+line_additions=0,
 tokens=[],
-update_offsets=true,
 }){
 if(code!==null){
 this.tokenizer.code=code;
 }
+if(this.reset!=undefined){
 this.reset();
+}
 return this.tokenizer.partial_tokenize({
 edits_start:edits_start,
 edits_end:edits_end,
-insert_start:insert_start,
-insert_end:insert_end,
+line_additions:line_additions,
 tokens:tokens,
-update_offsets:update_offsets,
 })
 }
 }
@@ -2718,8 +2643,9 @@ special_string_prefixes:[
 "b",
 ],
 single_line_comment_start:"#",
-multi_line_comment_start:false,
-multi_line_comment_end:false,
+scope_separators:[
+":",
+],
 });
 this.tokenizer.callback=(char)=>{
 const tokenizer=this.tokenizer;
@@ -2728,44 +2654,6 @@ tokenizer.append_batch();
 const prev=tokenizer.get_prev_token(tokenizer.added_tokens-1,[" ","\t","\n"]);
 if(prev!=null&&prev.token===undefined&&!tokenizer.str_includes_word_boundary(prev.data)){
 prev.token="token_type";
-}
-}
-else if(tokenizer.parenth_depth>0&&(char=="="||char==")"||char==",")){
-tokenizer.append_batch();
-let opening_index=null;
-let depth=0;
-let token=tokenizer.get_opening_parentheses(tokenizer.index);
-if(token!==null){
-opening_index=token.index;
-}else{
-return false;
-}
-let preceding=tokenizer.get_prev_token(opening_index-1,[" ","\t","\n"]);
-if(
-preceding==null||
-(
-preceding.token!="token_type_def"&&
-preceding.token!="token_type"
-)
-){
-return false;
-}
-const func_def=preceding.token=="token_type_def";
-if(!func_def&&char==","){
-return false;
-}
-const prev=tokenizer.get_prev_token(tokenizer.added_tokens-1,[" ","\t","\n","=",")",","]);
-if(prev==null){
-return false;
-}
-const prev_prev=tokenizer.get_prev_token(prev.index-1,[" ","\t","\n"],true);
-if(
-prev.token===undefined&&
-prev_prev!=null&&
-prev_prev.token===undefined&&
-(prev_prev.data=="("||prev_prev.data==",")
-){
-prev.token="token_parameter";
 }
 }
 return false;
@@ -2781,21 +2669,20 @@ partial_highlight({
 code=null,
 edits_start=null,
 edits_end=null,
-insert_start=null,
-insert_end=null,
+line_additions=0,
 tokens=[],
-update_offsets=true,
 }){
 if(code!==null){
 this.tokenizer.code=code;
 }
+if(this.reset!=undefined){
+this.reset();
+}
 return this.tokenizer.partial_tokenize({
 edits_start:edits_start,
 edits_end:edits_end,
-insert_start:insert_start,
-insert_end:insert_end,
+line_additions:line_additions,
 tokens:tokens,
-update_offsets:update_offsets,
 })
 }
 }
@@ -2807,6 +2694,7 @@ multi_line_comment_start:"<!--",
 multi_line_comment_end:"-->",
 allow_strings:false,
 allow_numerics:false,
+scope_separators:[],
 });
 this.reset();
 this.tokenizer.callback=(char)=>{
@@ -3032,7 +2920,7 @@ if(result==null){
 tokenizer.append_forward_lookup_batch("token_codeblock",language+code);
 }else{
 tokenizer.append_forward_lookup_batch("token_keyword",language);
-tokenizer.insert_tokens(result);
+tokenizer.concat_tokens(result);
 }
 tokenizer.append_forward_lookup_batch("token_keyword","```");
 tokenizer.resume_on_index(closing_index);
@@ -3049,6 +2937,26 @@ if(code!==null){
 this.tokenizer.code=code;
 }
 return this.tokenizer.tokenize(return_tokens);
+}
+partial_highlight({
+code=null,
+edits_start=null,
+edits_end=null,
+line_additions=0,
+tokens=[],
+}){
+if(code!==null){
+this.tokenizer.code=code;
+}
+if(this.reset!=undefined){
+this.reset();
+}
+return this.tokenizer.partial_tokenize({
+edits_start:edits_start,
+edits_end:edits_end,
+line_additions:line_additions,
+tokens:tokens,
+})
 }
 }
 vhighlight.md=new vhighlight.Markdown();

@@ -1,32 +1,100 @@
-<link rel="stylesheet" href="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/css/vhighlight.css">
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/tokenizer.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/highlight.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/utils.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/cpp.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/markdown.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/python.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/js.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/bash.js"></script>
-<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/css.js"></script>
-<body style='position: absolute: top: 0; left: 0; right: 0; bottom: 0; background: black;'>
-<pre id='codetest' style='color: #FFFFFF; background: black; width: 100%; height: 100%;'>const sayHello = (
-	me,
-	you = true
-) =&gt; {}
-const sayHello = async (
-	me,
-	you = true
-) =&gt; {}
-const me = function() {
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/css/vhighlight.css">
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/highlight.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/tokenizer.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/utils.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/cpp.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/markdown.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/python.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/js.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/bash.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/css.js"></script>
+		<script src="/Volumes/persistance/private/vinc/vhighlight/include/vhighlight/js/html.js"></script>
+	</head>
+	<body style='position: absolute: top: 0; left: 0; right: 0; bottom: 0; background: black;'>
+		<pre id='codetest' style='color: #FFFFFF; background: black; width: 100%; height: 100%;'>
+		</pre>
+		<script type='text/javascript'>
 
-}
-const me = async function() {
+			// Load file function.
+			function load_file(filePath) {
+			    return new Promise((resolve, reject) => {
+			        // Create an input element
+			        const fileInput = document.createElement('input');
+			        fileInput.type = 'file';
 
-}
-function me() {
+			        // Set up an event listener for when the file is selected
+			        fileInput.addEventListener('change', () => {
+			            if (!fileInput.files || !fileInput.files[0]) {
+			                reject(new Error('No file selected.'));
+			                return;
+			            }
 
-}
-async function me() {
+			            const selectedFile = fileInput.files[0];
+			            const reader = new FileReader();
 
-}
-</pre><script type='text/javascript'>const start = performance.now();const e = document.getElementById('codetest');const result = vhighlight.highlight({code: e.textContent, language: 'js'});e.innerHTML = result;const end = performance.now();console.log('Speed: ', ((end - start) / 1000) + 's');</script></body>
+			            reader.onload = function (e) {
+			                const fileData = e.target.result;
+			                resolve(fileData);
+			            };
+
+			            reader.onerror = function (e) {
+			                reject(new Error('Error reading the file.'));
+			            };
+
+			            reader.readAsText(selectedFile);
+			        });
+
+			        // Trigger a click event to open the file dialog
+			        const clickEvent = new MouseEvent('click', {
+			            view: window,
+			            bubbles: false,
+			            cancelable: true,
+			        });
+			        fileInput.dispatchEvent(clickEvent);
+			    });
+			}
+
+			// Start.
+			// load_file("/Volumes/persistance/private/vinc/vhighlight/dev/tests/test.html").then((data) => {})
+			const start = performance.now();
+			const e = document.getElementById('codetest');
+			const data = `<!DOCTYPE html>
+<html>
+    <head>
+        <title>HTML Syntax Highlighting Example</title>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="styles.css">
+    </head>
+    <body>
+        <h1>Hello, HTML Syntax Highlighting!</h1>
+        <p>This is a <a href="https://example.com">link</a> with an attribute.</p>
+        <ul>
+            <li>Item 1</li>
+            <li>Item 2</li>
+            <!-- This is an HTML comment -->
+        </ul>
+        <img src="image.jpg" alt="An image">
+        <div id="container">
+            <p class="highlighted">This is a <em>highlighted</em> text.</p>
+        </div>
+        <script>
+            // JavaScript within <script> tags
+            function showMessage() {
+                alert('Hello, world!');
+            }
+            showMessage();
+        </script>
+        <p>I am a &gt; entity.</li>
+    </body>
+</html>
+`
+			const result = vhighlight.highlight({code: data, language: 'html'});
+			e.innerHTML = result;
+			const end = performance.now();
+			console.log('Speed: ', ((end - start) / 1000) + 's');
+		</script>
+	</body>
+</html>

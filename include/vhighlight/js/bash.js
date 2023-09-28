@@ -63,8 +63,12 @@ vhighlight.Bash = class Bash {
 				'$',
 			],
 			single_line_comment_start: "#",
-			multi_line_comment_start: false,
-			multi_line_comment_end: false,
+
+			// Attributes for partial tokenizing.
+			scope_separators: [
+				"{", 
+				"}", 
+			],
 		});
 
 		// Assign attributes.
@@ -310,7 +314,7 @@ vhighlight.Bash = class Bash {
 		@title Partial highlight.
 		@description: Partially highlight text based on edited lines.
 		@parameter: {
-			@name: data
+			@name: code
 			@type: string
 			@description: The new code data.
 		}
@@ -325,34 +329,17 @@ vhighlight.Bash = class Bash {
 			@description: The end line of the new edits. The end line includes the line itself.
 		}
 		@parameter: {
-			@name: insert_start
-			@type: string
-			@description: The start line from where to insert the new tokens into.
-		}
-		@parameter: {
-			@name: insert_end
-			@type: string
-			@description: The end line from where to insert the new tokens into. The end line includes the line itself.
-		}
-		@parameter: {
 			@name: tokens
 			@type: array[object]
 			@description: The old tokens.
-		}
-		@parameter: {
-			@name: update_offsets
-			@type: boolean
-			@description: Update the offsets of the new tokens.
 		}
 	} */
 	partial_highlight({
 		code = null,
 		edits_start = null,
 		edits_end = null,
-		insert_start = null,
-		insert_end = null,
+		line_additions = 0,
 		tokens = [],
-		update_offsets = true,
 	}) {
 
 		// Assign code when not assigned.
@@ -362,16 +349,16 @@ vhighlight.Bash = class Bash {
 		}
 
 		// Reset.
-		this.reset();
+		if (this.reset != undefined) {
+			this.reset();
+		}
 
 		// Partial tokenize.
 		return this.tokenizer.partial_tokenize({
 			edits_start: edits_start,
 			edits_end: edits_end,
-			insert_start: insert_start,
-			insert_end: insert_end,
+			line_additions: line_additions,
 			tokens: tokens,
-			update_offsets: update_offsets,
 		})
 	}
 }

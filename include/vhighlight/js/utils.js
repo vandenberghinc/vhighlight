@@ -4,6 +4,48 @@
  */
 
 // ---------------------------------------------------------
+// Extend array.
+
+Array.prototype.iterate = function(start, end, handler) {
+    if (typeof start === "function") {
+        handler = start;
+        start = null;
+    }
+    if (start == null) {
+        start = 0;
+    }
+    if (end == null) {
+        end = this.length;
+    }
+    for (let i = start; i < end; i++) {    
+        const res = handler(this[i]);
+        if (res != null) {
+            return res;
+        }
+    }
+    return null;
+};
+Array.prototype.iterate_reversed = function(start, end, handler) {
+    if (handler == null && start != null) {
+        handler = start;
+        start = null;
+    }
+    if (start == null) {
+        start = 0;
+    }
+    if (end == null) {
+        end = this.length;
+    }
+    for (let i = end - 1; i >= start; i--) {    
+        const res = handler(this[i]);
+        if (res != null) {
+            return res;
+        }
+    }
+    return null;
+};
+
+// ---------------------------------------------------------
 // Utils.
 
 vhighlight.utils = {};

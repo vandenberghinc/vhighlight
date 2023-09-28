@@ -127,15 +127,15 @@ vhighlight.Tokenizer = class Tokenizer {
 		allow_preprocessors = false,
 		allow_slash_regexes = false,
 		// Attributes for partial tokenizing.
-		scope_seperators = [
+		scope_separators = [
 			";", 
 			"{", 
 			"}", 
 		],
-		allow_string_scope_seperator = false,
-		allow_comment_scope_seperator = false,
-		allow_regex_scope_seperator = false,
-		allow_preprocessor_scope_seperator = false,
+		allow_string_scope_separator = false,
+		allow_comment_scope_separator = false,
+		allow_regex_scope_separator = false,
+		allow_preprocessor_scope_separator = false,
 	}) {
 
 		// Parameter attributes.
@@ -152,11 +152,11 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.allow_numerics = allow_numerics;								// if the language supports numerics.
 		this.allow_preprocessors = allow_preprocessors;						// if the language has "#..." based preprocessor statements.
 		this.allow_slash_regexes = allow_slash_regexes;						// if the language has "/.../" based regex statements.
-		this.scope_seperators = scope_seperators;							// scope seperators for partial tokenize.
-		this.allow_string_scope_seperator = allow_string_scope_seperator;				// allow strings to seperate scopes for partial tokenize.
-		this.allow_comment_scope_seperator = allow_comment_scope_seperator;				// allow comments to seperate scopes for partial tokenize.
-		this.allow_regex_scope_seperator = allow_regex_scope_seperator;					// allow regexes to seperate scopes for partial tokenize.
-		this.allow_preprocessor_scope_seperator = allow_preprocessor_scope_seperator;	// allow preprocessors to seperate scopes for partial tokenize.
+		this.scope_separators = scope_separators;							// scope separators for partial tokenize.
+		this.allow_string_scope_separator = allow_string_scope_separator;				// allow strings to seperate scopes for partial tokenize.
+		this.allow_comment_scope_separator = allow_comment_scope_separator;				// allow comments to seperate scopes for partial tokenize.
+		this.allow_regex_scope_separator = allow_regex_scope_separator;					// allow regexes to seperate scopes for partial tokenize.
+		this.allow_preprocessor_scope_separator = allow_preprocessor_scope_separator;	// allow preprocessors to seperate scopes for partial tokenize.
 
 		// Word boundaries.
 		this.word_boundaries = [
@@ -206,7 +206,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
-		this.excluded_word_boundary_joinings = ["{", "}", "[", "]", "(", ")"].concat(this.scope_seperators); // always exclude default {}[]() for vide.
+		this.excluded_word_boundary_joinings = ["{", "}", "[", "]", "(", ")"].concat(this.scope_separators); // always exclude default {}[]() for vide.
 		this.excluded_word_boundary_joinings = this.excluded_word_boundary_joinings.reduce((accumulator, val) => { // drop duplicates.
 			if (!accumulator.includes(val)) {
 				accumulator.push(val);
@@ -1173,7 +1173,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_string) {
 					if (token.str_id !== is_id) {
 						is_string = false;
-						if (this.allow_string_scope_seperator) {
+						if (this.allow_string_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1182,7 +1182,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_comment) {
 					if (token.comment_id !== is_id) {
 						is_comment = false;
-						if (this.allow_comment_scope_seperator) {
+						if (this.allow_comment_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1191,7 +1191,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_regex) {
 					if (token.regex_id !== is_id) {
 						is_regex = false;
-						if (this.allow_regex_scope_seperator) {
+						if (this.allow_regex_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1200,7 +1200,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_preprocessor) {
 					if (token.preprocessor_id !== is_id) {
 						is_preprocessor = false;
-						if (this.allow_preprocessor_scope_seperator) {
+						if (this.allow_preprocessor_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1229,7 +1229,7 @@ vhighlight.Tokenizer = class Tokenizer {
 							stop_on_line = null;
 							break;
 						case null:
-							if (token.data.length == 1 && this.scope_seperators.includes(token.data)) {
+							if (token.data.length == 1 && this.scope_separators.includes(token.data)) {
 								scope_start = token.line;
 								stop_on_line = token.line - 1;
 								scope_start_offset = token.offset;
@@ -1270,7 +1270,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_string) {
 					if (token.str_id !== is_id) {
 						is_string = false;
-						if (this.allow_string_scope_seperator && token.line > max_end) {
+						if (this.allow_string_scope_separator && token.line > max_end) {
 							scope_end = token.line;
 							stop_on_line = token.line + 1;
 						}
@@ -1279,7 +1279,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_comment) {
 					if (token.comment_id !== is_id) {
 						is_comment = false;
-						if (this.allow_comment_scope_seperator && token.line > max_end) {
+						if (this.allow_comment_scope_separator && token.line > max_end) {
 							scope_end = token.line;
 							stop_on_line = token.line + 1;
 						}
@@ -1288,7 +1288,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_regex) {
 					if (token.regex_id !== is_id) {
 						is_regex = false;
-						if (this.allow_regex_scope_seperator && token.line > max_end) {
+						if (this.allow_regex_scope_separator && token.line > max_end) {
 							scope_end = token.line;
 							stop_on_line = token.line + 1;
 						}
@@ -1297,7 +1297,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_preprocessor) {
 					if (token.preprocessor_id !== is_id) {
 						is_preprocessor = false;
-						if (this.allow_preprocessor_scope_seperator && token.line > max_end) {
+						if (this.allow_preprocessor_scope_separator && token.line > max_end) {
 							scope_end = token.line;
 							stop_on_line = token.line + 1;
 						}
@@ -1326,7 +1326,7 @@ vhighlight.Tokenizer = class Tokenizer {
 							stop_on_line = null;
 							break;
 						case null:
-							if (token.line > max_end && token.data.length == 1 && this.scope_seperators.includes(token.data)) {
+							if (token.line > max_end && token.data.length == 1 && this.scope_separators.includes(token.data)) {
 								scope_end = token.line;
 								stop_on_line = token.line + 1;
 							}
@@ -1403,7 +1403,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					if (is_string) {
 						if (!l_is_str) {
 							is_string = false;
-							if (this.allow_string_scope_seperator) {
+							if (this.allow_string_scope_separator) {
 								scope_end = line;
 								stop_on_line = line + 1;
 							}
@@ -1411,7 +1411,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					} else if (is_comment) {
 						if (!l_is_comment) {
 							is_comment = false;
-							if (this.allow_comment_scope_seperator) {
+							if (this.allow_comment_scope_separator) {
 								scope_end = line;
 								stop_on_line = line + 1;
 							}
@@ -1419,7 +1419,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					} else if (is_regex) {
 						if (!l_is_regex) {
 							is_regex = false;
-							if (this.allow_regex_scope_seperator) {
+							if (this.allow_regex_scope_separator) {
 								scope_end = line;
 								stop_on_line = line + 1;
 							}
@@ -1427,7 +1427,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					} else if (is_preprocessor) {
 						if (!l_is_preprocessor) {
 							is_preprocessor = false;
-							if (this.allow_preprocessor_scope_seperator) {
+							if (this.allow_preprocessor_scope_separator) {
 								scope_end = line;
 								stop_on_line = line + 1;
 							}
@@ -1452,8 +1452,8 @@ vhighlight.Tokenizer = class Tokenizer {
 						stop_on_line = null;
 					}
 
-					// Search for seperator chars.
-					else if (this.scope_seperators.includes(char)) {
+					// Search for separator chars.
+					else if (this.scope_separators.includes(char)) {
 						scope_end = line;
 						stop_on_line = line + 1;
 					}
@@ -1647,7 +1647,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_string) {
 					if (token.str_id !== is_id) {
 						is_string = false;
-						if (this.allow_string_scope_seperator) {
+						if (this.allow_string_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1656,7 +1656,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_comment) {
 					if (token.comment_id !== is_id) {
 						is_comment = false;
-						if (this.allow_comment_scope_seperator) {
+						if (this.allow_comment_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1665,7 +1665,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_regex) {
 					if (token.regex_id !== is_id) {
 						is_regex = false;
-						if (this.allow_regex_scope_seperator) {
+						if (this.allow_regex_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1674,7 +1674,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				else if (is_preprocessor) {
 					if (token.preprocessor_id !== is_id) {
 						is_preprocessor = false;
-						if (this.allow_preprocessor_scope_seperator) {
+						if (this.allow_preprocessor_scope_separator) {
 							scope_start = token.line;
 							stop_on_line = token.line - 1;
 						}
@@ -1703,7 +1703,7 @@ vhighlight.Tokenizer = class Tokenizer {
 							stop_on_line = null;
 							break;
 						case null:
-							if (token.data.length == 1 && this.scope_seperators.includes(token.data)) {
+							if (token.data.length == 1 && this.scope_separators.includes(token.data)) {
 								scope_start = token.line;
 								stop_on_line = token.line - 1;
 								scope_start_offset = token.offset;
@@ -1735,7 +1735,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (is_string) {
 				if (token.str_id !== is_id) {
 					is_string = false;
-					if (this.allow_string_scope_seperator && token.line > max_end) {
+					if (this.allow_string_scope_separator && token.line > max_end) {
 						scope_end = token.line;
 						stop_on_line = token.line + 1;
 					}
@@ -1744,7 +1744,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (is_comment) {
 				if (token.comment_id !== is_id) {
 					is_comment = false;
-					if (this.allow_comment_scope_seperator && token.line > max_end) {
+					if (this.allow_comment_scope_separator && token.line > max_end) {
 						scope_end = token.line;
 						stop_on_line = token.line + 1;
 					}
@@ -1753,7 +1753,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (is_regex) {
 				if (token.regex_id !== is_id) {
 					is_regex = false;
-					if (this.allow_regex_scope_seperator && token.line > max_end) {
+					if (this.allow_regex_scope_separator && token.line > max_end) {
 						scope_end = token.line;
 						stop_on_line = token.line + 1;
 					}
@@ -1762,7 +1762,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (is_preprocessor) {
 				if (token.preprocessor_id !== is_id) {
 					is_preprocessor = false;
-					if (this.allow_preprocessor_scope_seperator && token.line > max_end) {
+					if (this.allow_preprocessor_scope_separator && token.line > max_end) {
 						scope_end = token.line;
 						stop_on_line = token.line + 1;
 					}
@@ -1791,7 +1791,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						stop_on_line = null;
 						break;
 					case null:
-						if (token.line > max_end && token.data.length == 1 && this.scope_seperators.includes(token.data)) {
+						if (token.line > max_end && token.data.length == 1 && this.scope_separators.includes(token.data)) {
 							scope_end = token.line;
 							stop_on_line = token.line + 1;
 						}
@@ -1916,7 +1916,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// 		if (is_string) {
 		// 			if (!l_is_str) {
 		// 				is_string = false;
-		// 				if (this.allow_string_scope_seperator) {
+		// 				if (this.allow_string_scope_separator) {
 		// 					scope_end = line;
 		// 					stop_on_line = line + 1;
 		// 				}
@@ -1924,7 +1924,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// 		} else if (is_comment) {
 		// 			if (!l_is_comment) {
 		// 				is_comment = false;
-		// 				if (this.allow_comment_scope_seperator) {
+		// 				if (this.allow_comment_scope_separator) {
 		// 					scope_end = line;
 		// 					stop_on_line = line + 1;
 		// 				}
@@ -1932,7 +1932,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// 		} else if (is_regex) {
 		// 			if (!l_is_regex) {
 		// 				is_regex = false;
-		// 				if (this.allow_regex_scope_seperator) {
+		// 				if (this.allow_regex_scope_separator) {
 		// 					scope_end = line;
 		// 					stop_on_line = line + 1;
 		// 				}
@@ -1940,7 +1940,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// 		} else if (is_preprocessor) {
 		// 			if (!l_is_preprocessor) {
 		// 				is_preprocessor = false;
-		// 				if (this.allow_preprocessor_scope_seperator) {
+		// 				if (this.allow_preprocessor_scope_separator) {
 		// 					scope_end = line;
 		// 					stop_on_line = line + 1;
 		// 				}
@@ -1961,8 +1961,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		// 			is_preprocessor = true;
 		// 		}
 
-		// 		// Search for seperator chars.
-		// 		else if (this.scope_seperators.includes(char)) {
+		// 		// Search for separator chars.
+		// 		else if (this.scope_separators.includes(char)) {
 		// 			scope_end = line;
 		// 			stop_on_line = line + 1;
 		// 		}

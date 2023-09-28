@@ -62,8 +62,11 @@ vhighlight.Python = class Python {
 				"b",
 			],
 			single_line_comment_start: "#",
-			multi_line_comment_start: false,
-			multi_line_comment_end: false,
+
+			// Attributes for partial tokenizing.
+			scope_separators: [
+				":", 
+			],
 		});
 
 		// Set callback.
@@ -86,64 +89,6 @@ vhighlight.Python = class Python {
 
 			}
 
-			// Highlight parameters.
-			else if (tokenizer.parenth_depth > 0 && (char == "=" || char == ")" || char == ",")) {
-
-				// Append batch by word boundary.
-				tokenizer.append_batch();
-
-				// Get the token index of the opening parentheses.
-				let opening_index = null;
-				let depth = 0;
-				let token = tokenizer.get_opening_parentheses(tokenizer.index);
-				if (token !== null) {
-					opening_index = token.index;
-				} else {
-					return false;
-				}
-
-				// Get the preceding token of the opening parentheses.
-				// When the token is not a "token_type" or "token_type_def" ...
-				// Then stop since it is not a function call / function def, but for example a tuple.
-				let preceding = tokenizer.get_prev_token(opening_index - 1, [" ", "\t", "\n"]);
-				if (
-					preceding == null || 
-					(
-						preceding.token != "token_type_def" &&
-						preceding.token != "token_type"
-					)
-				) {
-					return false;
-				}
-				const func_def = preceding.token == "token_type_def";
-
-				// Skip when the parameter is not inside a function definition and the currenct char is ",".
-				// Since only the parameters of a func def without assignment should be highlighted.
-				// Not the parameters without assignment in a function call.
-				if (!func_def && char == ",") {
-					return false;
-				}
-
-				// Get prev token.
-				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "=", ")", ","]);
-				if (prev == null) {
-					return false;
-				}
-
-				// Get prev prev token.
-				const prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n"], true);
-
-				// When the prev prev is a "," or a "(" then the prev is a parameter.
-				if (
-					prev.token === undefined && 
-					prev_prev != null && 
-					prev_prev.token === undefined && 
-					(prev_prev.data == "(" || prev_prev.data == ",")
-				) {
-					prev.token = "token_parameter";
-				}
-			}
-
 			// Not appended.
 			return false;
 		}
@@ -162,7 +107,7 @@ vhighlight.Python = class Python {
 		@title Partial highlight.
 		@description: Partially highlight text based on edited lines.
 		@parameter: {
-			@name: data
+			@name: code
 			@type: string
 			@description: The new code data.
 		}
@@ -177,34 +122,17 @@ vhighlight.Python = class Python {
 			@description: The end line of the new edits. The end line includes the line itself.
 		}
 		@parameter: {
-			@name: insert_start
-			@type: string
-			@description: The start line from where to insert the new tokens into.
-		}
-		@parameter: {
-			@name: insert_end
-			@type: string
-			@description: The end line from where to insert the new tokens into. The end line includes the line itself.
-		}
-		@parameter: {
 			@name: tokens
 			@type: array[object]
 			@description: The old tokens.
-		}
-		@parameter: {
-			@name: update_offsets
-			@type: boolean
-			@description: Update the offsets of the new tokens.
 		}
 	} */
 	partial_highlight({
 		code = null,
 		edits_start = null,
 		edits_end = null,
-		insert_start = null,
-		insert_end = null,
+		line_additions = 0,
 		tokens = [],
-		update_offsets = true,
 	}) {
 
 		// Assign code when not assigned.
@@ -213,14 +141,17 @@ vhighlight.Python = class Python {
 			this.tokenizer.code = code;
 		}
 
+		// Reset.
+		if (this.reset != undefined) {
+			this.reset();
+		}
+
 		// Partial tokenize.
 		return this.tokenizer.partial_tokenize({
 			edits_start: edits_start,
 			edits_end: edits_end,
-			insert_start: insert_start,
-			insert_end: insert_end,
+			line_additions: line_additions,
 			tokens: tokens,
-			update_offsets: update_offsets,
 		})
 	}
 }

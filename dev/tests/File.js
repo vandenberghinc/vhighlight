@@ -6737,7 +6737,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -6747,7 +6747,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -6765,16 +6765,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -15125,7 +15125,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -15135,7 +15135,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -15153,16 +15153,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -23513,7 +23513,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -23523,7 +23523,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -23541,16 +23541,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -31901,7 +31901,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -31911,7 +31911,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -31929,16 +31929,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -40289,7 +40289,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -40299,7 +40299,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -40317,16 +40317,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -48677,7 +48677,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -48687,7 +48687,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -48705,16 +48705,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -57065,7 +57065,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -57075,7 +57075,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -57093,16 +57093,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -65453,7 +65453,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -65463,7 +65463,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -65481,16 +65481,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);
@@ -73841,7 +73841,7 @@ let depth=1;
 let word="";
 let append_to_batch=[[false,char]];
 let index;
-let first_word_in_seperator=true;
+let first_word_in_separator=true;
 for(index=this.index+1;index<this.code.length;index++){
 const c=this.code.charAt(index);
 if(c=="<"){
@@ -73851,7 +73851,7 @@ append_to_batch.push([false,c]);
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
@@ -73869,16 +73869,16 @@ else if(this.is_whitespace(c)||c==","||c==":"||c=="*"||c=="&"||c=="\n"){
 if(word.length>0){
 if(this.keywords.includes(word)){
 append_to_batch.push(["token_keyword",word]);
-}else if(first_word_in_seperator){
+}else if(first_word_in_separator){
 append_to_batch.push(["token_type",word]);
 }else{
 append_to_batch.push([false,word]);
 }
 word="";
 if(c==" "){
-first_word_in_seperator=false;
+first_word_in_separator=false;
 }else if(c==","){
-first_word_in_seperator=true;
+first_word_in_separator=true;
 }
 }
 append_to_batch.push([false,c]);

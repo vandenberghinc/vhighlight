@@ -123,18 +123,15 @@ vhighlight.Tokenizer = class Tokenizer {
 		allow_numerics = true,
 		allow_preprocessors = false,
 		allow_slash_regexes = false,
-		// Attributes for partial tokenizing.
-		scope_seperators = [
-			";", 
-			"{", 
-			"}", 
-		],
-		allow_string_scope_seperator = false,
-		allow_comment_scope_seperator = false,
-		allow_regex_scope_seperator = false,
-		allow_preprocessor_scope_seperator = false,
 		allow_comment_keyword = true,
 		allow_comment_codeblock = true,
+		allow_parameters = true,
+		// Attributes for partial tokenizing.
+		scope_separators = [
+			"{", 
+			"}", 
+			// do not use ; and : etc since they can be used inside a {} scope for cpp, js etc.
+		],
 	}) {
 
 		// Parameter attributes.
@@ -151,13 +148,10 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.allow_numerics = allow_numerics;								// if the language supports numerics.
 		this.allow_preprocessors = allow_preprocessors;						// if the language has "#..." based preprocessor statements.
 		this.allow_slash_regexes = allow_slash_regexes;						// if the language has "/.../" based regex statements.
-		this.scope_seperators = scope_seperators;							// scope seperators for partial tokenize.
-		this.allow_string_scope_seperator = allow_string_scope_seperator;				// allow strings to seperate scopes for partial tokenize.
-		this.allow_comment_scope_seperator = allow_comment_scope_seperator;				// allow comments to seperate scopes for partial tokenize.
-		this.allow_regex_scope_seperator = allow_regex_scope_seperator;					// allow regexes to seperate scopes for partial tokenize.
-		this.allow_preprocessor_scope_seperator = allow_preprocessor_scope_seperator;	// allow preprocessors to seperate scopes for partial tokenize.
-		this.allow_comment_keyword = allow_comment_keyword;								// allow comment keywords.
-		this.allow_comment_codeblock = allow_comment_codeblock;							// allow comment codeblocks.
+		this.allow_comment_keyword = allow_comment_keyword;					// allow comment keywords.
+		this.allow_comment_codeblock = allow_comment_codeblock;				// allow comment codeblocks.
+		this.allow_parameters = allow_parameters;							// allow highlighting of parameters.
+		this.scope_separators = scope_separators;							// scope separators for partial tokenize.
 
 		// Word boundaries.
 		this.word_boundaries = [
@@ -207,7 +201,10 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
-		this.excluded_word_boundary_joinings = ["{", "}", "[", "]", "(", ")", "<", ">"].concat(this.scope_seperators); // always exclude default {}[]() for vide.
+		this.excluded_word_boundary_joinings = [
+			"{", "}", "[", "]", "(", ")", "<", ">", // default scopes.
+			",", "=", // required for parsing parameters.
+		].concat(this.scope_separators); // always exclude default {}[]() for vide.
 		this.excluded_word_boundary_joinings = this.excluded_word_boundary_joinings.reduce((accumulator, val) => { // drop duplicates.
 			if (!accumulator.includes(val)) {
 				accumulator.push(val);
@@ -242,16 +239,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.bracket_depth = 0;				// bracket depth "[ ]".
 		this.curly_depth = 0;				// curly brackets depth "{ }".
 		// this.template_depth = 0;			// template depth "< >".
-		this.next_token = null;				// the next token, defined by the previous token such ass "class" or "extends".
-		this.str_id = 0;					// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.comment_id = 0;				// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.regex_id = 0;					// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
-		this.preprocessor_id = 0;			// id given to each string, used to detect with string tokens are part of one string, since they may be in seperate tokens if there are any line breaks in the sttring,
+		this.next_token = null;				// the next token type, defined by the previous token such ass "class" or "extends".
 		this.offset = 0;					// the offset of the previously appended tokens.
-
-		// Attributes for JS.
-		this.class_depth = null;			// @TODO js does not allow class definitions inside a class, but it does allow it insice a functio which is a member of a class.
-											// something with an array of class depths could be done, if a new class opens add one if it closes remove one, and return the last one to use.
 
 		// Performance.
 		// this.get_prev_token_time = 0;
@@ -318,7 +307,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			depth = 1;
 			start_index = index + 1;
 		}
-		const info_obj = {index: null, str_id: 0, comment_id: null, regex_id: null, preprocessor_id: 0};
+		const info_obj = {index: null};
 		return this.iterate_code(info_obj, start_index, null, (char, is_str, is_comment, is_multi_line_comment, is_regex) => {
 			if (!is_str && !is_comment && !is_multi_line_comment && !is_regex) {
 				if (char == open) {
@@ -483,17 +472,19 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.index = index;
 	}
 
-	// Insert tokens.
-	insert_tokens(tokens) {
+	// Concat tokens to the end of the current tokens.
+	concat_tokens(tokens) {
 		const start_line = this.line;
 		const start_offset = this.offset;
 		tokens.iterate_tokens((token) => {
 			token.line += start_line;
-			token.offset += start_offset;
-			this.offset += token.data.length;
 			if (token.is_line_break) {
 				++this.line;
 			}
+			token.offset += start_offset;
+			this.offset += token.data.length;
+			token.index = this.added_tokens;
+			++this.added_tokens;
 			if (this.tokens[token.line] === undefined) {
 				this.tokens[token.line] = [token];
 			} else {
@@ -541,7 +532,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		if (token === null && obj.is_word_boundary === true) {
 			const line_tokens = this.tokens[this.line];
 			if (line_tokens !== undefined) {
-				const last = line_tokens.last();
+				const last = line_tokens[line_tokens.length - 1];
 				if (
 					last !== undefined &&
 					last.is_word_boundary === true && 
@@ -557,37 +548,9 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Increment added tokens after concat to previous tokens.
 		++this.added_tokens;
 
-		// Set comment, string, regex or preprocessor ids.
-		switch(token) {
-			case "token_string":
-				obj.str_id = this.str_id;
-				break;
-			case "token_comment":
-				obj.comment_id = this.comment_id;
-				break;
-			case "token_regex":
-				obj.regex_id = this.regex_id;
-				break;
-			case "token_preprocessor":
-				obj.preprocessor_id = this.preprocessor_id;
-				break;
-			case "token_line":
-				obj.is_line_break = true;
-				if (this.is_str) {
-					obj.str_id = this.str_id;
-				}
-				else if (this.is_comment) {
-					obj.comment_id = this.comment_id;
-				}
-				else if (this.is_regex) {
-					obj.regex_id = this.regex_id;
-				}
-				else if (this.is_preprocessor) {
-					obj.preprocessor_id = this.preprocessor_id;
-				}
-				break;
-			default:
-				break;
+		// Set is line break.
+		if (token === "token_line") {
+			obj.is_line_break = true;
 		}
 
 		// Append token.
@@ -760,7 +723,6 @@ vhighlight.Tokenizer = class Tokenizer {
 				(prev_non_whitespace_char == "\n" || info_obj.index === 0) && 
 				char == "#"
 			) {
-				++info_obj.preprocessor_id;
 				is_preprocessor = true;
 				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
@@ -795,7 +757,6 @@ vhighlight.Tokenizer = class Tokenizer {
 					char == '`'
 				)
 			) {
-				++info_obj.str_id;
 				string_char = char;
 				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
@@ -833,7 +794,6 @@ vhighlight.Tokenizer = class Tokenizer {
 				// Single line comments.
 				const comment_start = this.single_line_comment_start;
 				if (comment_start !== false && comment_start.length === 1 && char === comment_start) {
-					++info_obj.comment_id;
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -841,7 +801,6 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 				// else if (comment_start.length == 2 && char + info_obj.next_char == comment_start) {
 				else if (comment_start !== false && comment_start.length !== 1 && eq_first(comment_start, info_obj.index)) {
-					++info_obj.comment_id;
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -854,7 +813,6 @@ vhighlight.Tokenizer = class Tokenizer {
 					// skip but do not use continue since the "No string or comment" should be checked.
 				}
 				else if (mcomment_start.length !== 1 && eq_first(mcomment_start, info_obj.index)) {
-					++info_obj.comment_id;
 					is_multi_line_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -883,7 +841,10 @@ vhighlight.Tokenizer = class Tokenizer {
 				!is_escaped
 			) {
 				const mcomment_end = this.multi_line_comment_end;
-				if (mcomment_end.length == 2 && info_obj.prev_char + char == mcomment_end) {
+				if (
+					(mcomment_end.length == 2 && info_obj.prev_char + char == mcomment_end) ||
+					(mcomment_end.length > 2 && this.code.substr(info_obj.index - mcomment_end.length, mcomment_end.length) == mcomment_end)
+				) {
 					is_multi_line_comment = false;
 					const res = callback(char, false, is_comment, true, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -920,7 +881,6 @@ vhighlight.Tokenizer = class Tokenizer {
 						this.operators.includes(prev)
 					)
 				) {
-					++info_obj.regex_id;
 					is_regex = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -955,7 +915,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	// - The "this.callback" should return "true" to indicate the character has been appended to the batch, and "false" if not.
 	// - Each word boundary seperates a token. The callback is required to respect this, since this ignoring this behaviour may cause undefined behaviour.
 	// - When performing a forward lookup and editing this.index afterwards, dont forget to incrrement the this.line var on line breaks.
-	tokenize(return_tokens = false) {
+	tokenize(return_tokens = false, stop_callback = undefined) {
 
 		// Reset.
 		this.reset();
@@ -1016,7 +976,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Iterate code.
-		this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
+		const stopped = this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
 
 			// New line.
 			if (!is_escaped && char == "\n") {
@@ -1041,9 +1001,19 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.is_str = false; // also disable string in case of an unterminated < inside the #include preprocessor, since the flag is turned on inside the is preprocessor check.
 				}
 				
-				// Increment line after appending the line batch.
+				// Append line token.
 				this.batch += char;
 				this.append_batch("token_line");
+
+				// Check if a stop callback is defined for the partial tokenize.
+				if (stop_callback !== undefined) {
+					const stop = stop_callback(this.line, this.tokens[this.line]);
+					if (stop) {
+						return true;
+					}
+				}
+
+				// Increment the line.
 				++this.line;
 			}
 			
@@ -1163,11 +1133,6 @@ vhighlight.Tokenizer = class Tokenizer {
 					++this.curly_depth;
 				} else if (char == "}") {
 					--this.curly_depth;
-
-					// Reset class depth for javascript.
-					if (this.class_depth != null && this.curly_depth < this.class_depth) {
-						this.class_depth = null;
-					}
 				}
 				
 				// Parentheses depth.
@@ -1227,9 +1192,179 @@ vhighlight.Tokenizer = class Tokenizer {
 				// Stop the else if loop after here since the end of string / comment should be parsed as a new char.
 				//
 
+				// Highlight parameters.
+				if (char == ")") {
+
+					// Append batch by word boundary.
+					this.append_batch();
+
+					// Get the tokens inside the parentheses at the correct pareth depth and skip all word boundaries except ",".
+					let type_token, parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
+					this.tokens.iterate_tokens_reversed((token) => {
+						if (token.token === undefined && token.data.length === 1) {
+							if (token.data === ")") {
+								++parenth_depth;
+							} else if (token.data === "(") {
+								if (parenth_depth === 0) {
+									type_token = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "=", ":"]);
+									return false;
+								}
+								--parenth_depth;
+							} else if (token.data === "}") {
+								++curly_depth;
+							} else if (token.data === "{") {
+								--curly_depth;
+							} else if (token.data === "]") {
+								++bracket_depth;
+							} else if (token.data === "[") {
+								--bracket_depth;
+							}
+
+						}
+						token.at_correct_depth = parenth_depth === 0 && curly_depth === 0 && bracket_depth === 0;
+						parenth_tokens.push(token);
+					});
+
+					// Check if the preceding token is a type def.
+					let is_type_def = type_token.token === "token_type_def";
+					const is_type = type_token.token === "token_type";
+					let is_anonymous_type_def = false;
+
+					// When the preceding token is not a type def and not a token type and the language is js then check if there is a => after the ).
+					if (!is_type && !is_type_def) {
+						for (let i = this.index + 1; i < this.code.length; i++) {
+							const c = this.code.charAt(i);
+							if (c == " " || c == "\t" || c == "\n") {
+								continue;
+							} else if (c === "=" && this.code.charAt(i+1) === ">") {
+								is_anonymous_type_def = true;
+								is_type_def = true;
+							} else {
+								break;
+							}
+						}
+					}
+
+					// Stop when the preceding is not a token_type or token_type_def.
+					if (!is_anonymous_type_def && !is_type_def && !is_type) {
+
+						// Delete the custom attribute.
+						parenth_tokens.iterate((token) => {
+							delete token.at_correct_depth;
+						})
+						
+						// Append word boundary to tokens.
+						this.batch += char;
+						this.append_batch(null, true); // do not use "false" as parameter "token" since the word boundary may be an operator.
+
+						// Stop.
+						return null;
+					}
+
+					// Create the array with parameters and assign the token_param to the tokens.
+					let mode = 1; // 1 for key 2 for value.
+					const params = [];
+					const init_param = (param) => {
+						return {
+							name: null,
+							default: null,
+							tags: [],
+							type: null,
+						};
+					}
+					const append_param = (param) => {
+						if (param !== undefined) {
+							if (param.default != null) {
+								param.default = param.default.trim();
+							}
+							params.push(param);
+						};
+					}
+					let param = init_param();
+					let i = parenth_tokens.length;
+					parenth_tokens.iterate_reversed((token) => {
+						--i;
+						const at_correct_depth = token.at_correct_depth;
+						delete token.at_correct_depth;
+
+						// Set key and value flags.
+						if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
+							append_param(param);
+							param = init_param();
+							mode = 1;
+						}
+						else if (at_correct_depth && token.is_word_boundary === true && token.data === "=") {
+							mode = 2;
+						}
+
+						// When key.
+						else if (mode === 1) {
+
+							// Skip tokens.
+							if (
+								at_correct_depth === false ||
+								token.is_word_boundary === true ||
+								token.is_line_break === true
+							) {
+								return null;
+							}
+
+							// Assign to parameter.
+							if (token.token === "token_keyword") {
+								param.tags.push(token.data.trim());
+							} else if (token.token === "token_type") {
+								param.type = token.data.trim();
+							} else if (token.token === undefined) {
+
+								// On a type definition always assign to parameter.
+								if (is_type_def) {
+									param.name = token.data.trim();
+									token.token = "token_parameter";
+								}
+
+								// When the token is a type there must be a "=" after this tokens.
+								else {
+									let next_i = i - 1, next;
+									while ((next = parenth_tokens[next_i]) != null) {
+										if (next.data.length === 1 && next.data === "=") {
+											param.name = token.data.trim();
+											token.token = "token_parameter";
+											break;
+										} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
+											break;
+										}
+										--next_i;
+									}
+								}
+							}
+						}
+
+						// When value.
+						else if (is_type_def && mode === 2) {
+							if (param.default === null) {
+								param.default = token.data;
+							} else {
+								param.default += token.data;
+							}
+						}
+					})
+
+					// Add last param.
+					append_param(param);
+
+					// Assign params to the type def token.
+					if (is_type_def && !is_anonymous_type_def) {
+						type_token.parameters = params;
+					}
+
+					// Append word boundary to tokens.
+					this.batch += char;
+					this.append_batch(null, true); // do not use "false" as parameter "token" since the word boundary may be an operator.
+				}
+
 				// Call the handler.
 				// And append the character when not already appended by the handler.
-				if (!this.callback(char, is_escaped, this.is_preprocessor)) {
+				else if (!this.callback(char, is_escaped, this.is_preprocessor)) {
 
 					// Is word boundary.
 					// Append old batch and word boundary char.
@@ -1253,8 +1388,12 @@ vhighlight.Tokenizer = class Tokenizer {
 		auto_append_batch_switch();
 
 		// When the last line has no content then append an enmpty line token array since there actually is a line there.
+		// But only when no stop callback has been defined.
 		const last_line = this.tokens[this.tokens.length - 1];
-		if (last_line === undefined || (last_line.length > 0 && last_line[last_line.length - 1].is_line_break)) {
+		if (
+			stop_callback == null &&
+			(last_line === undefined || (last_line.length > 0 && last_line[last_line.length - 1].is_line_break))
+		) {
 			this.tokens.push([]);
 		}
 
@@ -1273,16 +1412,9 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Partial tokenize.
-	// @todo this fucks with the str_id etc if the users just created a new string.
-	// @todo scope end foes not work correctly when a user types the first / for a comment in js, then it thinks it is a regex and on the second / the regex is not closed.
 	/*	@docs: {
 		@title Partial tokenize
 		@description: Partially tokenize text based on edited lines.
-		@parameter: {
-			@name: data
-			@type: string
-			@description: The new code data.
-		}
 		@parameter: {
 			@name: edits_start
 			@type: string
@@ -1333,412 +1465,113 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Iterate backwards to find the scope start line.
 		// Do not stop if another string, comment, regex or preprocessor has just ended on the line that the start scope has been detected.
-		if (edits_start !== 0) {
-			let is_id = null;
-			let is_string = false;
-			let is_comment = false;
-			let is_regex = false;
-			let is_preprocessor = false;
-			let stop_on_line = null;
-			tokens.iterate_tokens_reversed(0, edits_start + 1, (token) => {
-				if (token.line === stop_on_line) {
-					scope_start_offset = token.offset + token.data.length;
-					return false;
+		if (edits_start != 0) {
+			tokens.iterate_reversed(0, edits_start + 1, (line_tokens) => {
+
+				// Skip on empty line tokens.
+				if (line_tokens.length === 0) {
+					return null;
 				}
-				else if (is_string) {
-					if (token.str_id !== is_id) {
-						is_string = false;
-						if (this.allow_string_scope_seperator) {
-							scope_start = token.line;
-							stop_on_line = token.line - 1;
-						}
-					}
-				}
-				else if (is_comment) {
-					if (token.comment_id !== is_id) {
-						is_comment = false;
-						if (this.allow_comment_scope_seperator) {
-							scope_start = token.line;
-							stop_on_line = token.line - 1;
-						}
-					}
-				}
-				else if (is_regex) {
-					if (token.regex_id !== is_id) {
-						is_regex = false;
-						if (this.allow_regex_scope_seperator) {
-							scope_start = token.line;
-							stop_on_line = token.line - 1;
-						}
-					}
-				}
-				else if (is_preprocessor) {
-					if (token.preprocessor_id !== is_id) {
-						is_preprocessor = false;
-						if (this.allow_preprocessor_scope_seperator) {
-							scope_start = token.line;
-							stop_on_line = token.line - 1;
-						}
-					}
-				}
-				else {
-					switch (token.token) {
-						case "token_string":
-							is_string = true;
-							is_id = token.str_id;
-							stop_on_line = null;
-							break;
-						case "token_comment":
-							is_comment = true;
-							is_id = token.comment_id;
-							stop_on_line = null;
-							break;
-						case "token_regex":
-							is_regex = true;
-							is_id = token.regex_id;
-							stop_on_line = null;
-							break;
-						case "token_preprocessor":
-							is_preprocessor = true;
-							is_id = token.preprocessor_id;
-							stop_on_line = null;
-							break;
-						case null:
-							if (token.data.length == 1 && this.scope_seperators.includes(token.data)) {
-								scope_start = token.line;
-								stop_on_line = token.line - 1;
-								scope_start_offset = token.offset;
-							}
-							break;
-						default:
-							break;
-					}
+
+				// Vars.
+				let found_separator = null;
+
+				// Check if the line contains a scope separator.
+				line_tokens.iterate_reversed((token) => {
+					if (
+						(token.token === undefined || token.token === "token_operator") &&
+						token.data.length === 1 &&
+						this.scope_separators.includes(token.data)
+					) {
+						found_separator = token.line;
+						return true;
+					}	
+				})
+
+				// Do not stop when the first token is a comment, string etc because it may resume on the next line.
+				const first_token = line_tokens[0];
+				if (
+					found_separator !== null &&
+					first_token.token !== "token_comment" &&
+					first_token.token !== "token_string" &&
+					first_token.token !== "token_regex" &&
+					first_token.token !== "token_preprocessor"
+				) {
+					scope_start = first_token.line;
+					scope_start_offset = first_token.offset;
+					return true;
 				}
 			})
 		}
-
+		
 		// console.log("scope_start_offset:",scope_start_offset);
 		// console.log("scope_start:",scope_start);
 		// console.log("Find the scope start:", Date.now() - now, "ms.");
 
 		// ---------------------------------------------------------
-		// Find the scope end.
+		// Start the tokenizer with a stop callback
 		// now = Date.now();
 
-		const get_scope_end_by_old_tokens = () => {
-			let scope_end = null; 		// the line where the scope around the new edits ends.
-			let scope_end_offset = 0;   // the index offset of the scope end from the new code.
-
-			// First use the old data to find the end scope cause for example when a unterminated string was previously covering the entire document.
-			// And the user terminates the string, then the scope from the new data would for example end at the termianted string and all other tokens are still left as a string.
-			const max_end = edits_end;
-			let is_id = null;
-			let is_string = false;
-			let is_comment = false;
-			let is_regex = false;
-			let is_preprocessor = false;
-			let stop_on_line = null;
-			tokens.iterate_tokens(edits_start, null, (token) => {
-				if (token.line === stop_on_line) {
+		// Chech if the line tokens of two lines match for the stop callback.
+		const match_lines = (x, y) => {
+			if (x.length !== y.length) {
+				return false;
+			}
+			if (x.length <= 1) { // prevent line break lines.
+				return false;
+			}
+			for (let i = 0; i < x.length; i++) {
+				const x_token = x[i];
+				const y_token = y[i];
+				if (
+					x_token.token !== y_token.token ||
+					x_token.data !== y_token.data 
+				) {
 					return false;
 				}
-				else if (is_string) {
-					if (token.str_id !== is_id) {
-						is_string = false;
-						if (this.allow_string_scope_seperator && token.line > max_end) {
-							scope_end = token.line;
-							stop_on_line = token.line + 1;
-						}
-					}
-				}
-				else if (is_comment) {
-					if (token.comment_id !== is_id) {
-						is_comment = false;
-						if (this.allow_comment_scope_seperator && token.line > max_end) {
-							scope_end = token.line;
-							stop_on_line = token.line + 1;
-						}
-					}
-				}
-				else if (is_regex) {
-					if (token.regex_id !== is_id) {
-						is_regex = false;
-						if (this.allow_regex_scope_seperator && token.line > max_end) {
-							scope_end = token.line;
-							stop_on_line = token.line + 1;
-						}
-					}
-				}
-				else if (is_preprocessor) {
-					if (token.preprocessor_id !== is_id) {
-						is_preprocessor = false;
-						if (this.allow_preprocessor_scope_seperator && token.line > max_end) {
-							scope_end = token.line;
-							stop_on_line = token.line + 1;
-						}
-					}
-				}
-				else {
-					switch (token.token) {
-						case "token_string":
-							is_string = true;
-							is_id = token.str_id;
-							stop_on_line = null;
-							break;
-						case "token_comment":
-							is_comment = true;
-							is_id = token.comment_id;
-							stop_on_line = null;
-							break;
-						case "token_regex":
-							is_regex = true;
-							is_id = token.regex_id;
-							stop_on_line = null;
-							break;
-						case "token_preprocessor":
-							is_preprocessor = true;
-							is_id = token.preprocessor_id;
-							stop_on_line = null;
-							break;
-						case null:
-							if (token.line > max_end && token.data.length == 1 && this.scope_seperators.includes(token.data)) {
-								scope_end = token.line;
-								stop_on_line = token.line + 1;
-							}
-							break;
-						default:
-							break;
-					}
-				}
-			})
-
-			// Get the offset of the line after the scope end line from the new code data.
-			let line = scope_start > 0 ? scope_start - 1 : scope_start; // since a line break is the start of a new line.
-			this.iterate_code(this, scope_start_offset, null, (char, l_is_str, l_is_comment, l_is_multi_line_comment, l_is_regex, is_escaped, l_is_preprocessor) => {
-
-				// Count lines.
-				if (char == "\n" && !is_escaped) {
-					++line;
-
-					// Check stop on line.
-					if (line == scope_end) {
-						scope_end_offset = this.index;
-						return false;
-					}
-				}
-			})
-			// console.log("old scope_end:",scope_end);
-			// console.log("old scope_end_offset:",scope_end_offset);
-			// console.log("old scope:", this.code.substr(scope_start_offset, scope_end_offset - scope_start_offset));
-
-			return {line:scope_end, offset:scope_end_offset};
+			}
+			return true;
 		}
 
-		const get_scope_end_by_new_code = () => {
-			let scope_end = null; 		// the line where the scope around the new edits ends.
-			let scope_end_offset = 0;   // the index offset of the scope end from the new code.
+		// The stop callback to check if the just tokenized line is the same as the original line.
+		// This works correctly when first typing an unfinished string etc and then later terminating it.
+		let insert_start_line = scope_start;
+		let insert_end_line = null;
+		const stop_callback = (line, line_tokens) => {
+			const og_line = line + scope_start + line_additions;
+			if (line + scope_start > edits_end && match_lines(tokens[og_line], line_tokens)) {
+				insert_end_line = og_line;
+				// console.log("MATCH:",line)
+				return true;
+			}
+			return false;
+		};
 
-			// Iterate forwards to find the scope end line.
-			// Do not stop if another string, comment, regex or preprocessor has started ended on the line that the start scope has been detected.
-			let line = scope_start;
-			let is_string = false;
-			let is_comment = false;
-			let is_regex = false;
-			let is_preprocessor = false;
-			let stop_on_line = null;
-			this.iterate_code(this, scope_start_offset, null, (char, l_is_str, l_is_comment, l_is_multi_line_comment, l_is_regex, is_escaped, l_is_preprocessor) => {
+		// Tokenize.
+		this.code = this.code.substr(scope_start_offset, this.code.length - scope_start_offset);
+		const insert_tokens = this.tokenize(true, stop_callback);
 
-				// Count lines.
-				let line_break = false;
-				if (char == "\n" && !is_escaped) {
-					line_break = true;
-					++line;
-				}
-
-				// Check stop on line.
-				if (line_break && line == stop_on_line) {
-					scope_end_offset = this.index;
-					return false;
-				}
-
-				// Stop by last index.
-				if (this.index == this.code.length - 1) {
-					scope_end_offset = this.index;
-					scope_end = line;
-					return false;
-				}
-
-				// Combine single and multi line comments.
-				l_is_comment = l_is_comment || l_is_multi_line_comment;
-
-
-				// Check if the line has passed the end line.
-				if (line > edits_end) {
-
-					// End of string, comment, regex and preprocessor.
-					if (is_string) {
-						if (!l_is_str) {
-							is_string = false;
-							if (this.allow_string_scope_seperator) {
-								scope_end = line;
-								stop_on_line = line + 1;
-							}
-						}
-					} else if (is_comment) {
-						if (!l_is_comment) {
-							is_comment = false;
-							if (this.allow_comment_scope_seperator) {
-								scope_end = line;
-								stop_on_line = line + 1;
-							}
-						}
-					} else if (is_regex) {
-						if (!l_is_regex) {
-							is_regex = false;
-							if (this.allow_regex_scope_seperator) {
-								scope_end = line;
-								stop_on_line = line + 1;
-							}
-						}
-					} else if (is_preprocessor) {
-						if (!l_is_preprocessor) {
-							is_preprocessor = false;
-							if (this.allow_preprocessor_scope_seperator) {
-								scope_end = line;
-								stop_on_line = line + 1;
-							}
-						}
-					}
-
-					// Start of string, comment, regex and preprocessor.
-					else if (l_is_str) {
-						is_string = true;
-						stop_on_line = null;
-					}
-					else if (l_is_comment) {
-						is_comment = true;
-						stop_on_line = null;
-					}
-					else if (l_is_regex) {
-						is_regex = true;
-						stop_on_line = null;
-					}
-					else if (l_is_preprocessor) {
-						is_preprocessor = true;
-						stop_on_line = null;
-					}
-
-					// Search for seperator chars.
-					else if (this.scope_seperators.includes(char)) {
-						scope_end = line;
-						stop_on_line = line + 1;
-					}
-				}
-
-				// Set string, comment and regex flags otherwise is might cause undefined behaviour if a comment etc is open while reaching the edits_end line.
-				else {
-
-					// End of string, comment, regex and preprocessor.
-					if (is_string && !l_is_str) {
-						is_string = false;
-					}
-					else if (is_comment && !l_is_comment) {
-						is_comment = false;
-					}
-					else if (is_regex && !l_is_regex) {
-						is_regex = false;
-					}
-					else if (is_preprocessor && !l_is_preprocessor) {
-						is_preprocessor = false;
-					}
-
-					// Start of string, comment, regex and preprocessor.
-					else if (l_is_str) {
-						is_string = true;
-					}
-					else if (l_is_comment) {
-						is_comment = true;
-					}
-					else if (l_is_regex) {
-						is_regex = true;
-					}
-					else if (l_is_preprocessor) {
-						is_preprocessor = true;
-					}
-				}
-
-				// 
-			})
-			// console.log("new scope_end:",scope_end);
-			// console.log("new scope_end_offset:",scope_end_offset);
-			// console.log("new scope:", this.code.substr(scope_start_offset, scope_end_offset - scope_start_offset));
-
-			return {line:scope_end, offset:scope_end_offset};
-		}
-
-		const old_scope_end = get_scope_end_by_old_tokens();
-		const new_scope_end = get_scope_end_by_new_code();
-
-		// When the last lines have been deleted.
-		if (
-			(new_scope_end.offset === this.code.length) || // when the new scope end is at the end of the new code data.
-			(new_scope_end.line === edits_end && edits_start === edits_end && line_additions < 0) // last lines deleted.
-		) {
-			scope_end = new_scope_end.line;
-			scope_end_offset = new_scope_end.offset;
-		}
-
-		// Use new scope end.
-		else if (new_scope_end.line >= old_scope_end.line) {
-			scope_end = new_scope_end.line;
-			scope_end_offset = new_scope_end.offset;
-		}
-
-		// Use old scope end.
-		else {
-			scope_end = old_scope_end.line;
-			scope_end_offset = old_scope_end.offset;
-		}
-
-		// console.log("Find the scope end:", Date.now() - now, "ms.");
-		// now = Date.now();
-
-		// ---------------------------------------------------------
-		// Highlight and insert the edits.
-
-		// Slice the data edits.
-		// console.log("scope_end:",scope_end);
-		// console.log("scope_end_offset:",scope_end_offset);
-		// console.log("code length:",this.code.length);
-		this.code = this.code.substr(scope_start_offset, (scope_end_offset - scope_start_offset) + 1);
-		// console.log("scope:",this.code);
-
-		// console.log("Slice scope:", Date.now() - now, "ms.");
-		// now = Date.now();
-
-		// Highlight the edits.
-		const insert_tokens = this.tokenize(true);
-
-		// Remove the last line if it does not contain any tokens since this was manually added by tokenize.
-		// Otherwise it will insert a line that was not present in the scope.
-		if (insert_tokens.length > 0 && insert_tokens.last().length === 0) {
-			--insert_tokens.length;
-		}
-		
+		// console.log("SCOPE:", this.code);
 		// console.log("Tokenized lines:",insert_tokens.length);
 		// console.log("insert_tokens:",insert_tokens)
 		// console.log("Highlight the edits:", Date.now() - now, "ms.");
+
+		// ---------------------------------------------------------
+		// Insert tokens
 		// now = Date.now();
 
-		// Combine the tokens.
+		// console.log("insert_start_line:",insert_start_line);
+		// console.log("insert_end_line:",insert_end_line);
+		// console.log("line_additions:",line_additions);
+
+		// Insert tokens into the current tokens from start line till end line.
+		// So the new tokens will old start till end lines will be removed and the new tokens will be inserted in its place.
+		// The start line will be removed, and the end line will be removed as well.
 		let combined_tokens = new vhighlight.Tokens();
 		let insert = true;
 		let line_count = 0, token_index = 0, offset = 0;;
-		let insert_end = scope_end - line_additions;
-		// console.log("insert_end:",insert_end);
-		// console.log("line_additions:",line_additions);
 		for (let line = 0; line < tokens.length; line++) {
-			if (insert && line == scope_start) {
+			if (insert && line == insert_start_line) {
 				insert = false;
 				insert_tokens.iterate((line_tokens) => {
 					line_tokens.iterate((token) => {
@@ -1752,7 +1585,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					combined_tokens.push(line_tokens);
 				})
 			}
-			else if (line < scope_start || line > insert_end) {
+			else if (line < insert_start_line || (insert_end_line !== null && line > insert_end_line)) {
 				const line_tokens = tokens[line];
 				line_tokens.iterate((token) => {
 					token.line = line_count;
@@ -1765,7 +1598,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				combined_tokens.push(line_tokens);
 			}
 		}
-
+		
 		// When the last line has no content then append an enmpty line token array since there actually is a line there.
 		const last_line = combined_tokens[combined_tokens.length - 1];
 		if (last_line === undefined || (last_line.length > 0 && last_line[last_line.length - 1].is_line_break)) {
@@ -1787,7 +1620,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		let html = "";
 		
 		// Iterate an array with token objects.
-		tokens.iterate((line_tokens) => {
+		this.tokens.iterate((line_tokens) => {
 			line_tokens.iterate((token) => {
 				if (token.token === undefined) {
 					if (reformat) {
