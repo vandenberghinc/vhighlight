@@ -7,78 +7,101 @@
 // Javascript highlighter.
 
 vhighlight.JS = class JS {
-	constructor() {
+	constructor({
+		keywords = [
+			"break",
+			"case",
+			"catch",
+			"class",
+			"const",
+			"continue",
+			"debugger",
+			"default",
+			"delete",
+			"do",
+			"else",
+			"export",
+			"extends",
+			"finally",
+			"for",
+			"function",
+			"if",
+			"import",
+			"in",
+			"instanceof",
+			"let",
+			"new",
+			"of",
+			"return",
+			"super",
+			"switch",
+			"this",
+			"throw",
+			"try",
+			"typeof",
+			"var",
+			"void",
+			"while",
+			"with",
+			"yield",
+			"prototype",
+			"true",
+			"false",
+			"null",
+			"static",
+			"async",
+			"await",
+			"process",
+			"module",
+			"exports",
+			"get",
+			"set",
+			// "enum",
+			"implements",
+			"interface",
+			"package",
+			"private",
+			"protected",
+			"public",
+		],
+		type_def_keywords = [
+			"class"
+		], 
+		type_keywords = [
+			"extends",
+		],
+		operators = [
+			"+", "-", "*", "/", "%", "**", "=", "+=", "-=", "*=", "/=", "%=", "**=",
+			"==", "!=", "===", "!==", ">", "<", ">=", "<=", "&&", "||", "!", "&", "|",
+			"^", "~", "<<", ">>", ">>>", "++", "--", "?",
+		],
+		single_line_comment_start = "//",
+		multi_line_comment_start = "/*",
+		multi_line_comment_end = "*/",
+		allow_slash_regexes = true,
+		allow_decorators = true,
+		excluded_word_boundary_joinings = [],
+
+		// Attributes for partial tokenizing.
+		scope_separators = [
+			"{", 
+			"}", 
+		],
+	} = {}) {
 
 		// Initialize the this.tokenizer.
 		this.tokenizer = new vhighlight.Tokenizer({
-			keywords: [
-				"break",
-				"case",
-				"catch",
-				"class",
-				"const",
-				"continue",
-				"debugger",
-				"default",
-				"delete",
-				"do",
-				"else",
-				"export",
-				"extends",
-				"finally",
-				"for",
-				"function",
-				"if",
-				"import",
-				"in",
-				"instanceof",
-				"let",
-				"new",
-				"of",
-				"return",
-				"super",
-				"switch",
-				"this",
-				"throw",
-				"try",
-				"typeof",
-				"var",
-				"void",
-				"while",
-				"with",
-				"yield",
-				"prototype",
-				"true",
-				"false",
-				"null",
-				"static",
-				"async",
-				"await",
-				"process",
-				"module",
-				"exports",
-			],
-			type_def_keywords: [
-				"class"
-			], 
-			type_keywords: [
-				"extends",
-			],
-			operators: [
-				"+", "-", "*", "/", "%", "**", "=", "+=", "-=", "*=", "/=", "%=", "**=",
-				"==", "!=", "===", "!==", ">", "<", ">=", "<=", "&&", "||", "!", "&", "|",
-				"^", "~", "<<", ">>", ">>>", "++", "--", "?",
-			],
-			single_line_comment_start: "//",
-			multi_line_comment_start: "/*",
-			multi_line_comment_end: "*/",
-			allow_slash_regexes: true,
-
-			// Attributes for partial tokenizing.
-			scope_separators: [
-				"{", 
-				"}", 
-			],
+			keywords: keywords,
+			type_def_keywords: type_def_keywords, 
+			type_keywords: type_keywords,
+			operators: operators,
+			single_line_comment_start: single_line_comment_start,
+			multi_line_comment_start: multi_line_comment_start,
+			multi_line_comment_end: multi_line_comment_end,
+			allow_slash_regexes: allow_slash_regexes,
+			allow_decorators: allow_decorators,
+			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
+			scope_separators: scope_separators,
 		});
 
 		// Assign attributes.
@@ -163,10 +186,6 @@ vhighlight.JS = class JS {
 
 	// Reset attributes that should be reset before each tokenize.
 	reset() {
-		this.opening_parenth_curly_depth = 0;	// the curly depth of the first parenth depth when opened.
-		this.func_def_parenth_depth = null; 	// parenth depth inside the parentheses of a function definition.
-		this.func_def_curly_depth = null; 		// curly depth inside the parentheses of a function definition, since functions can also be passed as parameters etc.
-		this.last_param_was_assignment = false; // used to check if the last tokenized param used an assignemnt operator, if so do not highlight last on closing ")".
 	}
 
 	// Highlight.

@@ -7,6 +7,30 @@
 // Module vhighlight.
 
 const vhighlight = {};
+
+// Get the general tokenizer object by language.
+// Returns `null` when the language is not supported.
+vhighlight.get_tokenizer = function(language) {
+	if (language == "cpp" || language == "c++" || language == "c") {
+		return vhighlight.cpp;
+	} else if (language == "markdown" || language == "md") {
+		return vhighlight.md;
+	} else if (language == "js" || language == "javascript") {
+		return vhighlight.js;
+	} else if (language == "json") {
+		return vhighlight.json;
+	} else if (language == "python") {
+		return vhighlight.python;
+	} else if (language == "css") {
+		return vhighlight.css;
+	} else if (language == "html") {
+		return vhighlight.html;
+	} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+		return vhighlight.bash;
+	} else {
+		return null;
+	}
+}
 	
 // Highlight
 // - Returns "null" when the language is not supported.
@@ -36,55 +60,23 @@ vhighlight.highlight = function({
 	if (delay == null) {
 		delay = 25;
 	}
+
+	// Get tokenizer.
+	const tokenizer = vhighlight.get_tokenizer(language);
+	if (tokenizer == null) {
+		return null;
+	}
 	
 	// When the code is assigned just highlight the code and return the highlighted code/
 	if (code != null) {
-		if (language == "cpp" || language == "c++" || language == "c") {
-			return vhighlight.cpp.highlight(code, return_tokens);
-		} else if (language == "markdown" || language == "md") {
-			return vhighlight.md.highlight(code, return_tokens);
-		} else if (language == "js" || language == "javascript") {
-			return vhighlight.js.highlight(code, return_tokens);
-		} else if (language == "json") {
-			return vhighlight.json.highlight(code, return_tokens);
-		} else if (language == "python") {
-			return vhighlight.python.highlight(code, return_tokens);
-		} else if (language == "css") {
-			return vhighlight.css.highlight(code, return_tokens);
-		} else if (language == "html") {
-			return vhighlight.html.highlight(code, return_tokens);
-		} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-			return vhighlight.bash.highlight(code, return_tokens);
-		} else {
-			return null;
-		}
+		return tokenizer.highlight(code, return_tokens);
 	}
 
 	// When the element is a <pre> just highlight it.
 	else if (element.tagName == "PRE") {
 		return_tokens = false;
 		code = element.innerText.replaceAll(">", "&gt;").replaceAll("<", "&lt;");
-		let highlighted_code;
-		if (language == "cpp" || language == "c++" || language == "c") {
-			highlighted_code = vhighlight.cpp.highlight(code, {is_func: is_func});
-		} else if (language == "markdown" || language == "md") {
-			highlighted_code = vhighlight.md.highlight(code);
-		} else if (language == "js" || language == "javascript") {
-			highlighted_code = vhighlight.js.highlight(code);
-		} else if (language == "json") {
-			highlighted_code = vhighlight.json.highlight(code);
-		} else if (language == "python") {
-			highlighted_code = vhighlight.python.highlight(code);
-		} else if (language == "css") {
-			highlighted_code = vhighlight.css.highlight(code);
-		} else if (language == "html") {
-			highlighted_code = vhighlight.html.highlight(code);
-		} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-			highlighted_code = vhighlight.bash.highlight(code);
-		} else {
-			return null;
-		}
-		element.innerHTML = highlighted_code;
+		element.innerHTML = tokenizer.highlight(code);
 		return ;
 	}
 
@@ -268,28 +260,7 @@ vhighlight.highlight = function({
 
 		// Highlight.
 		return_tokens = false;
-		let highlighted_code;
-		if (language == "cpp" || language == "c++" || language == "c") {
-			highlighted_code = vhighlight.cpp.highlight(code, {is_func: is_func});
-		} else if (language == "markdown" || language == "md") {
-			highlighted_code = vhighlight.md.highlight(code);
-		} else if (language == "js" || language == "javascript") {
-			highlighted_code = vhighlight.js.highlight(code);
-		} else if (language == "json") {
-			highlighted_code = vhighlight.json.highlight(code);
-		} else if (language == "python") {
-			highlighted_code = vhighlight.python.highlight(code);
-		} else if (language == "css") {
-			highlighted_code = vhighlight.css.highlight(code);
-		} else if (language == "html") {
-			highlighted_code = vhighlight.html.highlight(code);
-		} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-			highlighted_code = vhighlight.bash.highlight(code);
-		} else {
-			// console.error("Unsupported language \"" + language + "\" for syntax highlighting.");
-			// element.innerHTML = "<p style='color: red;'>Error: Unsupported language \"" + language + "\" for syntax highlighting.</p>";
-			return null;
-		}
+		let highlighted_code = tokenizer.highlight(code);
 
 		// No line numbers.
 		// So add code directly.
