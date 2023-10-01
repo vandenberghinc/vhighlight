@@ -294,6 +294,51 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 	}
 
+	// Check if the first chars of the main string equals a substring, optionally with start index.
+	eq_first(substr, start_index = 0) {
+	    if (start_index + substr.length > this.code.length) {
+	        return false;
+	    }
+	    const end = start_index + substr.length;
+	    let y = 0;
+	    for (let x = start_index; x < end; x++) {
+	        if (this.code.charAt(x) != substr.charAt(y)) {
+	            return false;
+	        }
+	        ++y;
+	    }
+	    return true;
+	}
+
+	// Do a forward lookup by iterating the code from a start index.
+	// Supports a single string query or an array with "or" queries.
+	lookup({query, index = 0, exclude_str = true, exclude_comment = true, exclude_regex = true, exclude_preprocessor = true, exclude_escaped = true}) {
+		if (typeof query === "string") {
+			query = [query];
+		}
+		const info_obj = {index: null};
+		const query_match = () => {
+			for (let i = 0; i < query.length; i++) {
+				if (this.eq_first(query[i], info_obj.index)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		return this.iterate_code(info_obj, index, null, (char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor) => {
+			if (
+				(exclude_str === false || is_str === false) &&
+				(exclude_comment === false || (is_comment === false && is_multi_line_comment === false)) &&
+				(exclude_regex === false || is_regex === false) &&
+				(exclude_preprocessor === false || is_preprocessor === false) &&
+				(exclude_escaped === false || is_escaped === false) &&
+				query_match()
+			) {
+				return info_obj.index;
+			}
+		});
+	}
+
 	// Get the index of the closing parentheses / curly from the opening's index.
 	// - This uses the code data, not the tokens.
 	// - Parameter `index` should be the index of the closing ">" token.
@@ -700,22 +745,6 @@ vhighlight.Tokenizer = class Tokenizer {
 		let is_preprocessor = false; 			// only used for languages that have preprocessor statements such as cpp.
 		let prev_non_whitespace_char = null; 	// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
 
-		// Check if the first chars of the main string equals a substring, optionally with start index.
-		const eq_first = (substr, start_index = 0) => {
-		    if (start_index + substr.length > this.code.length) {
-		        return false;
-		    }
-		    const end = start_index + substr.length;
-		    let y = 0;
-		    for (let x = start_index; x < end; x++) {
-		        if (this.code.charAt(x) != substr.charAt(y)) {
-		            return false;
-		        }
-		        ++y;
-		    }
-		    return true;
-		}
-
 		// Iterate.
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
 			//
@@ -818,7 +847,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					continue;
 				}
 				// else if (comment_start.length == 2 && char + info_obj.next_char == comment_start) {
-				else if (comment_start !== false && comment_start.length !== 1 && eq_first(comment_start, info_obj.index)) {
+				else if (comment_start !== false && comment_start.length !== 1 && this.eq_first(comment_start, info_obj.index)) {
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -830,7 +859,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (mcomment_start === false) {
 					// skip but do not use continue since the "No string or comment" should be checked.
 				}
-				else if (mcomment_start.length !== 1 && eq_first(mcomment_start, info_obj.index)) {
+				else if (mcomment_start.length !== 1 && this.eq_first(mcomment_start, info_obj.index)) {
 					is_multi_line_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -1277,9 +1306,9 @@ vhighlight.Tokenizer = class Tokenizer {
 					});
 
 					// Check if the preceding token is a type def.
-					let is_type_def = type_token.token === "token_type_def";
-					const is_type = type_token.token === "token_type";
-					const is_decorator = is_type && type_token.is_decorator === true;
+					let is_type_def = type_token != null && type_token.token === "token_type_def";
+					const is_type = type_token == null || type_token.token === "token_type";
+					const is_decorator = type_token != null && is_type && type_token.is_decorator === true;
 					let is_anonymous_type_def = false;
 
 					// When the preceding token is not a type def and not a token type and the language is js then check if there is a => after the ).
@@ -1346,7 +1375,6 @@ vhighlight.Tokenizer = class Tokenizer {
 						while ((next = parenth_tokens[next_i]) != null) {
 							if (next.data.length === 1 && next.data === "=") {
 								return next;
-								return true;
 							} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
 								return null;
 							}

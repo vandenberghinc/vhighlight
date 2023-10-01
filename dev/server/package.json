@@ -4,8 +4,11 @@
   "description": "",
   "main": "start.js",
   "scripts": {
-    "start": "node start.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@vandenberghinc/vhighlight": "^1.1.5"
+  }
 }

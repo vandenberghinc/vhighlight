@@ -7,24 +7,21 @@
 // Imports.
 
 const vweb = require(`/Volumes/persistance/private/vinc/vweb/js/backend/vweb.js`);
-const libpath = require("path")
-const libfs = require("fs")
+const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 
 // ---------------------------------------------------------
 // Server.
 
 // Source.
-const source = libpath.dirname(libpath.dirname(__dirname));
+const source = new vlib.Path(__dirname).base(2);
 
 // Initialize the server.
 const server = new vweb.Server({
 	port: 8000,
 	ip: "127.0.0.1",
-	// private_key: `${__dirname}/../dev/tls/private-key.pem`,
-	// certificate: `${__dirname}/../dev/tls/certificate.pem`,
-	// passphrase: "Doeman12!",
 	statics: [
-		`${source}/include/vhighlight/`,
+		source.join("js/"),
+        source.join("css/"),
 	],
     domain: "127.0.0.1:8000",
     database: `${__dirname}/.db/`,
@@ -34,26 +31,29 @@ const server = new vweb.Server({
     smtp_sender: null,
     smtp: null,
     production: false,
-    file_watcher: __dirname,
+    file_watcher: {
+        source: (new vlib.Path(__dirname).base(2)).str(),
+        target: "dev/server/start.js",
+    },
 })
 
 // Load file.
 server.endpoint({
     method: "GET",
-    endpoint: "/",
+    endpoint: "/load_file",
     callback: async (request, response) => {
-        // console.log(request);
-        console.log(request.url);
-        // let path = ...;
-        // if (path.charAt(0) !== "/") {
-        //     path = source + "/" + path;
-        // }
-        // const data = await libfs.readFileSync(path);
-        // response.success({
-        //     data: data.toString(),
-        // })
-        response.error({
-            data: "Err",
+        let path;
+        try {
+            path = request.param("path");
+        } catch (err) {
+            return response.error({
+                status: 400, 
+                headers: {"Content-Type": "text/plain"},
+                data: `Bad Request - ${err}`,
+            })    
+        }
+        response.success({
+            data: path.charAt(0) != "/" ? source.join(path).load_sync() : new vlib.Path(path).load_sync(),
         })
     },
 })
@@ -65,34 +65,36 @@ server.endpoint({
     // authenticated: true,
     view: {
         includes: [
-            `vhighlight/js/highlight.js`,
-            `vhighlight/js/tokenizer.js`,
-            `vhighlight/js/utils.js`,
-            `vhighlight/js/cpp.js`,
-            `vhighlight/js/markdown.js`,
-            `vhighlight/js/python.js`,
-            `vhighlight/js/js.js`,
-            `vhighlight/js/bash.js`,
-            `vhighlight/js/css.js`,
-            `vhighlight/js/html.js`,
+            `js/highlight.js`,
+            `js/tokenizer.js`,
+            `js/cpp.js`,
+            `js/markdown.js`,
+            `js/python.js`,
+            `js/js.js`,
+            `js/bash.js`,
+            `js/css.js`,
+            `js/html.js`,
         ],
         css_includes: [
-            `vhighlight/css/vhighlight.css`,
+            `css/vhighlight.css`,
         ],
     	callback: () => {
-    		vweb.utils.on_load(() => {
+    		vweb.utils.on_load(async () => {
                 const pre = CodePre()
                     .color("#FFFFFF")
                     .background("black")
                     .border_radius(0)
                     .frame("100%", "100%");
-                const code = vweb.utils.request({
+                const {status, data} = await vweb.utils.request({
                     method: "GET",
                     url: "/load_file",
-                    data: {
-                        path: "dev/tests/test.html",
-                    }
+                    json: false,
+                    params: {
+                        // path: "dev/tests/test.html",
+                        path: "/Volumes/persistance/private/vinc/vlib/js/include/cli/cli.js",
+                    },
                 })
+                pre.innerHTML = vhighlight.js.highlight(data);
     			return View(pre);
     		})
     	}

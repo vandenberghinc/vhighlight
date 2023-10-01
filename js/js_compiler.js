@@ -150,12 +150,17 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 
 		// Compile a single file.
 		compile(path) {
+			return this.compile_code(libfs.readFileSync(path).toString());
+		}
+
+		// Compile code data.
+		compile_code(code_data) {
 
 			// ---------------------------------------------------------
 			// Tokenize.			
 
 			// Parse tokens.
-			this.tokens = this.tokenizer.highlight(libfs.readFileSync(path).toString(), true)
+			this.tokens = this.tokenizer.highlight(code_data, true)
 
 			// ---------------------------------------------------------
 			// Compile.		
