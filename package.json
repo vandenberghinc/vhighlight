@@ -1,6 +1,6 @@
 {
     "name": "@vandenberghinc/vhighlight",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "description": "vhighlight",
     "main": "vhighlight.js",
     "scripts": {

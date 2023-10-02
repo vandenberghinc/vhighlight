@@ -441,6 +441,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			return {close_token, open_token};
 		}
 
+		// @todo an async function that uses a decorator still does not work, need to check for async and if so then make the callback also async, not sure about await etc, perhaps do not await but throw error if the decorator is not async and the func is.
 		/* 	Apply a decorator token.
 		 * 	Returns the resume on token index.
 		 * 	A code insertion object looks as follows:
@@ -508,7 +509,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			const get_assignment_name = (from_token_index) => {
 				const assignment = this.tokenizer.tokenizer.get_prev_token(from_token_index, [" ", "\t", "\n"]);
 				let assignment_name = null;
-				if (assignment.data === "=") {
+				if (assignment != null && assignment.data === "=") {
 					assignment_name = "";
 					this.tokens.iterate_tokens_reversed(assignment.line, assignment.line + 1, (token) => {
 						if (token.index < assignment.index) {

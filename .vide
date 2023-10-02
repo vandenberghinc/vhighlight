@@ -1,1 +1,14 @@
-{}
+{
+	"ssh_remotes": [
+        {
+            "alias": "dev.vinc",
+            "destination": "/Volumes/persistance/private/vinc/vhighlight/",
+            "enabled": true
+        },
+        {
+            "alias": "vinc",
+            "destination": "/vserver/storages/vinc/vhighlight/",
+            "enabled": true
+        }
+    ]
+}

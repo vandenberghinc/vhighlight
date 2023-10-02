@@ -3,11 +3,24 @@
  * Copyright: © 2022 - 2023 Daan van den Bergh.
  */
 
+ // ---------------------------------------------------------
+// Highlight.
+
+// Highlight.
+const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
+const vhighlight = require("../../vhighlight.js")
+console.log("Highlighting...");
+const now = Date.now();
+const tokens = vhighlight.js.highlight(new vlib.Path("/Volumes/persistance/private/vinc/vide/node_modules/typescript/lib/tsserver.js").load_sync(), true);
+console.log("Speed: ", Date.now() - now);
+
 // ---------------------------------------------------------
 // Imports.
-
+/*
 const vweb = require(`/Volumes/persistance/private/vinc/vweb/js/backend/vweb.js`);
 const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
+// const vweb = require(`@vandenberghinc/vweb`);
+// const vlib = require(`@vandenberghinc/vlib`);
 
 // ---------------------------------------------------------
 // Server.
@@ -84,16 +97,20 @@ server.endpoint({
                     .color("#FFFFFF")
                     .background("black")
                     .border_radius(0)
-                    .frame("100%", "100%");
+                    .frame("100%", "100%")
+                    .overflow("scroll");
                 const {status, data} = await vweb.utils.request({
                     method: "GET",
                     url: "/load_file",
                     json: false,
                     params: {
                         // path: "dev/tests/test.html",
-                        path: "/Volumes/persistance/private/vinc/vlib/js/include/cli/cli.js",
+                        // path: "/Volumes/persistance/private/vinc/vlib/js/include/cli/cli.js",
+                        // path: "/Users/administrator/persistance/private/vinc/vlib/js/include/cli/cli.js",
+                        path: "/Volumes/persistance/private/vinc/vide/node_modules/typescript/lib/tsserver.js",
                     },
                 })
+                console.log(vhighlight.js.highlight(data, true))
                 pre.innerHTML = vhighlight.js.highlight(data);
     			return View(pre);
     		})
@@ -102,4 +119,6 @@ server.endpoint({
 })
 
 // Start the server.
-server.start();
+// server.start();
+
+*/

@@ -249,7 +249,7 @@ vhighlight.Markdown = class Markdown {
 
 				// Check if it is a link or an image by preceding "!".
 				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t"]);
-				const is_image = prev.data == "!";
+				const is_image = prev != null && prev.data == "!";
 				if (is_image) {
 					prev.token = "token_keyword";
 				}

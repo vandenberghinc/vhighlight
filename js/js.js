@@ -57,12 +57,12 @@ vhighlight.JS = class JS {
 			"get",
 			"set",
 			// "enum",
-			"implements",
-			"interface",
-			"package",
-			"private",
-			"protected",
-			"public",
+			// "implements",
+			// "interface",
+			// "package",
+			// "private",
+			// "protected",
+			// "public",
 		],
 		type_def_keywords = [
 			"class"
@@ -80,7 +80,8 @@ vhighlight.JS = class JS {
 		multi_line_comment_end = "*/",
 		allow_slash_regexes = true,
 		allow_decorators = true,
-		excluded_word_boundary_joinings = [],
+		allowed_keywords_before_type_defs = ["function", "async", "static", "get", "set", "*"], // also include function otherwise on_parent_close wont fire.
+		excluded_word_boundary_joinings = [], // for js compiler.
 
 		// Attributes for partial tokenizing.
 		scope_separators = [
@@ -100,97 +101,102 @@ vhighlight.JS = class JS {
 			multi_line_comment_end: multi_line_comment_end,
 			allow_slash_regexes: allow_slash_regexes,
 			allow_decorators: allow_decorators,
+			allowed_keywords_before_type_defs: allowed_keywords_before_type_defs,
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,
 		});
 
-		// Assign attributes.
-		this.reset();
+		// Function tags.
+		this.function_tags = ["async", "static", "get", "set", "*"];
 
-		// Set callback.
-		this.tokenizer.callback = (char) => {
-			
-			// Opening parentheses.
-			if (char == "(") {
+		// Set on parenth close.
+		// When a type or type def token is found it should return that token to assign the parameters to it, otherwise return `null` or `undefined`.
+		const tokenizer = this.tokenizer;
+		this.tokenizer.on_parenth_close = ({
+			token_before_opening_parenth = token_before_opening_parenth,
+			after_parenth_index = after_parenth_index,
+		}) => {
 
-				// Append current batch by word separator.
-				this.tokenizer.append_batch();
-
-				// Get the previous token.
-				const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-
-				// No previous token or previous token is a keyword.
-				if (prev == null) {
-					return false;
+			// Get the function tags.
+			// If any keyword is encoutered that is not a tag or "function" then terminate.
+			let type_def_tags = [];
+			let prev_token_is_function_keyword = false;
+			let iter_prev = token_before_opening_parenth;
+			while (iter_prev.token === "token_keyword" || (iter_prev.token === "token_operator" && iter_prev.data === "*")) {
+				console.log(iter_prev.data);
+				if (this.function_tags.includes(iter_prev.data)) {
+					type_def_tags.push(iter_prev.data);
+				} else if (iter_prev.data === "function") {
+					prev_token_is_function_keyword = true;
 				}
-
-				// Check if the token is a keyword.
-				let prev_token_is_function_keyword = false;
-				if (prev.token == "token_keyword") {
-					if (prev.data == "function") {
-						prev_token_is_function_keyword = true;
-					} else if (prev.data != "async") {
-						return false;
-					}
-				} else if (prev.token !== undefined && prev.token != "token_operator") {
-					return false;
-				}
-
-				// Get closing parentheses.
-				const closing_parentheses = this.tokenizer.get_closing_parentheses(this.tokenizer.index);
-				if (closing_parentheses == null) {
-					return false;
-				}
-
-				// Check character after closing parentheses.
-				const after_parenth = this.tokenizer.get_first_non_whitespace(closing_parentheses + 1, true);
-
-				// Valid characters for a function declaration.
-				const c = this.tokenizer.code.charAt(after_parenth);
-				if (c == "{") {
-
-					// Get the function name when the previous token is a keyword or when it is a "() => {}" function..
-					if (prev_token_is_function_keyword) {
-						const token = this.tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", "async"]);
-						if (this.tokenizer.str_includes_word_boundary(token.data)) {
-							return false;
-						}
-						token.token = "token_type_def";
-					}
-
-					// Assign the token type def to the current token.
-					else if (!this.tokenizer.str_includes_word_boundary(prev.data)) {
-						prev.token = "token_type_def";
-					}
-				}
-
-				// Functions declared as "() => {}".
-				else if (c == "=" && this.tokenizer.code.charAt(after_parenth + 1) == ">") {
-					const token = this.tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", "async"]);
-					if (this.tokenizer.str_includes_word_boundary(token.data)) {
-						return false;
-					}
-					token.token = "token_type_def";
-				}
-
-				// Otherwise it is a function call.
-				else if (!this.tokenizer.str_includes_word_boundary(prev.data)) {
-					prev.token = "token_type";
+				iter_prev = tokenizer.get_prev_token(iter_prev.index - 1, [" ", "\t", "\n"]);
+				if (iter_prev == null) {
+					return null;
 				}
 			}
 
-			// Not appended.
-			return false;
-		}
-	}
+			// Check if the token is a keyword.
+			let prev = token_before_opening_parenth;
+			if (prev.token === "token_keyword") {
+				if (prev.data !== "function" && this.function_tags.includes(prev.data) === false) {
+					return null;
+				}
+			} else if (prev.token !== undefined && prev.token !== "token_operator") {
+				return null;
+			}
 
-	// Reset attributes that should be reset before each tokenize.
-	reset() {
+			// Check character after closing parentheses.
+			if (after_parenth_index == null) {
+				return null;
+			}
+			const after_parenth = tokenizer.code.charAt(after_parenth_index);
+
+			// Valid characters for a function declaration.
+			if (after_parenth == "{") {
+
+				// Get the function name when the previous token is a keyword or when it is a "() => {}" function..
+				if (prev_token_is_function_keyword) {
+					const token = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", ...this.function_tags]);
+					if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+						return null;
+					}
+					token.token = "token_type_def";
+					token.tags = type_def_tags;
+					if (type_def_tags.length > 0) { console.log(token.data, type_def_tags); }
+					return token;
+				}
+
+				// Assign the token type def to the current token.
+				else if (!tokenizer.str_includes_word_boundary(prev.data)) {
+					prev.token = "token_type_def";
+					prev.tags = type_def_tags;
+					if (type_def_tags.length > 0) { console.log(prev.data, type_def_tags); }
+					return prev;
+				}
+			}
+
+			// Functions declared as "() => {}".
+			else if (after_parenth == "=" && tokenizer.code.charAt(after_parenth_index + 1) == ">") {
+				const token = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", ...this.function_tags]);
+				if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+					return null;
+				}
+				token.token = "token_type_def";
+				token.tags = type_def_tags;
+				if (type_def_tags.length > 0) { console.log(token.data, type_def_tags); }
+				return token;
+			}
+
+			// Otherwise it is a function call.
+			else if (!tokenizer.str_includes_word_boundary(prev.data)) {
+				prev.token = "token_type";
+				return prev;
+			}
+		}
 	}
 
 	// Highlight.
 	highlight(code = null, return_tokens = false) {
-		this.reset();
 		if (code !== null) {
 			this.tokenizer.code = code;
 		}

@@ -446,6 +446,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		allow_comment_codeblock = true,
 		allow_parameters = true,
 		allow_decorators = false,
+		allowed_keywords_before_type_defs = [],
 		excluded_word_boundary_joinings = [],
 		// Attributes for partial tokenizing.
 		scope_separators = [
@@ -473,7 +474,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.allow_comment_codeblock = allow_comment_codeblock;				// allow comment codeblocks.
 		this.allow_parameters = allow_parameters;							// allow parameters.
 		this.allow_decorators = allow_decorators;							// allow decorators.
-		this.scope_separators = scope_separators;							// scope separators for partial tokenize.
+		this.allowed_keywords_before_type_defs = allowed_keywords_before_type_defs; 	// the allowed keywords before the name of a type definition, such as "async" and "static" for js, but they need to be directly before the type def token, so no types in between in for example c++.
+		this.scope_separators = scope_separators;										// scope separators for partial tokenize.
 
 		// Word boundaries.
 		this.word_boundaries = [
@@ -537,7 +539,12 @@ vhighlight.Tokenizer = class Tokenizer {
 		}, []);
 
 		// The default callback.
-		this.callback = function() { return false; }
+		// this.callback = function(char, is_escaped, is_preprocessor) { return false; }
+
+		// The on parenth callback.
+		// - The on parenth close will not be called when the token before the parenth opening is a keyword.
+		// - The on parenth close callback should return the type or type def token when it has assigned one, so the parsed parameters can be assigned to that token.
+		// this.on_parenth_close = function({token_before_opening_parenth: token_before_opening_parenth, after_parenth_index: after_parenth_index}) {return token};
 
 		// Init vars that should be reset before each tokenize.
 		this.reset();
@@ -1061,10 +1068,30 @@ vhighlight.Tokenizer = class Tokenizer {
 		let prev_non_whitespace_char = null; 	// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
 
 		// Iterate.
+		// let last_p = 0, last_rounded_p = "0.00", max_i = 0;
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
 			//
 			// DO NOT ASSIGN ANY "this" ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
 			//
+
+			// if (info_obj === this) {
+			// 	const p = info_obj.index / end;
+			// 	if (info_obj.index > max_i) {
+			// 		max_i = info_obj.index;
+			// 	} else if (max_i < info_obj.index) {
+			// 		console.error("Last p was higher.");
+			// 		process.exit(1);
+			// 	}
+			// 	if (last_p > p) {
+			// 		console.error("Last p was higher.");
+			// 		process.exit(1);
+			// 	}
+			// 	if (last_rounded_p !== p.toFixed(2)) {
+			// 		last_rounded_p = p.toFixed(2);
+			// 		console.log(last_rounded_p);
+			// 	}
+			// 	// console.log(p);
+			// }
 
 			// Get char.
 			const char = this.code.charAt(info_obj.index);
@@ -1154,27 +1181,28 @@ vhighlight.Tokenizer = class Tokenizer {
 			) {
 				
 				// Single line comments.
-				const comment_start = this.single_line_comment_start;
-				if (comment_start !== false && comment_start.length === 1 && char === comment_start) {
-					is_comment = true;
-					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
-				// else if (comment_start.length == 2 && char + info_obj.next_char == comment_start) {
-				else if (comment_start !== false && comment_start.length !== 1 && this.eq_first(comment_start, info_obj.index)) {
+				if (
+					this.single_line_comment_start !== false && 
+					(
+						(this.single_line_comment_start.length === 1 && char === this.single_line_comment_start) ||
+						(this.single_line_comment_start.length !== 1 && this.eq_first(this.single_line_comment_start, info_obj.index))
+					)
+				) {
 					is_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
 					continue;
 				}
 				
+				
 				// Multi line comments.
-				const mcomment_start = this.multi_line_comment_start;
-				if (mcomment_start === false) {
-					// skip but do not use continue since the "No string or comment" should be checked.
-				}
-				else if (mcomment_start.length !== 1 && this.eq_first(mcomment_start, info_obj.index)) {
+				if (
+					this.multi_line_comment_start !== false &&
+					(
+						(this.multi_line_comment_start.length === 1 && char === this.multi_line_comment_start) ||
+						(this.multi_line_comment_start.length !== 1 && this.eq_first(this.multi_line_comment_start, info_obj.index))
+					)
+				) {
 					is_multi_line_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -1197,18 +1225,16 @@ vhighlight.Tokenizer = class Tokenizer {
 			// End multi line comments.
 			else if (
 				is_multi_line_comment &&
-				!is_escaped
+				!is_escaped &&
+				(
+					(this.multi_line_comment_end.length === 1 && char == this.multi_line_comment_end) ||
+					(this.multi_line_comment_end.length !== 1 && this.eq_first(this.multi_line_comment_end, info_obj.index - this.multi_line_comment_end.length))
+				)
 			) {
-				const mcomment_end = this.multi_line_comment_end;
-				if (
-					(mcomment_end.length == 2 && info_obj.prev_char + char == mcomment_end) ||
-					(mcomment_end.length > 2 && this.code.substr(info_obj.index - mcomment_end.length, mcomment_end.length) == mcomment_end)
-				) {
-					is_multi_line_comment = false;
-					const res = callback(char, false, is_comment, true, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
+				is_multi_line_comment = false;
+				const res = callback(char, false, is_comment, true, is_regex, is_escaped, is_preprocessor);
+				if (res != null) { return res; }
+				continue;
 			}
 			
 			// Inside comments.
@@ -1264,6 +1290,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			// No string, comment or regex.
 			const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 			if (res != null) { return res; }
+			
 			
 		}
 		return null;
@@ -1335,9 +1362,56 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Iterate code.
+		let shebang_allowed = true;
 		const stopped = this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
 
+			// Shebang.
+			if (this.line === 0 && shebang_allowed && char === "#" && this.next_char === "!") {
+
+				// Append previous batch.
+				this.append_batch();
+
+				// Do a lookup for the shebang.
+				let shebang = "";
+				let resume_index;
+				for (resume_index = this.index; resume_index < this.code.length; resume_index++) {
+					const c = this.code.charAt(resume_index);
+					if (c === "\n") {
+						break;
+					}
+					shebang += c;
+				}
+
+				// Get the last word boundary for the interpreter.
+				let last_word_boundary;
+				for (last_word_boundary = shebang.length - 1; last_word_boundary > 0; last_word_boundary--) {
+					if (this.word_boundaries.includes(shebang.charAt(last_word_boundary))) {
+						break;
+					}
+				}
+
+				// Append tokens.
+				if (last_word_boundary === 0) {
+					this.batch = shebang;
+					this.append_batch("token_comment");
+				} else {
+					++last_word_boundary;
+					this.batch = shebang.substr(0, last_word_boundary);
+					this.append_batch("token_comment");
+					this.batch = shebang.substr(last_word_boundary); // interpreter.
+					this.append_batch("token_keyword");
+				}
+
+				// Set resume on index.
+				this.resume_on_index(resume_index - 1);
+				return null;
+			}
+			else if (this.line === 0 && shebang_allowed && (char !== " " && char !== "\t")) {
+				shebang_allowed = false;
+			}
+
 			// New line.
+			// Resume with if from here since detection for disabling the `shebang_allowed` flag should resume with processing the char when it is flagged as false.
 			if (!is_escaped && char == "\n") {
 
 				// Append previous batch, but snce newlines may be present in regexes, strings and comments, handle them correctly.
@@ -1475,7 +1549,6 @@ vhighlight.Tokenizer = class Tokenizer {
 				else {
 					this.batch += char;
 				}
-
 			}
 			
 			// Is code.
@@ -1554,7 +1627,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				//
 
 				// Parse decorators.
-				if (this.allow_decorators && char == "@") {
+				if (this.allow_decorators && char === "@") {
 
 					// Append previous batch.
 					this.append_batch();
@@ -1583,22 +1656,44 @@ vhighlight.Tokenizer = class Tokenizer {
 				// Highlight parameters.
 				// @todo check if there are any post keywords between the ")" and "{" for c like langauges. Assign them to the type def token as "post_tags".
 				// @todo check if there are any pre keywords between before the "funcname(", ofc exclude "function" etc, cant rely on the type def tokens. Assign them to the type def token as "tags".
-				else if (this.allow_parameters && char == ")") {
+				// @todo when using a lot of tuple like functions `(() => {})()` which are often used in typescript, this becomes waaaaayy to slow.
+				else if (this.on_parenth_close !== undefined && this.allow_parameters && char === ")") {
+
+					// ---------------------------------------------------------
 
 					// Append batch by word boundary.
 					this.append_batch();
 
+					// Vars.
+					let opening_parenth_token;
+					let after_parenth_index;
+
+					// Append word boundary.
+					const finalize = () => {
+						this.batch += char;
+						this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
+						return null;
+					}
+
+					// ---------------------------------------------------------
+					// Get the opening parentheses.
+
+					// Check character after closing parentheses.
+					after_parenth_index = this.get_first_non_whitespace(this.index + 1, true);
+
 					// Get the tokens inside the parentheses at the correct pareth depth and skip all word boundaries except ",".
-					let type_token, parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
+					let parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
 					let is_assignment_parameters = false, first_token = true;
-					this.tokens.iterate_tokens_reversed((token) => {
+					const found = this.tokens.iterate_tokens_reversed((token) => {
+
+						// Set depths.
 						if (token.token === undefined && token.data.length === 1) {
 							if (token.data === ")") {
 								++parenth_depth;
 							} else if (token.data === "(") {
 								if (parenth_depth === 0) {
-									type_token = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "=", ":"]);
-									return false;
+									opening_parenth_token = token;
+									return true;
 								}
 								--parenth_depth;
 							} else if (token.data === "}") {
@@ -1610,15 +1705,269 @@ vhighlight.Tokenizer = class Tokenizer {
 							} else if (token.data === "[") {
 								--bracket_depth;
 							}
-
 						}
+
+						// Check if are js assignment params defined like `myfunc({param = ...})`.
+						if (first_token && (token.data.length > 1 || (token.data != " " && token.data != "\t" && token.data != "\n"))) {
+							is_assignment_parameters = token.data.length === 1 && token.data === "}";
+							first_token = false;
+						}
+
+						// Append token.
+						token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0 && ((is_assignment_parameters && curly_depth <= 1) || curly_depth <= 0);
+						parenth_tokens.push(token);
+					});
+
+					// Opening parenth not found.
+					if (opening_parenth_token == null) {
+						return finalize();
+					}
+
+					// ---------------------------------------------------------
+					// Parse the paramaters.
+
+					// The target type token to which the parameters will be assigned to.
+					let type_token;
+
+					// Get token before the opening parenth.
+					const token_before_opening_parenth = this.get_prev_token(opening_parenth_token.index - 1, [" ", "\t", "\n"]);
+					if (token_before_opening_parenth == null) {
+						return finalize();
+					}
+
+					// Do not continue when the token before the parent is a keyword, for statements like "if ()".
+					// Since that will never be a type or type def so also do not highlight the params etc.
+					// Except for certain keywords that are allowed in some languages.
+					const is_keyword = token_before_opening_parenth.token === "token_keyword";
+					if (is_keyword && this.allowed_keywords_before_type_defs.includes(token_before_opening_parenth.data) === false) {
+						return finalize();
+					}
+
+					// When the token before the opening parenth token is a decorator there is no need to call on parenth close.
+					if (token_before_opening_parenth != null && token_before_opening_parenth.is_decorator === true) {
+						type_token = token_before_opening_parenth;
+					}
+					
+					// Call the on parenth close.
+					else {
+						type_token = this.on_parenth_close({
+							token_before_opening_parenth: token_before_opening_parenth,
+							after_parenth_index: after_parenth_index,
+						})
+					}
+
+					// Create the array with parameters and assign the token_param to the tokens.
+					let mode = 1; // 1 for key 2 for value.
+					const params = [];
+
+					// Initialize a parameter object.
+					const init_param = (param) => {
+						return {
+							name: null, 	// the parameter name.
+							index: null, 	// the parameter index.
+							value: null, 	// the default value.
+							tags: [], 		// the type tags.
+							type: null, 	// the type.
+						};
+					}
+
+					// Append a parameter object.
+					const append_param = (param) => {
+						if (param !== undefined) {
+							if (param.value != null) {
+								param.value = param.value.trim();
+							}
+							param.index = params.length;
+							params.push(param);
+						};
+					}
+
+					// Check if the next parenth token is a assignment operator.
+					// Returns `null` when the there is no next assignment operator directly after the provided index.
+					const get_next_assignment_operator = (parenth_index) => {
+						let next_i = parenth_index - 1, next;
+						while ((next = parenth_tokens[next_i]) != null) {
+							if (next.data.length === 1 && next.data === "=") {
+								return next;
+							} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
+								return null;
+							}
+							--next_i;
+						}
+						return null;
+					}
+
+					// Iterate the parenth tokens.
+					const is_type_def = type_token != null && type_token.token === "token_type_def";
+					const is_decorator = type_token != null && type_token.is_decorator === true;
+
+					// let log = false;
+					// if (type_token != null && type_token.data === "iterate_packages") {
+					// 	console.log(type_token.data, {is_type_def:is_type_def, is_decorator:is_decorator, is_assignment_parameters:is_assignment_parameters})
+					// 	console.log(parenth_tokens)
+					// 	log = true;
+					// }
+
+					let param;
+					let i = parenth_tokens.length;
+					parenth_tokens.iterate_reversed((token) => {
+						--i;
+						const at_correct_depth = token.at_correct_depth;
+						delete token.at_correct_depth;
+
+						// Set key and value flags.
+						if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
+							append_param(param);
+							param = init_param();
+							mode = 1;
+						}
+						else if (at_correct_depth && token.is_word_boundary === true && token.data === "=") {
+							mode = 2;
+						}
+
+						// When key.
+						else if (mode === 1) {
+
+							// Init param.
+							if (param === undefined) {
+								param = init_param();
+							}
+
+							// Skip tokens.
+							if (
+								at_correct_depth === false ||
+								token.is_word_boundary === true ||
+								token.is_line_break === true
+							) {
+								return null;
+							}
+
+							// Assign to parameter.
+							if (token.token === "token_keyword") {
+								param.tags.push(token.data.trim());
+							} else if (token.token === "token_type") {
+								param.type = token.data.trim();
+							} else {
+								const allow_assignment = (token.token === undefined || token.token === "token_type_def");
+
+								// On a type definition always assign to parameter.
+								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
+								if (is_type_def && allow_assignment) {
+									param.name = token.data.trim();
+									token.token = "token_parameter";
+								}
+
+								// When the token is a type there must be a "=" after this tokens.
+								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
+								else if (!is_type_def) {
+									const next = get_next_assignment_operator(i);
+									if (next !== null && allow_assignment) {
+										param.name = token.data.trim();
+										token.token = "token_parameter";
+									}
+									else if (next === null && is_decorator) {
+										if (param.value === null) {
+											param.value = token.data;
+										} else {
+											param.value += token.data;
+										}
+									}
+								}
+							}
+						}
+
+						// When value.
+						else if (mode === 2 && (is_type_def || is_decorator)) {
+							if (param.value === null) {
+								param.value = token.data;
+							} else {
+								param.value += token.data;
+							}
+						}
+					})
+
+					// Add last param.
+					append_param(param);
+
+					// Assign params to the type def token.
+					if (is_type_def || is_decorator) {
+						type_token.parameters = params;
+						if (is_assignment_parameters === true) {
+							type_token.is_assignment_parameters = true;
+						}
+					}
+					
+
+					// ---------------------------------------------------------
+					// Append to batch.
+
+					// Append word boundary to tokens.
+					return finalize();
+
+
+
+
+
+
+
+
+
+
+
+
+
+					/*// Append batch by word boundary.
+					this.append_batch();
+
+					// Get the tokens inside the parentheses at the correct pareth depth and skip all word boundaries except ",".
+					let token_before_opening;
+					let type_token, parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
+					let is_assignment_parameters = false, first_token = true;
+					const found = this.tokens.iterate_tokens_reversed((token) => {
+
+						// Set depths.
+						if (token.token === undefined && token.data.length === 1) {
+							if (token.data === ")") {
+								++parenth_depth;
+							} else if (token.data === "(") {
+								if (parenth_depth === 0) {
+									type_token = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "=", ":"]);
+									return true;
+								}
+								--parenth_depth;
+							} else if (token.data === "}") {
+								++curly_depth;
+							} else if (token.data === "{") {
+								--curly_depth;
+							} else if (token.data === "]") {
+								++bracket_depth;
+							} else if (token.data === "[") {
+								--bracket_depth;
+							}
+						}
+
+						// Check if there are any unallowed word boundaries at all zero depth.
+						// if (token.is_word_boundary === true && parenth_depth === 0 && curly_depth === 0 && bracket_depth === 0) {
+						// 	console.log("STOP");
+						// 	return false;
+						// }
+
+						// Check if are js assignment params defined like `myfunc({param = ...})`.
 						if (first_token && (token.data.length > 0 || (token.data != " " && token.data != "\t" && token.data != "\n"))) {
 							is_assignment_parameters = token.data.length === 1 && token.data == "{";
 							first_token = false;
 						}
+
+						// Append token.
 						token.at_correct_depth = parenth_depth === 0 && curly_depth === 0 && bracket_depth === 0;
 						parenth_tokens.push(token);
 					});
+					// if (found !== true) {
+					// 	console.log("NOT FOUND", this.line, this.index);
+					// 	console.log(this.tokens);
+					// 	process.exit(1);
+					// }
+					// return null;
 
 					// Check if the preceding token is a type def.
 					let is_type_def = type_token != null && type_token.token === "token_type_def";
@@ -1789,13 +2138,13 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Append word boundary to tokens.
 					this.batch += char;
 					this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
-					return null
+					return null*/
 				}
 
 				// Call the handler.
 				// And append the character when not already appended by the handler.
 				// Always use if so previous if statements can use a fallthrough.
-				if (!this.callback(char, is_escaped, this.is_preprocessor)) {
+				if (this.callback === undefined || this.callback(char, is_escaped, this.is_preprocessor) !== true) {
 
 					// Is word boundary.
 					// Append old batch and word boundary char.
@@ -1809,7 +2158,6 @@ vhighlight.Tokenizer = class Tokenizer {
 					else {
 						this.batch += char;
 					}
-
 				}
 			}
 			return null;
@@ -1896,8 +2244,15 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Iterate backwards to find the scope start line.
 		// Do not stop if another string, comment, regex or preprocessor has just ended on the line that the start scope has been detected.
+		// Start one line before the edits_start since a "{" or "}" may already be on that line which can cause issues when editing a func def.
 		if (edits_start != 0) {
-			tokens.iterate_reversed(0, edits_start + 1, (line_tokens) => {
+			const use_curly = this.scope_separators.includes("{") || this.scope_separators.includes("}");
+			let curly_depth = 0;
+			const scope_separators = [];
+			this.scope_separators.iterate((item) => {
+				if (item != "{" && item != "}") { scope_separators.push(item); }
+			})
+			tokens.iterate_reversed(0, edits_start, (line_tokens) => {
 
 				// Skip on empty line tokens.
 				if (line_tokens.length === 0) {
@@ -1909,14 +2264,30 @@ vhighlight.Tokenizer = class Tokenizer {
 
 				// Check if the line contains a scope separator.
 				line_tokens.iterate_reversed((token) => {
-					if (
+
+					// Opening curly.
+					if (use_curly && token.data === "{") {
+						if (curly_depth === 0) {
+							found_separator = token.line;
+							return true;
+						}
+						--curly_depth;
+					}
+
+					// Closing curly.
+					else if (use_curly && token.data === "}") {
+						++curly_depth;
+					}
+
+					// Any other scope seperators.
+					else if (
 						(token.token === undefined || token.token === "token_operator") &&
 						token.data.length === 1 &&
 						this.scope_separators.includes(token.data)
 					) {
 						found_separator = token.line;
 						return true;
-					}	
+					}
 				})
 
 				// Do not stop when the first token is a comment, string etc because it may resume on the next line.
@@ -1934,6 +2305,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 			})
 		}
+		console.log(scope_start);
 		
 		// console.log("scope_start_offset:",scope_start_offset);
 		// console.log("scope_start:",scope_start);
@@ -1969,10 +2341,13 @@ vhighlight.Tokenizer = class Tokenizer {
 		let insert_start_line = scope_start;
 		let insert_end_line = null;
 		const stop_callback = (line, line_tokens) => {
-			const og_line = line + scope_start + line_additions;
-			if (line + scope_start > edits_end && match_lines(tokens[og_line], line_tokens)) {
-				insert_end_line = og_line;
-				// console.log("MATCH:",line)
+			line += scope_start;
+			const adjusted_line = line - line_additions;
+			if (tokens[adjusted_line] === undefined) { 
+				return true; // may be at a line past the previous max line, keep `insert_end_line` as null.
+			}
+			if (line > edits_end && match_lines(tokens[adjusted_line], line_tokens)) {
+				insert_end_line = adjusted_line;
 				return true;
 			}
 			return false;
@@ -2214,7 +2589,9 @@ vhighlight.Bash = class Bash {
 				// Edit prev token.
 				if (is_func_def) {
 					const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-					prev.token = "token_type_def";
+					if (prev != null) {
+						prev.token = "token_type_def";
+					}
 				}
 			}
 
@@ -2573,13 +2950,13 @@ vhighlight.CPP = class CPP {
 				"}", 
 			],
 		});
+		const tokenizer = this.tokenizer;
 
 		// Assign attributes.
 		this.reset();
 
 		// Set callback.
 		this.tokenizer.callback = (char) => {
-			const tokenizer = this.tokenizer;
 			
 			// Close is func.
 			if (this.inside_func && tokenizer.index > this.inside_func_closing_curly) {
@@ -2693,99 +3070,103 @@ vhighlight.CPP = class CPP {
 			}
 
 			// Opening parentheses.
-			else if (char == "(") {
+			// else if (char == "(") {
 
-				// Append current batch by word boundary separator.
-				tokenizer.append_batch();
+			// 	// Append current batch by word boundary separator.
+			// 	tokenizer.append_batch();
 
-				// Get the closing parentheses.
-				const closing = tokenizer.get_closing_parentheses(tokenizer.index);
-				const non_whitespace_after = tokenizer.get_first_non_whitespace(closing + 1);
-				if (closing != null && non_whitespace_after != null) {
+			// 	// Get the closing parentheses.
+			// 	const closing = tokenizer.get_closing_parentheses(tokenizer.index);
+			// 	const non_whitespace_after = tokenizer.get_first_non_whitespace(closing + 1);
+			// 	if (closing != null && non_whitespace_after != null) {
 
-					// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
-					// And skip lambda functions with a "]" before the "(".
-					let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
-					const prev_prev_is_colon = tokenizer.get_prev_token(prev.index - 1).data == ":";
-					if (
-						(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
-						(prev.token == "token_type" && prev_prev_is_colon) // when the previous token is token_type by a double colon.
-					) {
+			// 		// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
+			// 		// And skip lambda functions with a "]" before the "(".
+			// 		let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
+			// 		if (prev == null) {
+			// 			return false;
+			// 		}
+			// 		const prev_prev = tokenizer.get_prev_token(prev.index - 1);
+			// 		const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
+			// 		if (
+			// 			(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
+			// 			(prev.token == "token_type" && prev_prev_is_colon === true) // when the previous token is token_type by a double colon.
+			// 		) {
 
-						// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
-						// Unless the previous non word boundary token is a keyword such as "if () {".
-						const lookup = tokenizer.code.charAt(non_whitespace_after); 
-						if (
-							(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
-							lookup == "{" || // from opening curly.
-							lookup == "c" || // from "const".
-							lookup == "v" || // from "volatile".
-							lookup == "n" || // from "noexcept".
-							lookup == "o" || // from "override".
-							lookup == "f" || // from "final".
-							lookup == "r" // from "requires".
-						) {
-							prev.token = "token_type_def";
+			// 			// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
+			// 			// Unless the previous non word boundary token is a keyword such as "if () {".
+			// 			const lookup = tokenizer.code.charAt(non_whitespace_after); 
+			// 			if (
+			// 				(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
+			// 				lookup == "{" || // from opening curly.
+			// 				lookup == "c" || // from "const".
+			// 				lookup == "v" || // from "volatile".
+			// 				lookup == "n" || // from "noexcept".
+			// 				lookup == "o" || // from "override".
+			// 				lookup == "f" || // from "final".
+			// 				lookup == "r" // from "requires".
+			// 			) {
+			// 				prev.token = "token_type_def";
 
-							// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
-							let token = prev;
-							while (true) {
-								token = tokenizer.get_prev_token(token.index - 1, [":"]);
-								if (tokenizer.str_includes_word_boundary(token.data)) {
-									break;
-								}
-								token.token = "token_type_def";
-							}
+			// 				// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
+			// 				let token = prev;
+			// 				while (true) {
+			// 					token = tokenizer.get_prev_token(token.index - 1, [":"]);
+			// 					if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+			// 						break;
+			// 					}
+			// 					token.token = "token_type_def";
+			// 				}
 
 
-							// Set the inside func flag.
-							// It is being set a little too early but that doesnt matter since ...
-							// Semicolons should not be used in the context between here and the opening curly.
-							// Unless the func is a header definition, but then the forward lookup loop stops.
-							let opening = null;
-							for (let i = closing; i < tokenizer.code.length; i++) {
-								const c = tokenizer.code.charAt(i);
-								if (c == ";") {
-									break;
-								}
-								else if (c == "{") {
-									opening = i;
-									break;
-								}
-							}
-							if (opening != null) {
-								this.inside_func = true;
-								this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
-							}
-						}
+			// 				// Set the inside func flag.
+			// 				// It is being set a little too early but that doesnt matter since ...
+			// 				// Semicolons should not be used in the context between here and the opening curly.
+			// 				// Unless the func is a header definition, but then the forward lookup loop stops.
+			// 				let opening = null;
+			// 				for (let i = closing; i < tokenizer.code.length; i++) {
+			// 					const c = tokenizer.code.charAt(i);
+			// 					if (c == ";") {
+			// 						break;
+			// 					}
+			// 					else if (c == "{") {
+			// 						opening = i;
+			// 						break;
+			// 					}
+			// 				}
+			// 				if (opening != null) {
+			// 					this.inside_func = true;
+			// 					this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
+			// 				}
+			// 			}
 
-						// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
-						// Unless the token before the previous token is already a type, such as "String x()".
-						else {
+			// 			// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
+			// 			// Unless the token before the previous token is already a type, such as "String x()".
+			// 			else {
 
-							// Check if the prev token is a template closing.
-							if (prev.data == ">") {
-								const token = tokenizer.get_opening_template(prev.index);
-								if (token != null) {
-									prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
-								}
-							}
+			// 				// Check if the prev token is a template closing.
+			// 				if (prev.data == ">") {
+			// 					const token = tokenizer.get_opening_template(prev.index);
+			// 					if (token != null) {
+			// 						prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			// 					}
+			// 				}
 
-							// Make sure the token before the prev is not a keyword such as "if ()".
-							let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
-							if (prev_prev.data == ">") {
-								const token = tokenizer.get_opening_template(prev_prev.index);
-								if (token != null) {
-									prev_prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
-								}
-							}
-							if (prev_prev.token != "token_type") {
-								prev.token = "token_type";
-							}
-						}
-					}
-				}
-			}
+			// 				// Make sure the token before the prev is not a keyword such as "if ()".
+			// 				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
+			// 				if (prev_prev != null && prev_prev.data == ">") {
+			// 					const token = tokenizer.get_opening_template(prev_prev.index);
+			// 					if (token != null) {
+			// 						prev_prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			// 					}
+			// 				}
+			// 				if (prev_prev == null || prev_prev.token != "token_type") {
+			// 					prev.token = "token_type";
+			// 				}
+			// 			}
+			// 		}
+			// 	}
+			// }
 
 			// Braced initialiatons, depends on a ">" from a template on not being an operator.
 			else if (char == "{") {
@@ -2797,6 +3178,7 @@ vhighlight.CPP = class CPP {
 				// Skip where the token before the previous is already type for example "String x {}".
 				// Also skip the tokens between < and > when the initial prev and the prev prev token is a ">".
 				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "&", "*"]);
+				if (prev == null) { return false; }
 				if (prev.data == ">") {
 					const token = tokenizer.get_opening_template(prev.index);
 					if (token != null) {
@@ -2804,13 +3186,13 @@ vhighlight.CPP = class CPP {
 					}
 				}
 				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "&", "*"]);
-				if (prev_prev.data == ">") {
+				if (prev_prev != null && prev_prev.data == ">") {
 					const token = tokenizer.get_opening_template(prev_prev.index);
 					if (token != null) {
 						prev_prev = tokenizer.get_prev_token(token.index - 1, []);
 					}
 				}
-				if (prev_prev.token != "token_type" && prev.token === undefined && prev.data != ")") {
+				if ((prev_prev == null || prev_prev.token != "token_type") && prev.token === undefined && prev.data != ")") {
 					prev.token = "token_type";
 				}
 
@@ -2914,6 +3296,9 @@ vhighlight.CPP = class CPP {
 				// Set prev token.
 				// Skip the tokens between < and > when the initial prev token is a ">".
 				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [":"]);
+				if (prev == null) {
+					return false;
+				}
 				if (prev.data == ">") {
 					prev = tokenizer.get_opening_template(prev.index);
 					if (prev !== null) {
@@ -2933,6 +3318,103 @@ vhighlight.CPP = class CPP {
 
 			// Not appended.
 			return false;
+		}
+
+		// Set on parenth close callback.
+		this.tokenizer.on_parenth_close = ({
+			token_before_opening_parenth = token_before_opening_parenth,
+			after_parenth_index = after_parenth_index,
+		}) => {
+
+			// Get the closing parentheses.
+			const closing = this.index;
+			if (after_parenth_index != null) {
+
+				// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
+				// And skip lambda functions with a "]" before the "(".
+				let prev = tokenizer.get_prev_token(token_before_opening_parenth.index, [" ", "\t", "\n", "*", "&"]);
+				if (prev == null) {
+					return null;
+				}
+				const prev_prev = tokenizer.get_prev_token(prev.index - 1);
+				const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
+				if (
+					(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
+					(prev.token == "token_type" && prev_prev_is_colon === true) // when the previous token is token_type by a double colon.
+				) {
+
+					// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
+					// Unless the previous non word boundary token is a keyword such as "if () {".
+					const lookup = tokenizer.code.charAt(after_parenth_index); 
+					if (
+						(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
+						lookup == "{" || // from opening curly.
+						lookup == "c" || // from "const".
+						lookup == "v" || // from "volatile".
+						lookup == "n" || // from "noexcept".
+						lookup == "o" || // from "override".
+						lookup == "f" || // from "final".
+						lookup == "r" // from "requires".
+					) {
+						prev.token = "token_type_def";
+
+						// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
+						// So the entire "mylib::mychapter::myfunc() {}" will be a token type def, not just "myfunc" but also "mylib" and "mychapter".
+						let token = prev;
+						while (true) {
+							token = tokenizer.get_prev_token(token.index - 1, [":"]);
+							if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+								break;
+							}
+							token.token = "token_type_def";
+						}
+
+						// Set the inside func flag.
+						// It is being set a little too early but that doesnt matter since ...
+						// Semicolons (for header func detection) should not be used in the context between here and the opening curly.
+						// Unless the func is a header definition, but then the forward lookup loop stops.
+						let opening = null;
+						for (let i = closing; i < tokenizer.code.length; i++) {
+							const c = tokenizer.code.charAt(i);
+							if (c == ";") {
+								break;
+							}
+							else if (c == "{") {
+								opening = i;
+								break;
+							}
+						}
+						if (opening != null) {
+							this.inside_func = true;
+							this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
+						}
+
+						// Return the set token.
+						return prev;
+					}
+
+					// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
+					// Unless the token before the previous token is already a type, such as "String x()".
+					else {
+
+						// Check if the prev token is a template closing.
+						while (prev.data === ">") {
+							const token = tokenizer.get_opening_template(prev.index);
+							if (token != null) {
+								prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+							} else {
+								break;
+							}
+						}
+
+						// Make sure the token before the prev is not a keyword such as "if ()".
+						let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
+						if (prev_prev == null || prev_prev.token != "token_type") {
+							prev.token = "token_type";
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -3892,12 +4374,12 @@ vhighlight.JS = class JS {
 			"get",
 			"set",
 			// "enum",
-			"implements",
-			"interface",
-			"package",
-			"private",
-			"protected",
-			"public",
+			// "implements",
+			// "interface",
+			// "package",
+			// "private",
+			// "protected",
+			// "public",
 		],
 		type_def_keywords = [
 			"class"
@@ -3915,7 +4397,8 @@ vhighlight.JS = class JS {
 		multi_line_comment_end = "*/",
 		allow_slash_regexes = true,
 		allow_decorators = true,
-		excluded_word_boundary_joinings = [],
+		allowed_keywords_before_type_defs = ["function", "async", "static", "get", "set", "*"], // also include function otherwise on_parent_close wont fire.
+		excluded_word_boundary_joinings = [], // for js compiler.
 
 		// Attributes for partial tokenizing.
 		scope_separators = [
@@ -3935,97 +4418,102 @@ vhighlight.JS = class JS {
 			multi_line_comment_end: multi_line_comment_end,
 			allow_slash_regexes: allow_slash_regexes,
 			allow_decorators: allow_decorators,
+			allowed_keywords_before_type_defs: allowed_keywords_before_type_defs,
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,
 		});
 
-		// Assign attributes.
-		this.reset();
+		// Function tags.
+		this.function_tags = ["async", "static", "get", "set", "*"];
 
-		// Set callback.
-		this.tokenizer.callback = (char) => {
-			
-			// Opening parentheses.
-			if (char == "(") {
+		// Set on parenth close.
+		// When a type or type def token is found it should return that token to assign the parameters to it, otherwise return `null` or `undefined`.
+		const tokenizer = this.tokenizer;
+		this.tokenizer.on_parenth_close = ({
+			token_before_opening_parenth = token_before_opening_parenth,
+			after_parenth_index = after_parenth_index,
+		}) => {
 
-				// Append current batch by word separator.
-				this.tokenizer.append_batch();
-
-				// Get the previous token.
-				const prev = this.tokenizer.get_prev_token(this.tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-
-				// No previous token or previous token is a keyword.
-				if (prev == null) {
-					return false;
+			// Get the function tags.
+			// If any keyword is encoutered that is not a tag or "function" then terminate.
+			let type_def_tags = [];
+			let prev_token_is_function_keyword = false;
+			let iter_prev = token_before_opening_parenth;
+			while (iter_prev.token === "token_keyword" || (iter_prev.token === "token_operator" && iter_prev.data === "*")) {
+				console.log(iter_prev.data);
+				if (this.function_tags.includes(iter_prev.data)) {
+					type_def_tags.push(iter_prev.data);
+				} else if (iter_prev.data === "function") {
+					prev_token_is_function_keyword = true;
 				}
-
-				// Check if the token is a keyword.
-				let prev_token_is_function_keyword = false;
-				if (prev.token == "token_keyword") {
-					if (prev.data == "function") {
-						prev_token_is_function_keyword = true;
-					} else if (prev.data != "async") {
-						return false;
-					}
-				} else if (prev.token !== undefined && prev.token != "token_operator") {
-					return false;
-				}
-
-				// Get closing parentheses.
-				const closing_parentheses = this.tokenizer.get_closing_parentheses(this.tokenizer.index);
-				if (closing_parentheses == null) {
-					return false;
-				}
-
-				// Check character after closing parentheses.
-				const after_parenth = this.tokenizer.get_first_non_whitespace(closing_parentheses + 1, true);
-
-				// Valid characters for a function declaration.
-				const c = this.tokenizer.code.charAt(after_parenth);
-				if (c == "{") {
-
-					// Get the function name when the previous token is a keyword or when it is a "() => {}" function..
-					if (prev_token_is_function_keyword) {
-						const token = this.tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", "async"]);
-						if (this.tokenizer.str_includes_word_boundary(token.data)) {
-							return false;
-						}
-						token.token = "token_type_def";
-					}
-
-					// Assign the token type def to the current token.
-					else if (!this.tokenizer.str_includes_word_boundary(prev.data)) {
-						prev.token = "token_type_def";
-					}
-				}
-
-				// Functions declared as "() => {}".
-				else if (c == "=" && this.tokenizer.code.charAt(after_parenth + 1) == ">") {
-					const token = this.tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", "async"]);
-					if (this.tokenizer.str_includes_word_boundary(token.data)) {
-						return false;
-					}
-					token.token = "token_type_def";
-				}
-
-				// Otherwise it is a function call.
-				else if (!this.tokenizer.str_includes_word_boundary(prev.data)) {
-					prev.token = "token_type";
+				iter_prev = tokenizer.get_prev_token(iter_prev.index - 1, [" ", "\t", "\n"]);
+				if (iter_prev == null) {
+					return null;
 				}
 			}
 
-			// Not appended.
-			return false;
-		}
-	}
+			// Check if the token is a keyword.
+			let prev = token_before_opening_parenth;
+			if (prev.token === "token_keyword") {
+				if (prev.data !== "function" && this.function_tags.includes(prev.data) === false) {
+					return null;
+				}
+			} else if (prev.token !== undefined && prev.token !== "token_operator") {
+				return null;
+			}
 
-	// Reset attributes that should be reset before each tokenize.
-	reset() {
+			// Check character after closing parentheses.
+			if (after_parenth_index == null) {
+				return null;
+			}
+			const after_parenth = tokenizer.code.charAt(after_parenth_index);
+
+			// Valid characters for a function declaration.
+			if (after_parenth == "{") {
+
+				// Get the function name when the previous token is a keyword or when it is a "() => {}" function..
+				if (prev_token_is_function_keyword) {
+					const token = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", ...this.function_tags]);
+					if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+						return null;
+					}
+					token.token = "token_type_def";
+					token.tags = type_def_tags;
+					if (type_def_tags.length > 0) { console.log(token.data, type_def_tags); }
+					return token;
+				}
+
+				// Assign the token type def to the current token.
+				else if (!tokenizer.str_includes_word_boundary(prev.data)) {
+					prev.token = "token_type_def";
+					prev.tags = type_def_tags;
+					if (type_def_tags.length > 0) { console.log(prev.data, type_def_tags); }
+					return prev;
+				}
+			}
+
+			// Functions declared as "() => {}".
+			else if (after_parenth == "=" && tokenizer.code.charAt(after_parenth_index + 1) == ">") {
+				const token = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", ...this.function_tags]);
+				if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+					return null;
+				}
+				token.token = "token_type_def";
+				token.tags = type_def_tags;
+				if (type_def_tags.length > 0) { console.log(token.data, type_def_tags); }
+				return token;
+			}
+
+			// Otherwise it is a function call.
+			else if (!tokenizer.str_includes_word_boundary(prev.data)) {
+				prev.token = "token_type";
+				return prev;
+			}
+		}
 	}
 
 	// Highlight.
 	highlight(code = null, return_tokens = false) {
-		this.reset();
 		if (code !== null) {
 			this.tokenizer.code = code;
 		}
@@ -4422,7 +4910,7 @@ vhighlight.Markdown = class Markdown {
 
 				// Check if it is a link or an image by preceding "!".
 				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t"]);
-				const is_image = prev.data == "!";
+				const is_image = prev != null && prev.data == "!";
 				if (is_image) {
 					prev.token = "token_keyword";
 				}
@@ -5182,6 +5670,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			return {close_token, open_token};
 		}
 
+		// @todo an async function that uses a decorator still does not work, need to check for async and if so then make the callback also async, not sure about await etc, perhaps do not await but throw error if the decorator is not async and the func is.
 		/* 	Apply a decorator token.
 		 * 	Returns the resume on token index.
 		 * 	A code insertion object looks as follows:
@@ -5249,7 +5738,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			const get_assignment_name = (from_token_index) => {
 				const assignment = this.tokenizer.tokenizer.get_prev_token(from_token_index, [" ", "\t", "\n"]);
 				let assignment_name = null;
-				if (assignment.data === "=") {
+				if (assignment != null && assignment.data === "=") {
 					assignment_name = "";
 					this.tokens.iterate_tokens_reversed(assignment.line, assignment.line + 1, (token) => {
 						if (token.index < assignment.index) {

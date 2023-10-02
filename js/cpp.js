@@ -147,13 +147,13 @@ vhighlight.CPP = class CPP {
 				"}", 
 			],
 		});
+		const tokenizer = this.tokenizer;
 
 		// Assign attributes.
 		this.reset();
 
 		// Set callback.
 		this.tokenizer.callback = (char) => {
-			const tokenizer = this.tokenizer;
 			
 			// Close is func.
 			if (this.inside_func && tokenizer.index > this.inside_func_closing_curly) {
@@ -267,99 +267,103 @@ vhighlight.CPP = class CPP {
 			}
 
 			// Opening parentheses.
-			else if (char == "(") {
+			// else if (char == "(") {
 
-				// Append current batch by word boundary separator.
-				tokenizer.append_batch();
+			// 	// Append current batch by word boundary separator.
+			// 	tokenizer.append_batch();
 
-				// Get the closing parentheses.
-				const closing = tokenizer.get_closing_parentheses(tokenizer.index);
-				const non_whitespace_after = tokenizer.get_first_non_whitespace(closing + 1);
-				if (closing != null && non_whitespace_after != null) {
+			// 	// Get the closing parentheses.
+			// 	const closing = tokenizer.get_closing_parentheses(tokenizer.index);
+			// 	const non_whitespace_after = tokenizer.get_first_non_whitespace(closing + 1);
+			// 	if (closing != null && non_whitespace_after != null) {
 
-					// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
-					// And skip lambda functions with a "]" before the "(".
-					let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
-					const prev_prev_is_colon = tokenizer.get_prev_token(prev.index - 1).data == ":";
-					if (
-						(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
-						(prev.token == "token_type" && prev_prev_is_colon) // when the previous token is token_type by a double colon.
-					) {
+			// 		// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
+			// 		// And skip lambda functions with a "]" before the "(".
+			// 		let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
+			// 		if (prev == null) {
+			// 			return false;
+			// 		}
+			// 		const prev_prev = tokenizer.get_prev_token(prev.index - 1);
+			// 		const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
+			// 		if (
+			// 			(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
+			// 			(prev.token == "token_type" && prev_prev_is_colon === true) // when the previous token is token_type by a double colon.
+			// 		) {
 
-						// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
-						// Unless the previous non word boundary token is a keyword such as "if () {".
-						const lookup = tokenizer.code.charAt(non_whitespace_after); 
-						if (
-							(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
-							lookup == "{" || // from opening curly.
-							lookup == "c" || // from "const".
-							lookup == "v" || // from "volatile".
-							lookup == "n" || // from "noexcept".
-							lookup == "o" || // from "override".
-							lookup == "f" || // from "final".
-							lookup == "r" // from "requires".
-						) {
-							prev.token = "token_type_def";
+			// 			// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
+			// 			// Unless the previous non word boundary token is a keyword such as "if () {".
+			// 			const lookup = tokenizer.code.charAt(non_whitespace_after); 
+			// 			if (
+			// 				(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
+			// 				lookup == "{" || // from opening curly.
+			// 				lookup == "c" || // from "const".
+			// 				lookup == "v" || // from "volatile".
+			// 				lookup == "n" || // from "noexcept".
+			// 				lookup == "o" || // from "override".
+			// 				lookup == "f" || // from "final".
+			// 				lookup == "r" // from "requires".
+			// 			) {
+			// 				prev.token = "token_type_def";
 
-							// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
-							let token = prev;
-							while (true) {
-								token = tokenizer.get_prev_token(token.index - 1, [":"]);
-								if (tokenizer.str_includes_word_boundary(token.data)) {
-									break;
-								}
-								token.token = "token_type_def";
-							}
+			// 				// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
+			// 				let token = prev;
+			// 				while (true) {
+			// 					token = tokenizer.get_prev_token(token.index - 1, [":"]);
+			// 					if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+			// 						break;
+			// 					}
+			// 					token.token = "token_type_def";
+			// 				}
 
 
-							// Set the inside func flag.
-							// It is being set a little too early but that doesnt matter since ...
-							// Semicolons should not be used in the context between here and the opening curly.
-							// Unless the func is a header definition, but then the forward lookup loop stops.
-							let opening = null;
-							for (let i = closing; i < tokenizer.code.length; i++) {
-								const c = tokenizer.code.charAt(i);
-								if (c == ";") {
-									break;
-								}
-								else if (c == "{") {
-									opening = i;
-									break;
-								}
-							}
-							if (opening != null) {
-								this.inside_func = true;
-								this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
-							}
-						}
+			// 				// Set the inside func flag.
+			// 				// It is being set a little too early but that doesnt matter since ...
+			// 				// Semicolons should not be used in the context between here and the opening curly.
+			// 				// Unless the func is a header definition, but then the forward lookup loop stops.
+			// 				let opening = null;
+			// 				for (let i = closing; i < tokenizer.code.length; i++) {
+			// 					const c = tokenizer.code.charAt(i);
+			// 					if (c == ";") {
+			// 						break;
+			// 					}
+			// 					else if (c == "{") {
+			// 						opening = i;
+			// 						break;
+			// 					}
+			// 				}
+			// 				if (opening != null) {
+			// 					this.inside_func = true;
+			// 					this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
+			// 				}
+			// 			}
 
-						// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
-						// Unless the token before the previous token is already a type, such as "String x()".
-						else {
+			// 			// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
+			// 			// Unless the token before the previous token is already a type, such as "String x()".
+			// 			else {
 
-							// Check if the prev token is a template closing.
-							if (prev.data == ">") {
-								const token = tokenizer.get_opening_template(prev.index);
-								if (token != null) {
-									prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
-								}
-							}
+			// 				// Check if the prev token is a template closing.
+			// 				if (prev.data == ">") {
+			// 					const token = tokenizer.get_opening_template(prev.index);
+			// 					if (token != null) {
+			// 						prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			// 					}
+			// 				}
 
-							// Make sure the token before the prev is not a keyword such as "if ()".
-							let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
-							if (prev_prev.data == ">") {
-								const token = tokenizer.get_opening_template(prev_prev.index);
-								if (token != null) {
-									prev_prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
-								}
-							}
-							if (prev_prev.token != "token_type") {
-								prev.token = "token_type";
-							}
-						}
-					}
-				}
-			}
+			// 				// Make sure the token before the prev is not a keyword such as "if ()".
+			// 				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
+			// 				if (prev_prev != null && prev_prev.data == ">") {
+			// 					const token = tokenizer.get_opening_template(prev_prev.index);
+			// 					if (token != null) {
+			// 						prev_prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			// 					}
+			// 				}
+			// 				if (prev_prev == null || prev_prev.token != "token_type") {
+			// 					prev.token = "token_type";
+			// 				}
+			// 			}
+			// 		}
+			// 	}
+			// }
 
 			// Braced initialiatons, depends on a ">" from a template on not being an operator.
 			else if (char == "{") {
@@ -371,6 +375,7 @@ vhighlight.CPP = class CPP {
 				// Skip where the token before the previous is already type for example "String x {}".
 				// Also skip the tokens between < and > when the initial prev and the prev prev token is a ">".
 				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "&", "*"]);
+				if (prev == null) { return false; }
 				if (prev.data == ">") {
 					const token = tokenizer.get_opening_template(prev.index);
 					if (token != null) {
@@ -378,13 +383,13 @@ vhighlight.CPP = class CPP {
 					}
 				}
 				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "&", "*"]);
-				if (prev_prev.data == ">") {
+				if (prev_prev != null && prev_prev.data == ">") {
 					const token = tokenizer.get_opening_template(prev_prev.index);
 					if (token != null) {
 						prev_prev = tokenizer.get_prev_token(token.index - 1, []);
 					}
 				}
-				if (prev_prev.token != "token_type" && prev.token === undefined && prev.data != ")") {
+				if ((prev_prev == null || prev_prev.token != "token_type") && prev.token === undefined && prev.data != ")") {
 					prev.token = "token_type";
 				}
 
@@ -488,6 +493,9 @@ vhighlight.CPP = class CPP {
 				// Set prev token.
 				// Skip the tokens between < and > when the initial prev token is a ">".
 				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [":"]);
+				if (prev == null) {
+					return false;
+				}
 				if (prev.data == ">") {
 					prev = tokenizer.get_opening_template(prev.index);
 					if (prev !== null) {
@@ -507,6 +515,103 @@ vhighlight.CPP = class CPP {
 
 			// Not appended.
 			return false;
+		}
+
+		// Set on parenth close callback.
+		this.tokenizer.on_parenth_close = ({
+			token_before_opening_parenth = token_before_opening_parenth,
+			after_parenth_index = after_parenth_index,
+		}) => {
+
+			// Get the closing parentheses.
+			const closing = this.index;
+			if (after_parenth_index != null) {
+
+				// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
+				// And skip lambda functions with a "]" before the "(".
+				let prev = tokenizer.get_prev_token(token_before_opening_parenth.index, [" ", "\t", "\n", "*", "&"]);
+				if (prev == null) {
+					return null;
+				}
+				const prev_prev = tokenizer.get_prev_token(prev.index - 1);
+				const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
+				if (
+					(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
+					(prev.token == "token_type" && prev_prev_is_colon === true) // when the previous token is token_type by a double colon.
+				) {
+
+					// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
+					// Unless the previous non word boundary token is a keyword such as "if () {".
+					const lookup = tokenizer.code.charAt(after_parenth_index); 
+					if (
+						(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
+						lookup == "{" || // from opening curly.
+						lookup == "c" || // from "const".
+						lookup == "v" || // from "volatile".
+						lookup == "n" || // from "noexcept".
+						lookup == "o" || // from "override".
+						lookup == "f" || // from "final".
+						lookup == "r" // from "requires".
+					) {
+						prev.token = "token_type_def";
+
+						// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
+						// So the entire "mylib::mychapter::myfunc() {}" will be a token type def, not just "myfunc" but also "mylib" and "mychapter".
+						let token = prev;
+						while (true) {
+							token = tokenizer.get_prev_token(token.index - 1, [":"]);
+							if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+								break;
+							}
+							token.token = "token_type_def";
+						}
+
+						// Set the inside func flag.
+						// It is being set a little too early but that doesnt matter since ...
+						// Semicolons (for header func detection) should not be used in the context between here and the opening curly.
+						// Unless the func is a header definition, but then the forward lookup loop stops.
+						let opening = null;
+						for (let i = closing; i < tokenizer.code.length; i++) {
+							const c = tokenizer.code.charAt(i);
+							if (c == ";") {
+								break;
+							}
+							else if (c == "{") {
+								opening = i;
+								break;
+							}
+						}
+						if (opening != null) {
+							this.inside_func = true;
+							this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
+						}
+
+						// Return the set token.
+						return prev;
+					}
+
+					// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
+					// Unless the token before the previous token is already a type, such as "String x()".
+					else {
+
+						// Check if the prev token is a template closing.
+						while (prev.data === ">") {
+							const token = tokenizer.get_opening_template(prev.index);
+							if (token != null) {
+								prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+							} else {
+								break;
+							}
+						}
+
+						// Make sure the token before the prev is not a keyword such as "if ()".
+						let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
+						if (prev_prev == null || prev_prev.token != "token_type") {
+							prev.token = "token_type";
+						}
+					}
+				}
+			}
 		}
 	}
 

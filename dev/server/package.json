@@ -9,6 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@vandenberghinc/vhighlight": "^1.1.5"
+    "@vandenberghinc/vhighlight": "^1.1.6"
   }
 }
