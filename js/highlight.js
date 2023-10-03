@@ -320,3 +320,96 @@ vhighlight.highlight = function({
 		
 	}, 50);
 }
+
+// Get the global tokenizer class or initialize a new class based on a language name.
+// - Returns `null` when the language is not supported.
+vhighlight.get_tokenizer = function(language) {
+	if (language == "cpp" || language == "c++" || language == "c") {
+        return vhighlight.cpp;
+    }
+    else if (language == "markdown" || language == "md") {
+        return vhighlight.md;
+    }
+    else if (language == "js" || language == "javascript") {
+        return vhighlight.js;
+    }
+    else if (language == "json") {
+        return vhighlight.json;
+    }
+    else if (language == "python") {
+        return vhighlight.python;
+    }
+    else if (language == "css") {
+        return vhighlight.css;
+    }
+    else if (language == "html") {
+        return vhighlight.html;
+    }
+    else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+        return vhighlight.bash;
+    } else {
+        return null;
+    }
+}
+vhighlight.init_tokenizer = function(language) {
+	if (language == "cpp" || language == "c++" || language == "c") {
+        return vhighlight.CPP();
+    }
+    else if (language == "markdown" || language == "md") {
+        return vhighlight.Markdown();
+    }
+    else if (language == "js" || language == "javascript") {
+        return vhighlight.JS();
+    }
+    else if (language == "json") {
+        return vhighlight.JSON();
+    }
+    else if (language == "python") {
+        return vhighlight.Python();
+    }
+    else if (language == "css") {
+        return vhighlight.CSS();
+    }
+    else if (language == "html") {
+        return vhighlight.HTML();
+    }
+    else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+        return vhighlight.Bash();
+    } else {
+        return null;
+    }
+}
+
+// Get the supported language from a path extension.
+vhighlight.language_extensions = {
+	"cpp": [".c", ".cp", ".cpp", ".h", ".hp", ".hpp"],
+    "js": [".js"], 
+    "md": [".md"],
+    "python": [".py"],
+    "css": [".css"],
+    "json": [".json", ".vide", ".vpackage", ".vweb"],
+    "shell": [".sh", ".zsh"],
+    "html": [".html"],
+};
+vhighlight.get_tokenizer_by_extension = function(extension) {
+	if (extension == null || extension.length === 0) { return null; }
+	if (extension.charAt(0) != ".") {
+		extension = `.${extension}`;
+	}
+	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
+        if (vhighlight.language_extensions[lang].includes(extension)) {
+            return vhighlight.get_tokenizer(lang);
+        }
+    })
+}
+vhighlight.init_tokenizer_by_extension = function(extension) {
+	if (extension == null || extension.length === 0) { return null; }
+	if (extension.charAt(0) != ".") {
+		extension = `.${extension}`;
+	}
+	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
+        if (vhighlight.language_extensions[lang].includes(extension)) {
+            return vhighlight.init_tokenizer(lang);
+        }
+    })
+}

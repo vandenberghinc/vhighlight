@@ -2184,11 +2184,12 @@ vhighlight.Tokenizer = class Tokenizer {
 
 			// Find start scope by scope seperators.
 			else {
-				const use_curly = this.scope_separators.includes("{") || this.scope_separators.includes("}");
+				let use_curly = false;
 				let curly_depth = 0;
 				const scope_separators = [];
 				this.scope_separators.iterate((item) => {
-					if (item != "{" && item != "}") { scope_separators.push(item); }
+					if (item == "{" && item == "}") { use_curly = true; }
+					else { scope_separators.push(item); }
 				})
 				tokens.iterate_reversed(0, edits_start, (line_tokens) => {
 
@@ -2239,6 +2240,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					) {
 						scope_start = first_token.line;
 						scope_start_offset = first_token.offset;
+						console.log(scope_start);
 						return true;
 					}
 				})
@@ -2276,15 +2278,33 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// The stop callback to check if the just tokenized line is the same as the original line.
 		// This works correctly when first typing an unfinished string etc and then later terminating it.
+		// Also resume when the original line tokens at the adjusted line does not exist since then multiple new lines have been added.
 		let insert_start_line = scope_start;
 		let insert_end_line = null;
+		let curly_depth = 0, bracket_depth = 0, parenth_depth = 0;
 		const stop_callback = (line, line_tokens) => {
+
+			// The bracket, curly and parentheses depth must all be zero to capture the full scope.
+			line_tokens.iterate((token) => {
+				if (token.token === undefined && token.data.length === 1) {
+					if (token.data === "{") { ++curly_depth; }
+					else if (token.data === "}") { --curly_depth; }
+					else if (token.data === "(") { ++parenth_depth; }
+					else if (token.data === ")") { --parenth_depth; }
+					else if (token.data === "[") { ++bracket_depth; }
+					else if (token.data === "]") { --bracket_depth; }
+				}
+			})
+
+			// Stop when not all depths are zero.
+			if (curly_depth !== 0 || bracket_depth !== 0 || parenth_depth !== 0) {
+				return false;
+			}
+
+			// Check if the lines match.
 			line += scope_start;
 			const adjusted_line = line - line_additions;
-			if (tokens[adjusted_line] === undefined) { 
-				return true; // may be at a line past the previous max line, keep `insert_end_line` as null.
-			}
-			if (line > edits_end && match_lines(tokens[adjusted_line], line_tokens)) {
+			if (line > edits_end && tokens[adjusted_line] !== undefined && match_lines(tokens[adjusted_line], line_tokens)) {
 				insert_end_line = adjusted_line;
 				return true;
 			}
@@ -2308,10 +2328,12 @@ vhighlight.Tokenizer = class Tokenizer {
 		// console.log("insert_end_line:",insert_end_line);
 		// console.log("line_additions:",line_additions);
 
+		// Initialize combined tokens.
+		let combined_tokens = new vhighlight.Tokens();
+
 		// Insert tokens into the current tokens from start line till end line.
 		// So the new tokens will old start till end lines will be removed and the new tokens will be inserted in its place.
 		// The start line will be removed, and the end line will be removed as well.
-		let combined_tokens = new vhighlight.Tokens();
 		let insert = true;
 		let line_count = 0, token_index = 0, offset = 0;;
 		for (let line = 0; line < tokens.length; line++) {
