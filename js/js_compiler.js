@@ -150,11 +150,11 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 
 		// Compile a single file.
 		compile(path) {
-			return this.compile_code(libfs.readFileSync(path).toString());
+			return this.compile_code(libfs.readFileSync(path).toString(), path);
 		}
 
 		// Compile code data.
-		compile_code(code_data) {
+		compile_code(code_data, path = "<raw code data>") {
 
 			// ---------------------------------------------------------
 			// Tokenize.			
@@ -542,13 +542,13 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Find the closing "}" token.
 			const {open_token, close_token} = this.get_closing_token(token.line, resume_on - 1, "{", "}");
 			if (open_token === null || close_token === null) {
-				throw Error(`${path}:${token.line}:${column}: Unable to find the scope's open and close tokens.`);
+				throw Error(`${path}:${token.line}:${column}: Unable to find the scope's open and close tokens (${decorator}).`);
 			}
 
 			// Find the next type def token.
 			const type_def_token = this.get_next_type_def(token.line, resume_on - 1);
 			if (type_def_token === null || type_def_token.index >= open_token.index) {
-				throw Error(`${path}:${token.line}:${column}: There is no type definition before the scope opening.`);
+				throw Error(`${path}:${token.line}:${column}: There is no type definition before the scope opening (${decorator}).`);
 			}
 
 			// ---------------------------------------------------------

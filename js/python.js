@@ -62,16 +62,17 @@ vhighlight.Python = class Python {
 				"b",
 			],
 			single_line_comment_start: "#",
+			indent_language: true,
 
 			// Attributes for partial tokenizing.
 			scope_separators: [
 				":", 
 			],
 		});
+		const tokenizer = this.tokenizer;
 
 		// Set callback.
 		this.tokenizer.callback = (char) => {
-			const tokenizer = this.tokenizer;
 			
 			// Highlight function calls.
 			if (char == "(") {
@@ -91,6 +92,42 @@ vhighlight.Python = class Python {
 
 			// Not appended.
 			return false;
+		}
+
+		// Function modifiers.
+		this.function_modifiers = ["async"];
+
+		// Set the on type def keyword callback.
+		// Used to detect the "async" function modifier.
+		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
+		this.tokenizer.on_type_def_keyword = (token) => {
+
+			// // Get the assignment token.
+			// const assignment = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n", "class"]);
+			// if (assignment != null && assignment.data === "=") {
+
+			// 	//
+			// 	// No need to copy the old parents and restore them later since the items will still be accessed under this parent+name.
+			// 	//
+
+			// 	// Get the token before the assignment, aka the other type def token.
+			// 	let type_def_token = tokenizer.get_prev_token(assignment.index - 1, [" ", "\t", "\n"]);
+
+			// 	// Get the parent values but start from the token before the "type_def_token" since that is the name of the type def and not the parent.
+			// 	add_parent_tokens(type_def_token);
+
+			// 	// Assign parents to the first type def token for vdocs and not to the second.
+			// 	type_def_token.token = "token_type_def";
+			// 	tokenizer.assign_parents(type_def_token);
+			// 	console.log(type_def_token.data,":", type_def_token.parents);
+			// 	tokenizer.add_parent(type_def_token.data);
+			// }
+
+			// // Assign parents.
+			// else {
+				tokenizer.assign_parents(token);
+				tokenizer.add_parent(token.data);
+			// }
 		}
 	}
 

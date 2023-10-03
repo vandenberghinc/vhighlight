@@ -70,13 +70,13 @@ vhighlight.Bash = class Bash {
 				"}", 
 			],
 		});
+		const tokenizer = this.tokenizer;
 
 		// Assign attributes.
 		this.reset();
 
 		// Set callback.
 		this.tokenizer.callback = (char, is_escaped) => {
-			const tokenizer = this.tokenizer;
 			
 			// Is whitespace.
 			const is_whitespace = tokenizer.is_whitespace(char);
@@ -125,33 +125,6 @@ vhighlight.Bash = class Bash {
 					tokenizer.append_forward_lookup_batch("token_keyword", batch);
 					tokenizer.resume_on_index(tokenizer.index + batch.length - 1);
 					return true;
-				}
-			}
-
-			// Function declaration.
-			else if (char == "(") {
-
-				// Append batch by word boundary.
-				tokenizer.append_batch();
-
-				// Do a forward lookup to look for a "() {" pattern with optional whitespace and linebreaks in between.
-				let is_func_def = false;
-				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
-					if (c == "{") {
-						is_func_def = true;
-					}
-					else if (c != ")" && c != "\n" && c != "\t" && c != " ") {
-						break;
-					}
-				}
-
-				// Edit prev token.
-				if (is_func_def) {
-					const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-					if (prev != null) {
-						prev.token = "token_type_def";
-					}
 				}
 			}
 
@@ -294,6 +267,17 @@ vhighlight.Bash = class Bash {
 
 			// Nothing done.
 			return false;
+		}
+
+		// Set on parenth close.
+		this.tokenizer.on_parenth_close = ({
+			token_before_opening_parenth = token_before_opening_parenth,
+			after_parenth_index = after_parenth_index,
+		}) => {
+			if (after_parenth_index != null && tokenizer.code.charAt(after_parenth_index) === "{") {
+				token_before_opening_parenth.token = "token_type_def";
+				return token_before_opening_parenth;
+			}
 		}
 	}
 

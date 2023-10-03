@@ -65,7 +65,7 @@ vhighlight.JS = class JS {
 			// "public",
 		],
 		type_def_keywords = [
-			"class"
+			"class" // @todo still have to check the parent when it is assigned like "mylib.myclass = class myclass{}" create a on type def keyword callback.
 		], 
 		type_keywords = [
 			"extends",
@@ -105,29 +105,80 @@ vhighlight.JS = class JS {
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,
 		});
-
-		// Function tags.
-		this.function_tags = ["async", "static", "get", "set", "*"];
-
-		// Set on parenth close.
-		// When a type or type def token is found it should return that token to assign the parameters to it, otherwise return `null` or `undefined`.
 		const tokenizer = this.tokenizer;
+
+		// Function modifiers.
+		this.function_modifiers = ["async", "static", "get", "set", "*"];
+
+		// Add the parent tokens  from a type def assignment like "mylib.mymodule.MyClass" to the tokenizer.
+		// The parameter token must be the type def token so "MyClass" in the example.
+		const add_parent_tokens = (type_def_token) => {
+			let parents = [];
+			let parent_token = tokenizer.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
+			while ((parent_token = tokenizer.get_prev_token(parent_token.index - 1, [])) != null) {
+				if ((parent_token.token === undefined && parent_token.data === ".")) {
+					continue;
+				} else if (parent_token.token === "token_keyword") { // also allow keywords since a user may do something like "mylib.module = ...";
+					parents.push(parent_token.data);
+				} else if (parent_token.is_word_boundary === true || parent_token.token !== undefined) {
+					break;
+				} else {
+					parents.push(parent_token.data);
+				}
+			}
+			parents.iterate_reversed((item) => {
+				tokenizer.add_parent(item);
+			})
+		}
+
+		// Set the on type def keyword callback.
+		// The parents always need to be set, but when a class is defined like "mylib.MyClass = class MyClass {}" the tokenizer will not add mylib as a parent.
+		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
+		this.tokenizer.on_type_def_keyword = (token) => {
+
+			// Get the assignment token.
+			const assignment = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n", "class"]);
+			if (assignment != null && assignment.data === "=") {
+
+				//
+				// No need to copy the old parents and restore them later since the items will still be accessed under this parent+name.
+				//
+
+				// Get the token before the assignment, aka the other type def token.
+				let type_def_token = tokenizer.get_prev_token(assignment.index - 1, [" ", "\t", "\n"]);
+
+				// Get the parent values but start from the token before the "type_def_token" since that is the name of the type def and not the parent.
+				add_parent_tokens(type_def_token);
+
+				// Assign parents to the first type def token for vdocs and not to the second.
+				type_def_token.token = "token_type_def";
+				tokenizer.assign_parents(type_def_token);
+				tokenizer.add_parent(type_def_token.data);
+			}
+
+			// Assign parents.
+			else {
+				tokenizer.assign_parents(token);
+				tokenizer.add_parent(token.data);
+			}
+		}
+
+		// Set on parenth close callback.
 		this.tokenizer.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
 
-			// Get the function tags.
+			// Get the function modifiers.
 			// If any keyword is encoutered that is not a tag or "function" then terminate.
-			let type_def_tags = [];
-			let prev_token_is_function_keyword = false;
+			let type_def_modifiers = [];
+			// let prev_token_is_function_keyword = false;
 			let iter_prev = token_before_opening_parenth;
 			while (iter_prev.token === "token_keyword" || (iter_prev.token === "token_operator" && iter_prev.data === "*")) {
-				console.log(iter_prev.data);
-				if (this.function_tags.includes(iter_prev.data)) {
-					type_def_tags.push(iter_prev.data);
+				if (this.function_modifiers.includes(iter_prev.data)) {
+					type_def_modifiers.push(iter_prev.data);
 				} else if (iter_prev.data === "function") {
-					prev_token_is_function_keyword = true;
+					// prev_token_is_function_keyword = true;
 				}
 				iter_prev = tokenizer.get_prev_token(iter_prev.index - 1, [" ", "\t", "\n"]);
 				if (iter_prev == null) {
@@ -138,7 +189,7 @@ vhighlight.JS = class JS {
 			// Check if the token is a keyword.
 			let prev = token_before_opening_parenth;
 			if (prev.token === "token_keyword") {
-				if (prev.data !== "function" && this.function_tags.includes(prev.data) === false) {
+				if (prev.data !== "function" && this.function_modifiers.includes(prev.data) === false) {
 					return null;
 				}
 			} else if (prev.token !== undefined && prev.token !== "token_operator") {
@@ -152,38 +203,42 @@ vhighlight.JS = class JS {
 			const after_parenth = tokenizer.code.charAt(after_parenth_index);
 
 			// Valid characters for a function declaration.
-			if (after_parenth == "{") {
+			// Either a "{" after the closing parentheses.
+			// Or a "=>" after the closing parentheses.
+			const is_anonymous_func = after_parenth === "=" && tokenizer.code.charAt(after_parenth_index + 1) === ">";
+			if (after_parenth === "{" || is_anonymous_func) {
 
-				// Get the function name when the previous token is a keyword or when it is a "() => {}" function..
-				if (prev_token_is_function_keyword) {
-					const token = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", ...this.function_tags]);
-					if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
-						return null;
-					}
-					token.token = "token_type_def";
-					token.tags = type_def_tags;
-					if (type_def_tags.length > 0) { console.log(token.data, type_def_tags); }
-					return token;
+				// Get the previous token, skip whitespace and ":" and function modifiers, but not the "=".
+				let token = tokenizer.get_prev_token(prev.index, [" ", "\t", "\n", ":", "function", ...this.function_modifiers]);
+				if (token === null) {
+					return null;
 				}
 
-				// Assign the token type def to the current token.
-				else if (!tokenizer.str_includes_word_boundary(prev.data)) {
-					prev.token = "token_type_def";
-					prev.tags = type_def_tags;
-					if (type_def_tags.length > 0) { console.log(prev.data, type_def_tags); }
-					return prev;
-				}
-			}
+				// Check if the type def is assigned to a variable.
+				let old_parents;
+				if (token.data === "=") {
 
-			// Functions declared as "() => {}".
-			else if (after_parenth == "=" && tokenizer.code.charAt(after_parenth_index + 1) == ">") {
-				const token = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "=", ":", ...this.function_tags]);
+					// When the new parents are assigned using the "=" operator then the old parents need to be restored after assigning the parents to the token.
+					// Otherwise it will have the wrong parents when a user does something like "mylib.myfunc = function() { ...; mylib.myotherfunc = function() {}; }"
+					old_parents = tokenizer.copy_parents();
+
+					// Get the parent values but start from the token before the var "token" since that is the name of the type def and not the parent.
+					token = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);	
+					add_parent_tokens(token);
+				}
+
+				// Check token.
 				if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
 					return null;
 				}
+
+				// Set token.
 				token.token = "token_type_def";
-				token.tags = type_def_tags;
-				if (type_def_tags.length > 0) { console.log(token.data, type_def_tags); }
+				token.pre_modifiers = type_def_modifiers;
+				tokenizer.assign_parents(token);
+				if (old_parents !== undefined) {
+					tokenizer.parents = old_parents;
+				}
 				return token;
 			}
 

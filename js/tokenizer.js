@@ -108,6 +108,7 @@ vhighlight.Tokens = class Tokens extends Array {
 }
 
 // The tokenizer class.
+// - @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
 // - Parsing behaviour depends on that every word is seperated as a token, so each word boundary is a seperate token.
 // @todo highlight "@\\s+" patterns outside comments as token_type.
@@ -116,8 +117,9 @@ vhighlight.Tokenizer = class Tokenizer {
 	constructor({
 		// Attributes for tokenizing.
 		keywords = [], 
-		type_def_keywords = [], 
 		type_keywords = [],
+		type_def_keywords = [], 
+		exclude_type_def_keywords_on_prev = [],
 		operators = [],
 		special_string_prefixes = [],
 		single_line_comment_start = false,
@@ -133,34 +135,39 @@ vhighlight.Tokenizer = class Tokenizer {
 		allow_decorators = false,
 		allowed_keywords_before_type_defs = [],
 		excluded_word_boundary_joinings = [],
+		indent_language = false,
 		// Attributes for partial tokenizing.
 		scope_separators = [
 			"{", 
 			"}", 
 			// do not use ; and : etc since they can be used inside a {} scope for cpp, js etc.
 		],
+		seperate_scope_by_type_def = false,
 	}) {
 
 		// Parameter attributes.
-		this.code = null;													// the code to tokenize.
-		this.keywords = keywords;											// the languages default keywords.
-		this.type_def_keywords = type_def_keywords;							// the keywords on wich the next token will always be a type def.
-		this.type_keywords = type_keywords;									// the keywords on wich the next token will always be a type.
-		this.operators = operators;											// language operators.
-		this.special_string_prefixes = special_string_prefixes;				// special characters preceding a string to indicate a special string, such as the "f" in python for "f'{}'".
-		this.single_line_comment_start = single_line_comment_start;			// the language's single line comment start characters, use "false" when the language does not support this.
-		this.multi_line_comment_start = multi_line_comment_start;			// the language's multi line comment start characters, use "false" when the language does not support this.
-		this.multi_line_comment_end = multi_line_comment_end;				// the language's multi line comment end characters, use "false" when the language does not support this.
-		this.allow_strings = allow_strings;									// if the language supports strings.
-		this.allow_numerics = allow_numerics;								// if the language supports numerics.
-		this.allow_preprocessors = allow_preprocessors;						// if the language has "#..." based preprocessor statements.
-		this.allow_slash_regexes = allow_slash_regexes;						// if the language has "/.../" based regex statements.
-		this.allow_comment_keyword = allow_comment_keyword;					// allow comment keywords.
-		this.allow_comment_codeblock = allow_comment_codeblock;				// allow comment codeblocks.
-		this.allow_parameters = allow_parameters;							// allow parameters.
-		this.allow_decorators = allow_decorators;							// allow decorators.
+		this.code = null;																// the code to tokenize.
+		this.keywords = keywords;														// the languages default keywords.
+		this.type_keywords = type_keywords;												// the keywords on wich the next token will always be a type.
+		this.type_def_keywords = type_def_keywords;										// the keywords on wich the next token will always be a type def.
+		this.exclude_type_def_keywords_on_prev = exclude_type_def_keywords_on_prev;		// exclude the type def keywords match when the previous non whitespace was one of these words.
+		this.operators = operators;														// language operators.
+		this.special_string_prefixes = special_string_prefixes;							// special characters preceding a string to indicate a special string, such as the "f" in python for "f'{}'".
+		this.single_line_comment_start = single_line_comment_start;						// the language's single line comment start characters, use "false" when the language does not support this.
+		this.multi_line_comment_start = multi_line_comment_start;						// the language's multi line comment start characters, use "false" when the language does not support this.
+		this.multi_line_comment_end = multi_line_comment_end;							// the language's multi line comment end characters, use "false" when the language does not support this.
+		this.allow_strings = allow_strings;												// if the language supports strings.
+		this.allow_numerics = allow_numerics;											// if the language supports numerics.
+		this.allow_preprocessors = allow_preprocessors;									// if the language has "#..." based preprocessor statements.
+		this.allow_slash_regexes = allow_slash_regexes;									// if the language has "/.../" based regex statements.
+		this.allow_comment_keyword = allow_comment_keyword;								// allow comment keywords.
+		this.allow_comment_codeblock = allow_comment_codeblock;							// allow comment codeblocks.
+		this.allow_parameters = allow_parameters;										// allow parameters.
+		this.allow_decorators = allow_decorators;										// allow decorators.
 		this.allowed_keywords_before_type_defs = allowed_keywords_before_type_defs; 	// the allowed keywords before the name of a type definition, such as "async" and "static" for js, but they need to be directly before the type def token, so no types in between in for example c++.
+		this.indent_language = indent_language;											// whether the language specifies scope's with indent, such as python.
 		this.scope_separators = scope_separators;										// scope separators for partial tokenize.
+		this.seperate_scope_by_type_def = seperate_scope_by_type_def;					// only seperate a scope by token type def's for example required in cpp.
 
 		// Word boundaries.
 		this.word_boundaries = [
@@ -231,6 +238,18 @@ vhighlight.Tokenizer = class Tokenizer {
 		// - The on parenth close callback should return the type or type def token when it has assigned one, so the parsed parameters can be assigned to that token.
 		// this.on_parenth_close = function({token_before_opening_parenth: token_before_opening_parenth, after_parenth_index: after_parenth_index}) {return token};
 
+		// The on type def keyword callback.
+		// - @warning When this callback is defined the tokenizer will not add the type def tokens parents to the tokenizer when the event is fired, so the event needs to take care of this.
+		// - Will be called if one of the type def keywords is matched.
+		// - When on_parenth_close is defined and has not yet called `assigned_parents()` on the returned type token the parents will be added automatically, also when on_parenth_close is not defined / not called.
+		// - The parameter token, is the type def token after the matched keyword.
+		// this.on_type_def_keyword = function(token) {};
+
+		// The on post type def modifier end callback.
+		// - The parameter token, is the token where the post type def modifier range ended so the token before either a "{" or ";".
+		// - The return value of the callback will not be used and may be anything.
+		// this.on_post_type_def_modifier_end = (token) => {};
+ 
 		// Init vars that should be reset before each tokenize.
 		this.reset();
 
@@ -238,29 +257,71 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Attributes that should be reset before each tokenize.
 	reset() {
-		this.tokens = new vhighlight.Tokens();		// use an array with tokens since some tokens need to be edited after they have been appended.
-		this.added_tokens = 0;				// the currently added tokens.
-		this.index = null;					// the current index in the iteration, so it may be edited in case of forward lookup.
-		this.prev_char = null;				// the previous char in the iteration.
-		this.next_char = null;				// the next char in the iteration.
-		this.batch  = "";					// current batch.
-		this.line = 0;						// current line number.
-		this.is_comment = false;			// is currently a comment.
-		this.is_str = false;				// is currently a string.
-		this.is_regex = false;				// is currently a regex string "/hello/".
-		this.is_preprocessor = false;		// is currently a preprocessor statement.
-		this.is_comment_keyword = false;	// is currently a "@keyword" inside a comment.
-		this.is_comment_codeblock = false;	// is currently a "`somefunc()`" codeblock inside a comment.
-		this.parenth_depth = 0;				// parentheses depth "( )".
-		this.bracket_depth = 0;				// bracket depth "[ ]".
-		this.curly_depth = 0;				// curly brackets depth "{ }".
-		// this.template_depth = 0;			// template depth "< >".
-		this.next_token = null;				// the next token type, defined by the previous token such ass "class" or "extends".
-		this.offset = 0;					// the offset of the previously appended tokens.
+		this.tokens = new vhighlight.Tokens();				// use an array with tokens since some tokens need to be edited after they have been appended.
+		this.added_tokens = 0;								// the currently added tokens.
+		this.index = null;									// the current index in the iteration, so it may be edited in case of forward lookup.
+		this.prev_char = null;								// the previous char in the iteration.
+		this.next_char = null;								// the next char in the iteration.
+		this.batch  = "";									// current batch.
+		this.line = 0;										// current line number.
+		this.is_comment = false;							// is currently a comment.
+		this.is_str = false;								// is currently a string.
+		this.is_regex = false;								// is currently a regex string "/hello/".
+		this.is_preprocessor = false;						// is currently a preprocessor statement.
+		this.is_comment_keyword = false;					// is currently a "@keyword" inside a comment.
+		this.is_comment_codeblock = false;					// is currently a "`somefunc()`" codeblock inside a comment.
+		this.parenth_depth = 0;								// parentheses depth "( )".
+		this.bracket_depth = 0;								// bracket depth "[ ]".
+		this.curly_depth = 0;								// curly brackets depth "{ }".
+		// this.template_depth = 0;							// template depth "< >".
+		this.next_token = null;								// the next token type, defined by the previous token such ass "class" or "extends".
+		this.offset = 0;									// the offset of the previously appended tokens.
+		this.parents = [];									// array with parents, a parent looks like [<parent-name>, <close-id>] the close id is either the opening curly depth or the opening indent on a indent language. when the close-id is matched the last parent is removed.
+															// @warning: The token type def on non indent languages must be assigned before the curly depth increase otherwise it will cause undefined behaviour.
+		this.line_indent = 0;								// the indent of the current line, a space and tab both count for 1 indent.
+		this.start_of_line = true;							// is at the start of the line, whitespace at the start of the line does not disable the flag.
+		this.do_on_type_def_keyword = false;				// do the next on type def keyword callback.
+		this.prev_nw_token_data = null;						// the previous non whitespace or linebreak token data.
+		this.is_post_type_def_modifier = false;				// is between the closing parentheses and the opening curly or semicolon.
+		this.post_type_def_modifier_type_def_token = null;	// the type def token from that for the on post type def modifier end callback.
 
 		// Performance.
 		// this.get_prev_token_time = 0;
 		// this.append_token_time = 0;
+	}
+
+	// Add a parent.
+	add_parent(name) {
+		if (this.indent_language) {
+			this.parents.push([name, this.line_indent]);
+		} else {
+			this.parents.push([name, this.curly_depth]);
+		}
+	}
+
+	// Assign parent to token.
+	assign_parents(token) {
+		token.parents = [];
+		this.parents.iterate((item) => {
+			token.parents.push(item[0]);
+		})
+	}
+
+	// Copy the parents without any reference.
+	copy_parents() {
+		let copy = [];
+		this.parents.iterate((item) => {
+			copy.push([item[0], item[1]]);
+		})
+		return copy;
+	}
+
+	// Get the last token.
+	// Returns null when there is no last token.
+	get_last_token() {
+		return this.tokens.iterate_tokens_reversed((token) => {
+			return token;
+		})
 	}
 
 	// Fetch the first non whitespace token going backwards from the specified index.
@@ -293,11 +354,23 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Check if a char is a whitespace or newline.
 	// When the parameter is null it checks against the current batch.
-	is_linebreak_whitespace_char(x = null) {
-		if (x != null) {
-			return x == " " || x == "\t" || x == "\n";
+	is_linebreak_whitespace_batch(x = null) {
+		if (x !== null) {
+			for (let i = 0; i < x.length; i++) {
+				const c = x.charAt(i);
+				if (c !== " " && c !== "\t" && c !== "\n") {
+					return false;
+				}
+			}
+			return true;
 		} else {
-			return this.batch == " " || this.batch == "\t" || this.batch == "\n";
+			for (let i = 0; i < this.batch.length; i++) {
+				const c = this.batch.charAt(i);
+				if (c !== " " && c !== "\t" && c !== "\n") {
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 
@@ -497,7 +570,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	// Append lookup token.
 	// This function must be used when appending new tokens by a forward lookup.
 	// Since every line break should be a seperate line break token for VIDE.
-	append_forward_lookup_batch(token, data) {
+	append_forward_lookup_batch(token, data, extended = {}) {
 		if (this.batch.length > 0) {
 			this.append_batch();
 		}
@@ -505,15 +578,15 @@ vhighlight.Tokenizer = class Tokenizer {
 		for (let i = 0; i < data.length; i++) {
 			const c = data.charAt(i);
 			if (c == "\n" && !this.is_escaped(i, data)) {
-				this.append_batch(token);
+				this.append_batch(token, extended);
 				this.batch = "\n";
-				this.append_batch("token_line");
+				this.append_batch("token_line", extended);
 				++this.line;
 			} else {
 				this.batch += c;
 			}
 		}
-		this.append_batch(token);
+		this.append_batch(token, extended);
 	}
 
 	// Resume the iteration at a certain index.
@@ -583,6 +656,11 @@ vhighlight.Tokenizer = class Tokenizer {
 			obj.is_word_boundary = true;
 		}
 
+		// Set is whitespace.
+		if (obj.data.length === 1 && (obj.data === " " || obj.data === "\t" || obj.data === "\n")) {
+			obj.is_whitespace = true;
+		}
+
 		// Set inside comment, string, regex or preprocessor.
 		if (token === "token_line") {
 			if (this.is_comment) {
@@ -596,19 +674,33 @@ vhighlight.Tokenizer = class Tokenizer {
 			}
 		}
 
+		// Set parents.
+		else if (this.do_on_type_def_keyword !== true && token === "token_type_def") {
+			this.assign_parents(obj);
+			this.add_parent(obj.data);
+		}
+
 		// Update offset.
 		this.offset += this.batch.length;
 
+		// Set previous non whitespace + line break token data.
+		if (obj.is_line_break !== true && this.batch !== " " && this.batch !== "\t" && this.batch !== "\n") {
+			this.prev_nw_token_data = obj.data;
+		}
+
 		// Concat to previous token.
-		// Do this after the update offset.
-		// Exclude certain scope characters
-		if (token === null && obj.is_word_boundary === true) {
+		// - Do this after the update offset.
+		// - The concated tokens must not be excluded and either both be a word boundary or both be whitespace.
+		// - Whitespace tokens must remain all whitespace since certain checks require a check if a token is whitespace only.
+		// - Never concat tokens when the token is defined, even when the last and current tokens are the same. Since certain checks require a check for a specific operator, such as `parse_pre_func_tokens()` in `vhighlight.cpp`.
+		if (token === null && (obj.is_word_boundary === true || obj.is_whitespace === true)) {
 			const line_tokens = this.tokens[this.line];
 			if (line_tokens !== undefined) {
 				const last = line_tokens[line_tokens.length - 1];
 				if (
 					last !== undefined &&
-					last.is_word_boundary === true && 
+					last.is_word_boundary === obj.is_word_boundary && 
+					last.is_whitespace === obj.is_whitespace && 
 					(last.data.length > 1 || !this.excluded_word_boundary_joinings.includes(last.data)) &&
 					!this.excluded_word_boundary_joinings.includes(obj.data)
 				) {
@@ -635,6 +727,9 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Performance.
 		// this.append_time += Date.now() - now;
+
+		// Return the token.
+		return obj;
 	}
 	
 	// Append batch.
@@ -662,7 +757,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		else if (this.next_token != null) {
 
 			// Skip next token but do not reset on whitespace batch.
-			if (this.is_linebreak_whitespace_char()) {
+			if (this.is_linebreak_whitespace_batch()) {
 				this.append_token(null, extended);
 			}
 
@@ -670,18 +765,24 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (extended.is_word_boundary === true || this.word_boundaries.includes(this.batch)) {
 				this.append_token(null, {is_word_boundary: true});
 				this.next_token = null;
+				this.do_on_type_def_keyword = false;
 			}
 
 			// Reset next token when the batch is a keyword for example in "constexpr inline X".
 			else if (this.keywords.includes(this.batch)) {
 				this.append_token("token_keyword");
 				this.next_token = null;
+				this.do_on_type_def_keyword = false;
 			}
 
 			// Append as next token.
 			else {
-				this.append_token(this.next_token, extended);
+				const added_token = this.append_token(this.next_token, extended);
 				this.next_token = null;
+				if (this.do_on_type_def_keyword === true && this.on_type_def_keyword !== undefined) {
+					this.on_type_def_keyword(added_token);
+				}
+				this.do_on_type_def_keyword = false;
 			}
 		}
 		
@@ -692,9 +793,12 @@ vhighlight.Tokenizer = class Tokenizer {
 			if (this.keywords.includes(this.batch)) {
 				
 				// Set class depth.
-				if (this.type_def_keywords.includes(this.batch)) {
+				if (
+					this.type_def_keywords.includes(this.batch) && 
+					(this.prev_nw_token_data == null || this.exclude_type_def_keywords_on_prev.length === 0 || this.exclude_type_def_keywords_on_prev.includes(this.prev_nw_token_data) == false)
+				) {
 					this.next_token = "token_type_def"
-					this.class_depth = this.curly_depth + 1; // for the js parser, since js does not allow class definitions inside a class.
+					this.do_on_type_def_keyword = this.on_type_def_keyword !== undefined;
 				}
 				
 				// Next tokens.
@@ -748,9 +852,10 @@ vhighlight.Tokenizer = class Tokenizer {
 		let is_comment = false;
 		let is_multi_line_comment = false;
 		let string_char = null;
-		let is_regex = false; 					// only used for langauges that can define a regex as /hello/ such as js.
-		let is_preprocessor = false; 			// only used for languages that have preprocessor statements such as cpp.
-		let prev_non_whitespace_char = null; 	// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
+		let is_regex = false; 									// only used for langauges that can define a regex as /hello/ such as js.
+		let is_preprocessor = false; 							// only used for languages that have preprocessor statements such as cpp.
+		let prev_non_whitespace_char = null; 					// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
+		let multi_line_comment_check_close_from_index = null;	// the start index of the multi line comment because when a user does something like /*// my comment */ the comment would originally immediately terminate because of the /*/.
 
 		// Iterate.
 		// let last_p = 0, last_rounded_p = "0.00", max_i = 0;
@@ -888,6 +993,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						(this.multi_line_comment_start.length !== 1 && this.eq_first(this.multi_line_comment_start, info_obj.index))
 					)
 				) {
+					multi_line_comment_check_close_from_index = info_obj.index + this.multi_line_comment_start.length + this.multi_line_comment_end.length; // also add mlcomment end length since the mlc close looks backwards.
 					is_multi_line_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -911,9 +1017,10 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (
 				is_multi_line_comment &&
 				!is_escaped &&
+				info_obj.index >= multi_line_comment_check_close_from_index &&
 				(
 					(this.multi_line_comment_end.length === 1 && char == this.multi_line_comment_end) ||
-					(this.multi_line_comment_end.length !== 1 && this.eq_first(this.multi_line_comment_end, info_obj.index - this.multi_line_comment_end.length))
+					(this.multi_line_comment_end.length !== 1 && this.eq_first(this.multi_line_comment_end, info_obj.index - (this.multi_line_comment_end.length - 1)))
 				)
 			) {
 				is_multi_line_comment = false;
@@ -951,6 +1058,8 @@ vhighlight.Tokenizer = class Tokenizer {
 						this.operators.includes(prev)
 					)
 				) {
+					// console.log("=====================");
+					// console.log("REGEX START\n" + this.code.substr(this.index - 25, 50));
 					is_regex = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -962,6 +1071,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (is_regex) {
 				if (char == '/' && !is_escaped) {
 					is_regex = false;
+					// console.log("REGEX END\n" + this.code.substr(this.index - 25, 50));
 				}
 				const res = callback(char, false, is_comment, is_multi_line_comment, true, is_escaped, is_preprocessor); // always use true for is_regex to make sure the closing / is still treated as a regex.
 				if (res != null) { return res; }
@@ -1048,10 +1158,42 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Iterate code.
 		let shebang_allowed = true;
+		let disable_start_of_line = false;
 		const stopped = this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
 
+			// Start of line.
+			// Set start of line flag and line indent for parent closings on indent languages.
+			// The start of line flag must still be true for the first non whitespace character.
+			if (this.start_of_line) {
+
+				// Allow whitespace at the line start.
+				if (char === " " || char === "\t") {
+					++this.line_indent;
+				}
+
+				// Set the last line disabling the start_of_line flag for next characters.
+				else {
+
+					// Close parent, exclude whitespace only lines.
+					if (this.indent_language === true && char !== "\n") {
+						while (this.parents.length > 0 && this.parents[this.parents.length - 1][1] === this.line_indent) {
+							--this.parents.length;
+						}
+					}
+
+					// Set disable start of line flag for the next char.
+					disable_start_of_line = true;
+				}
+			} else if (disable_start_of_line) {
+				this.start_of_line = false;
+			}
+
+			//
+			// Resume with if after "Start of line".
+			//
+
 			// Shebang.
-			if (this.line === 0 && shebang_allowed && char === "#" && this.next_char === "!") {
+			if (this.line === 0 && this.start_of_line && char === "#" && this.next_char === "!") {
 
 				// Append previous batch.
 				this.append_batch();
@@ -1091,13 +1233,9 @@ vhighlight.Tokenizer = class Tokenizer {
 				this.resume_on_index(resume_index - 1);
 				return null;
 			}
-			else if (this.line === 0 && shebang_allowed && (char !== " " && char !== "\t")) {
-				shebang_allowed = false;
-			}
 
 			// New line.
-			// Resume with if from here since detection for disabling the `shebang_allowed` flag should resume with processing the char when it is flagged as false.
-			if (!is_escaped && char == "\n") {
+			else if (!is_escaped && char == "\n") {
 
 				// Append previous batch, but snce newlines may be present in regexes, strings and comments, handle them correctly.
 				auto_append_batch_switch();
@@ -1132,7 +1270,9 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 				}
 
-				// Increment the line.
+				// Update vars.
+				this.start_of_line = true;
+				this.line_indent = 0;
 				++this.line;
 			}
 			
@@ -1251,22 +1391,56 @@ vhighlight.Tokenizer = class Tokenizer {
 					++this.curly_depth;
 				} else if (char == "}") {
 					--this.curly_depth;
+
+					// Disable the is post type def modifier.
+					if (this.is_post_type_def_modifier) {
+						this.is_post_type_def_modifier = false;
+						if (this.on_post_type_def_modifier_end !== undefined) {
+							const last_token = this.get_last_token();
+							if (last_token != null) {
+								this.on_post_type_def_modifier_end(this.post_type_def_modifier_type_def_token, last_token);
+							}
+						}
+					}
+
+					// Remove parent.
+					if (this.indent_language === false) {
+						while (this.parents.length > 0 && this.parents[this.parents.length - 1][1] === this.curly_depth) {
+							--this.parents.length;
+						}
+					}
 				}
 				
 				// Parentheses depth.
 				if (char == "(") {
 					++this.parenth_depth;
+
+					//
+					// @todo when an indent languages does not always define type def tokens with a keyword then the opening parenth indent should be set here but for now it is not required.
+					//
+
 				} else if (char == ")") {
 					--this.parenth_depth;
 				}
 
 				// Template depth.
-				// Cant be used since "x < y" is allowed etc.
+				// Cant be used since "x < y" is allowed.
 				// if (char == "<") {
 				// 	++this.template_depth;
 				// } else if (char == ">") {
 				// 	--this.template_depth;
 				// }
+
+				// Disable the is post type def modifier.
+				if (this.is_post_type_def_modifier && char === ";") {
+					this.is_post_type_def_modifier = false;
+					if (this.on_post_type_def_modifier_end !== undefined) {
+						const last_token = this.get_last_token();
+						if (last_token != null) {
+							this.on_post_type_def_modifier_end(this.post_type_def_modifier_type_def_token, last_token);
+						}
+					}
+				}
 				
 				// End of comment.
 				// Should proceed with the callback since the next character needs to be parsed.
@@ -1339,10 +1513,10 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 
 				// Highlight parameters.
-				// @todo check if there are any post keywords between the ")" and "{" for c like langauges. Assign them to the type def token as "post_tags".
-				// @todo check if there are any pre keywords between before the "funcname(", ofc exclude "function" etc, cant rely on the type def tokens. Assign them to the type def token as "tags".
+				// @todo check if there are any post keywords between the ")" and "{" for c like langauges. Assign them to the type def token as "post_modifiers".
+				// @todo check if there are any pre keywords between before the "funcname(", ofc exclude "function" etc, cant rely on the type def tokens. Assign them to the type def token as "pre_modifiers".
 				// @todo when using a lot of tuple like functions `(() => {})()` which are often used in typescript, this becomes waaaaayy to slow.
-				else if (this.on_parenth_close !== undefined && this.allow_parameters && char === ")") {
+				else if (this.allow_parameters && char === ")") {
 
 					// ---------------------------------------------------------
 
@@ -1428,17 +1602,39 @@ vhighlight.Tokenizer = class Tokenizer {
 						return finalize();
 					}
 
-					// When the token before the opening parenth token is a decorator there is no need to call on parenth close.
-					if (token_before_opening_parenth != null && token_before_opening_parenth.is_decorator === true) {
+					// When the token before the opening parenth token already is a decorator, token_type or token_type_def there is no need to call on parenth close.
+					// When type def keywords are used this is possible, and with decorators ofcourse.
+					if (
+						token_before_opening_parenth != null && 
+						(
+							token_before_opening_parenth.is_decorator === true ||
+							token_before_opening_parenth.token === "token_type" ||
+							token_before_opening_parenth.token === "token_type_def"
+						)
+					) {
 						type_token = token_before_opening_parenth;
 					}
 					
 					// Call the on parenth close.
-					else {
+					else if (this.on_parenth_close !== undefined) {
 						type_token = this.on_parenth_close({
 							token_before_opening_parenth: token_before_opening_parenth,
 							after_parenth_index: after_parenth_index,
 						})
+					}
+
+					// Set flags for type def tokens.
+					if (type_token != null && type_token.token === "token_type_def") {
+
+						// Enable the is post type def modifier flag.
+						this.is_post_type_def_modifier = true;
+						this.post_type_def_modifier_type_def_token = type_token;
+
+						// Assign parents to the type token.
+						if (type_token.is_decorator !== true) {
+							this.assign_parents(type_token)	;
+						}
+
 					}
 
 					// Create the array with parameters and assign the token_param to the tokens.
@@ -1451,7 +1647,7 @@ vhighlight.Tokenizer = class Tokenizer {
 							name: null, 	// the parameter name.
 							index: null, 	// the parameter index.
 							value: null, 	// the default value.
-							tags: [], 		// the type tags.
+							modifiers: [], 		// the type modifiers.
 							type: null, 	// the type.
 						};
 					}
@@ -1529,9 +1725,19 @@ vhighlight.Tokenizer = class Tokenizer {
 
 							// Assign to parameter.
 							if (token.token === "token_keyword") {
-								param.tags.push(token.data.trim());
+								param.modifiers.push(token.data.trim());
 							} else if (token.token === "token_type") {
-								param.type = token.data.trim();
+								if (param.type == null) {
+									param.type = token.data.trim();
+								} else {
+									param.type += ` ${token.data.trim()}`;
+								}
+							} else if (token.data === "*" || token.data === "&" || token.data === ".") {
+								if (param.type == null) {
+									param.type = token.data.trim();
+								} else {
+									param.type += token.data.trim();
+								}
 							} else {
 								const allow_assignment = (token.token === undefined || token.token === "token_type_def");
 
@@ -1588,16 +1794,6 @@ vhighlight.Tokenizer = class Tokenizer {
 
 					// Append word boundary to tokens.
 					return finalize();
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1701,7 +1897,7 @@ vhighlight.Tokenizer = class Tokenizer {
 							name: null, 	// the parameter name.
 							index: null, 	// the parameter index.
 							value: null, 	// the default value.
-							tags: [], 		// the type tags.
+							modifiers: [], 		// the type modifiers.
 							type: null, 	// the type.
 						};
 					}
@@ -1769,7 +1965,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 							// Assign to parameter.
 							if (token.token === "token_keyword") {
-								param.tags.push(token.data.trim());
+								param.modifiers.push(token.data.trim());
 							} else if (token.token === "token_type") {
 								param.type = token.data.trim();
 							} else {
@@ -1876,6 +2072,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Partial tokenize.
+	// @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 	/*	@docs: {
 		@title Partial tokenize
 		@description: Partially tokenize text based on edited lines.
@@ -1931,66 +2128,122 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Do not stop if another string, comment, regex or preprocessor has just ended on the line that the start scope has been detected.
 		// Start one line before the edits_start since a "{" or "}" may already be on that line which can cause issues when editing a func def.
 		if (edits_start != 0) {
-			const use_curly = this.scope_separators.includes("{") || this.scope_separators.includes("}");
-			let curly_depth = 0;
-			const scope_separators = [];
-			this.scope_separators.iterate((item) => {
-				if (item != "{" && item != "}") { scope_separators.push(item); }
-			})
-			tokens.iterate_reversed(0, edits_start, (line_tokens) => {
 
-				// Skip on empty line tokens.
-				if (line_tokens.length === 0) {
-					return null;
-				}
+			// Find start scope by type def tokens.
+			if (this.seperate_scope_by_type_def === true) {
+				let parenth_depth = 0, bracket_depth = 0;
+				tokens.iterate_reversed(0, edits_start, (line_tokens) => {
 
-				// Vars.
-				let found_separator = null;
+					// Skip on empty line tokens.
+					if (line_tokens.length === 0) {
+						return null;
+					}
 
-				// Check if the line contains a scope separator.
-				line_tokens.iterate_reversed((token) => {
+					// Vars.
+					let found_separator = null;
 
-					// Opening curly.
-					if (use_curly && token.data === "{") {
-						if (curly_depth === 0) {
+					// Check if the line contains a scope separator.
+					line_tokens.iterate_reversed((token) => {
+
+						// Depths.
+						if (token.token === undefined && token.data === "(") {
+							--parenth_depth;
+						}
+						else if (token.token === undefined && token.data === ")") {
+							++parenth_depth;
+						}
+						else if (token.token === undefined && token.data === "[") {
+							--bracket_depth;
+						}
+						else if (token.token === undefined && token.data === "]") {
+							++bracket_depth;
+						}
+
+						// Found type def at zero depth.
+						else if (token.token === "token_type_def" && depth === 0) {
 							found_separator = token.line;
 							return true;
 						}
-						--curly_depth;
-					}
+					})
 
-					// Closing curly.
-					else if (use_curly && token.data === "}") {
-						++curly_depth;
-					}
-
-					// Any other scope seperators.
-					else if (
-						(token.token === undefined || token.token === "token_operator") &&
-						token.data.length === 1 &&
-						this.scope_separators.includes(token.data)
+					// Do not stop when the first token is a comment, string etc because it may resume on the next line.
+					const first_token = line_tokens[0];
+					if (
+						found_separator !== null &&
+						first_token.token !== "token_comment" &&
+						first_token.token !== "token_string" &&
+						first_token.token !== "token_regex" &&
+						first_token.token !== "token_preprocessor"
 					) {
-						found_separator = token.line;
+						scope_start = first_token.line;
+						scope_start_offset = first_token.offset;
 						return true;
 					}
 				})
+			}
 
-				// Do not stop when the first token is a comment, string etc because it may resume on the next line.
-				const first_token = line_tokens[0];
-				if (
-					found_separator !== null &&
-					first_token.token !== "token_comment" &&
-					first_token.token !== "token_string" &&
-					first_token.token !== "token_regex" &&
-					first_token.token !== "token_preprocessor"
-				) {
-					scope_start = first_token.line;
-					scope_start_offset = first_token.offset;
-					return true;
-				}
-			})
+			// Find start scope by scope seperators.
+			else {
+				const use_curly = this.scope_separators.includes("{") || this.scope_separators.includes("}");
+				let curly_depth = 0;
+				const scope_separators = [];
+				this.scope_separators.iterate((item) => {
+					if (item != "{" && item != "}") { scope_separators.push(item); }
+				})
+				tokens.iterate_reversed(0, edits_start, (line_tokens) => {
+
+					// Skip on empty line tokens.
+					if (line_tokens.length === 0) {
+						return null;
+					}
+
+					// Vars.
+					let found_separator = null;
+
+					// Check if the line contains a scope separator.
+					line_tokens.iterate_reversed((token) => {
+
+						// Opening curly.
+						if (use_curly && token.token === undefined && token.data === "{") {
+							if (curly_depth === 0) {
+								found_separator = token.line;
+								return true;
+							}
+							--curly_depth;
+						}
+
+						// Closing curly.
+						else if (use_curly && token.token === undefined && token.data === "}") {
+							++curly_depth;
+						}
+
+						// Any other scope seperators.
+						else if (
+							(token.token === undefined || token.token === "token_operator") &&
+							token.data.length === 1 &&
+							this.scope_separators.includes(token.data)
+						) {
+							found_separator = token.line;
+							return true;
+						}
+					})
+
+					// Do not stop when the first token is a comment, string etc because it may resume on the next line.
+					const first_token = line_tokens[0];
+					if (
+						found_separator !== null &&
+						first_token.token !== "token_comment" &&
+						first_token.token !== "token_string" &&
+						first_token.token !== "token_regex" &&
+						first_token.token !== "token_preprocessor"
+					) {
+						scope_start = first_token.line;
+						scope_start_offset = first_token.offset;
+						return true;
+					}
+				})
+			}
 		}
-		console.log(scope_start);
 		
 		// console.log("scope_start_offset:",scope_start_offset);
 		// console.log("scope_start:",scope_start);

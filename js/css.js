@@ -347,15 +347,6 @@ vhighlight.CSS = class CSS {
 				}
 			}
 
-			// CSS function calls such as "translateX(...)"
-			else if (char == "(") {
-				tokenizer.append_batch();
-				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-				if (prev != null && prev.token === undefined) {
-					prev.token = "token_type";
-				}
-			}
-
 			// CSS style attribute, curly depth is higher then 1 with pattern "^\s*XXX:" or ";\s*XXX:".
 			else if (tokenizer.curly_depth > 0 && char == ":") {
 				tokenizer.append_batch();
@@ -439,6 +430,17 @@ vhighlight.CSS = class CSS {
 
 			// Nothing done.
 			return false;
+		}
+
+		// Set on parenth close.
+		this.tokenizer.on_parenth_close = ({
+			token_before_opening_parenth = token_before_opening_parenth,
+			after_parenth_index = after_parenth_index,
+		}) => {
+			if (token_before_opening_parenth != null && token_before_opening_parenth.token === undefined) {
+				token_before_opening_parenth.token = "token_type";
+				return token_before_opening_parenth;
+			}
 		}
 	}
 

@@ -1,20 +1,5 @@
-const sayHello = (
-	me,
-	you = true
-) => {}
-const sayHello = async (
-	me,
-	you = true
-) => {}
-const me = function() {
-
+const vlib.module.Me = class Me {
+	constructor() {}
 }
-const me = async function() {
 
-}
-function me() {
-
-}
-async function me() {
-
-}
+const vlib.module.myfunc = function() {}

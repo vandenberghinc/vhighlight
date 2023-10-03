@@ -116,13 +116,17 @@ vhighlight.CPP = class CPP {
 				"class",
 				"enum",
 				"union",
-			], 
+			],
+			exclude_type_def_keywords_on_prev: [
+				"using",
+			],
 			type_keywords: [
 				"const",
 				"constexpr",
 				"static",
 				"volatile",
 				"mutable",
+				"namespace", // for the exclude_type_def_keywords_on_prev so that the using namespace xxx will make xxx as a token_type. 
 			],
 			operators: [
 				"&&", "||", "!", "==", "!=", ">", "<", ">=", "<=", "+", "-", "*", "/", "%",
@@ -140,19 +144,23 @@ vhighlight.CPP = class CPP {
 			multi_line_comment_start: "/*",
 			multi_line_comment_end: "*/",
 			allow_preprocessors: true,
+			excluded_word_boundary_joinings: ["."],
 
 			// Attributes for partial tokenizing.
 			scope_separators: [
 				"{", 
 				"}", 
 			],
+			seperate_scope_by_type_def: true,
 		});
 		const tokenizer = this.tokenizer;
 
 		// Assign attributes.
 		this.reset();
 
-		// Set callback.
+		// ---------------------------------------------------------
+		// On default callback.
+
 		this.tokenizer.callback = (char) => {
 			
 			// Close is func.
@@ -266,105 +274,6 @@ vhighlight.CPP = class CPP {
 
 			}
 
-			// Opening parentheses.
-			// else if (char == "(") {
-
-			// 	// Append current batch by word boundary separator.
-			// 	tokenizer.append_batch();
-
-			// 	// Get the closing parentheses.
-			// 	const closing = tokenizer.get_closing_parentheses(tokenizer.index);
-			// 	const non_whitespace_after = tokenizer.get_first_non_whitespace(closing + 1);
-			// 	if (closing != null && non_whitespace_after != null) {
-
-			// 		// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
-			// 		// And skip lambda functions with a "]" before the "(".
-			// 		let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "*", "&"]);
-			// 		if (prev == null) {
-			// 			return false;
-			// 		}
-			// 		const prev_prev = tokenizer.get_prev_token(prev.index - 1);
-			// 		const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
-			// 		if (
-			// 			(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
-			// 			(prev.token == "token_type" && prev_prev_is_colon === true) // when the previous token is token_type by a double colon.
-			// 		) {
-
-			// 			// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
-			// 			// Unless the previous non word boundary token is a keyword such as "if () {".
-			// 			const lookup = tokenizer.code.charAt(non_whitespace_after); 
-			// 			if (
-			// 				(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
-			// 				lookup == "{" || // from opening curly.
-			// 				lookup == "c" || // from "const".
-			// 				lookup == "v" || // from "volatile".
-			// 				lookup == "n" || // from "noexcept".
-			// 				lookup == "o" || // from "override".
-			// 				lookup == "f" || // from "final".
-			// 				lookup == "r" // from "requires".
-			// 			) {
-			// 				prev.token = "token_type_def";
-
-			// 				// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
-			// 				let token = prev;
-			// 				while (true) {
-			// 					token = tokenizer.get_prev_token(token.index - 1, [":"]);
-			// 					if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
-			// 						break;
-			// 					}
-			// 					token.token = "token_type_def";
-			// 				}
-
-
-			// 				// Set the inside func flag.
-			// 				// It is being set a little too early but that doesnt matter since ...
-			// 				// Semicolons should not be used in the context between here and the opening curly.
-			// 				// Unless the func is a header definition, but then the forward lookup loop stops.
-			// 				let opening = null;
-			// 				for (let i = closing; i < tokenizer.code.length; i++) {
-			// 					const c = tokenizer.code.charAt(i);
-			// 					if (c == ";") {
-			// 						break;
-			// 					}
-			// 					else if (c == "{") {
-			// 						opening = i;
-			// 						break;
-			// 					}
-			// 				}
-			// 				if (opening != null) {
-			// 					this.inside_func = true;
-			// 					this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
-			// 				}
-			// 			}
-
-			// 			// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
-			// 			// Unless the token before the previous token is already a type, such as "String x()".
-			// 			else {
-
-			// 				// Check if the prev token is a template closing.
-			// 				if (prev.data == ">") {
-			// 					const token = tokenizer.get_opening_template(prev.index);
-			// 					if (token != null) {
-			// 						prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
-			// 					}
-			// 				}
-
-			// 				// Make sure the token before the prev is not a keyword such as "if ()".
-			// 				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
-			// 				if (prev_prev != null && prev_prev.data == ">") {
-			// 					const token = tokenizer.get_opening_template(prev_prev.index);
-			// 					if (token != null) {
-			// 						prev_prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
-			// 					}
-			// 				}
-			// 				if (prev_prev == null || prev_prev.token != "token_type") {
-			// 					prev.token = "token_type";
-			// 				}
-			// 			}
-			// 		}
-			// 	}
-			// }
-
 			// Braced initialiatons, depends on a ">" from a template on not being an operator.
 			else if (char == "{") {
 
@@ -392,10 +301,9 @@ vhighlight.CPP = class CPP {
 				if ((prev_prev == null || prev_prev.token != "token_type") && prev.token === undefined && prev.data != ")") {
 					prev.token = "token_type";
 				}
-
 			}
 
-			// Types inside templates.
+			// Types inside templates not only the keyword template but also for type or function templates.
 			else if (char == "<") {
 
 				// Append the batch because of the lookup.
@@ -408,25 +316,43 @@ vhighlight.CPP = class CPP {
 				let word = "";
 				let append_to_batch = [[false, char]];
 				let index;
-				let first_word_in_separator = true;
+				let next_is_type = true;
+				let c;
+				const add_word = (is_word_boundary = false, set_seperator = false) => {
+					if (word.length > 0) {
+						if (tokenizer.keywords.includes(word)) {
+							append_to_batch.push(["token_keyword", word]);
+						} else if (next_is_type) {
+							append_to_batch.push(["token_type", word]);
+							next_is_type = false;
+						} else {
+							append_to_batch.push([false, word]);
+						}
+						word = "";
+						if (set_seperator) {
+							// if (c == " ") {
+							// 	next_is_type = false;
+							// } else
+							if (c == ",") {
+								next_is_type = true;
+							} else if (c == "(") {
+								next_is_type = true;
+							}
+						}
+					}
+				}
 				for (index = tokenizer.index + 1; index < tokenizer.code.length; index++) {
-					const c = tokenizer.code.charAt(index);
+					c = tokenizer.code.charAt(index);
 
 					// Closing template.
 					if (c == "<") {
+						next_is_type = true;
+						add_word();
 						append_to_batch.push([false, c]);
 						++depth;
 					} else if (c == ">") {
-						if (word.length > 0) {
-							if (tokenizer.keywords.includes(word)) {
-								append_to_batch.push(["token_keyword", word]);
-							} else if (first_word_in_separator) {
-								append_to_batch.push(["token_type", word]);
-							} else {
-								append_to_batch.push([false, word]);
-							}
-							word = "";
-						}
+						next_is_type = true;
+						add_word();
 						append_to_batch.push([false, c]);
 						--depth;
 						if (depth == 0) {
@@ -436,22 +362,13 @@ vhighlight.CPP = class CPP {
 					}
 
 					// Allowed separator characters.
-					else if (tokenizer.is_whitespace(c) || c == "," || c == ":" || c == "*" || c == "&" || c == "\n") {
-						if (word.length > 0) {
-							if (tokenizer.keywords.includes(word)) {
-								append_to_batch.push(["token_keyword", word]);
-							} else if (first_word_in_separator) {
-								append_to_batch.push(["token_type", word]);
-							} else {
-								append_to_batch.push([false, word]);
-							}
-							word = "";
-							if (c == " ") {
-								first_word_in_separator = false;
-							} else if (c == ",") {
-								first_word_in_separator = true;
-							}
-						}
+					else if (c == "(" || c == ")") {
+						next_is_type = true;
+						add_word(true);
+						append_to_batch.push([false, c]);
+					}
+					else if (tokenizer.is_whitespace(c) || c == "," || c == ":" || c == "*" || c == "&" || c == "\n" || c == "(" || c == ")" || c == "{" || c == "}" || c == "[" || c == "]") {
+						add_word(true);
 						append_to_batch.push([false, c]);
 					}
 
@@ -470,7 +387,7 @@ vhighlight.CPP = class CPP {
 				// Add the batches when it is a template.
 				if (is_template) {
 					for (let i = 0; i < append_to_batch.length; i++) {
-						tokenizer.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
+						tokenizer.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1], {is_template: true});
 					}
 					tokenizer.resume_on_index(index);
 					return true;
@@ -517,6 +434,334 @@ vhighlight.CPP = class CPP {
 			return false;
 		}
 
+		// ---------------------------------------------------------
+		// Parsing type definitions, functions, function modifiers, function requires clause, function templates clause and function types.
+
+		// Function modifiers.
+		this.function_modifiers = ["static", "virtual", "volatile", "inline", "friend", "extern", "explicit", "noexcept", "const", "constexpr", "mutable", "decltype", "override", "final", "requires", "template"];
+
+		// Check if a character matches the first char of one of the function modifiers.
+		const first_char_matches_function_modifier = (char) => {
+			for (let i = 0; i < this.function_modifiers.length; i++) {
+				if (this.function_modifiers[i].charAt(0) === char) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		// Trim the an array of reversed tokens, returns the array in the correct order, so not reversed.
+		const trim_tokens = (tokens, reversed = false) => {
+			if (tokens.length === 0) { return []; }
+			for (let i = tokens.length - 1; i >= 0; i--) {
+				const token = tokens[i];
+				if (token.is_whitespace === true) {
+					--tokens.length;
+				} else {
+					break;
+				}
+			}
+			let clean = [];
+			let first = true;
+			if (reversed) {
+				tokens.iterate_reversed((token) => {
+					if (first && token.is_whitespace === true) {
+						return null; // skip whitespace at the end.
+					} else {
+						first = false;
+						clean.push(token)
+					}
+				})
+			} else {
+				tokens.iterate((token) => {
+					if (first && token.is_whitespace === true) {
+						return null; // skip whitespace at the end.
+					} else {
+						first = false;
+						clean.push(token)
+					}
+				})
+			}
+			return clean;	
+		}
+
+		// Parse the pre modifiers, requires clause, template clause and the function type on a type def token match from inside the `on_parent_close()` callback.
+		const parse_pre_func_tokens = (type_def_token) => {
+
+			// Vars.
+			let type_tokens = []; 							// function's type tokens.
+			let templates_tokens = [];						// function's template clause tokens.
+			let requires_tokens = []; 						// function's requires clause tokens.
+			let modifier_tokens = [];						// the modifier tokens.
+			let first_type_keyword = true;					// the first keyword is still a type when the post_type flag is false.
+			let post_type = false;							// tokens in the iteration are before the type tokens.
+			let is_template = false;						// if the previous post type token was a (inside) template.
+			let parenth_depth = 0;	 						// parenth depth when the post_type flag is true.
+			let check_reset_requires_tokens = false;		// check a reset of the requires tokens on the next token.
+			let on_lower_than_index = type_def_token.index; // only check tokens with a lower index than this index.
+			let lookback_requires_tokens = [];				// the lookback potential requires clause token for `check_end_of_modifiers()`.
+
+			// Check the end of modiers.
+			// However since the requires clause is not required to be in parentheses there must be a lookback ...
+			// For either the keyword "requires" to resume the iteration, or a iteration termination by an unallowed word boundary.
+			const check_end_of_modifiers = (token) => {
+
+				// Requires tokens are already defined so always stop.
+				if (requires_tokens.length > 0) {
+					return false; // STOP ITERATION.
+				}
+
+				// Do a lookback.
+				let ends_with_requires = false;
+				let lookback_parenth_depth = 0;
+				let lookback_curly_depth = 0;
+				tokenizer.tokens.iterate_tokens_reversed(0, token.line + 1, (lookback) => {
+					if (lookback.index <= token.index) {
+
+						// Set depths.
+						if (lookback.token === undefined && lookback.data.length === 1) {
+							if (lookback.data === "{") { 
+								--lookback_curly_depth;
+								if (lookback_curly_depth === 0) {
+									lookback_requires_tokens.push(lookback);
+									return null; // prevent fallthrough since this token is also a word boundary which would terminate the loop otherwise.
+								}
+							}
+							else if (lookback.data === "}") { ++lookback_curly_depth; }
+							else if (lookback.data === "(") { 
+								--lookback_parenth_depth;
+								if (lookback_parenth_depth === 0) {
+									lookback_requires_tokens.push(lookback);
+									return null; // prevent fallthrough since this token is also a word boundary which would terminate the loop otherwise.
+								}
+							}
+							else if (lookback.data === ")") { ++lookback_parenth_depth; }
+						}
+
+						//
+						// Resume with if after "Set depths" since the depth incremental tokens still need to be parsed.
+						//
+
+						// Whitespace is allowed.
+						if (lookback.is_whitespace === true) {
+							lookback_requires_tokens.push(lookback);
+						}
+
+						// Inside parenth or curly depth is allowed.
+						else if (lookback_curly_depth !== 0 || lookback_parenth_depth !== 0) {
+							lookback_requires_tokens.push(lookback);
+						}
+
+						// Inisde a template is allowed.
+						else if (lookback.is_template === true) {
+							lookback_requires_tokens.push(lookback);
+						}
+
+						// Check termination by the lookback is the "requires" keyword.
+						else if (lookback.token === "token_keyword" && lookback.data === "requires") {
+							ends_with_requires = true;
+							modifier_tokens.push(lookback)
+							on_lower_than_index = lookback.token; // set the on lower than index to this token's index for the parent iteration.
+							return false;
+						}
+
+						// Operators are allowed.
+						else if (lookback.token === "token_operator") {
+							lookback_requires_tokens.push(lookback);	
+						}
+
+						// Stop termination by a word boundary that is not an operator or a single/double colon.
+						else if (lookback.is_word_boundary === true && lookback.data !== ":" && lookback.data !== "::") {
+							ends_with_requires = false;
+							return false; // STOP ITERATION.
+						}
+
+						// Still allowed.
+						else {
+							lookback_requires_tokens.push(lookback);
+						}
+					}
+				});
+				if (ends_with_requires) {
+					requires_tokens = lookback_requires_tokens;
+					return null;
+				} else {
+					return false; // STOP ITERATION.
+				}
+			}
+
+			// Iterate the previous tokens reversed from the type def token.
+			tokenizer.tokens.iterate_tokens_reversed(0, type_def_token.line + 1, (token) => {
+				if (token.index < on_lower_than_index) {
+					
+					// First go back to the token before the type definition.
+					// This means also skipping tokens with `is_template === true` and colon ":" tokens since these are allowed as part of the type.
+					// Also the first keyword that appears when the func_type is undefined counts as a type.
+					if (post_type === false) {
+
+						// Whitespace.
+						if (token.is_whitespace === true) {
+							type_tokens.push(token);
+							return null; // prevent fallthrough to "Check modifiers".	
+						}
+
+						// Inside a template.
+						else if (token.is_template === true) {
+							type_tokens.push(token);
+							return null; // prevent fallthrough to "Check modifiers".
+						}
+
+						// Is a type token.
+						else if (token.token === "token_type") {
+							type_tokens.push(token);
+							return null; // prevent fallthrough to "Check modifiers".
+						}
+
+						// End of types by a keyword.
+						// Must be after the inside template check, cause keywords are allowed inside templates.
+						// @todo keywords are also allowed for require clauses.
+						else if (first_type_keyword && token.token === "token_keyword") {
+							type_tokens.push(token);
+							post_type = true;
+							first_type_keyword = false;
+							return null; // prevent fallthrough to "Check modifiers".
+						}
+
+						// Resume on colons keep in mind that they might be joined together instead of a single token with ":" as data.
+						else if (token.token === undefined && token.data.indexOf(":") !== -1) {
+							type_tokens.push(token);
+							return null; // prevent fallthrough to "Check modifiers".
+						}
+
+						// Allowed operators.
+						else if (token.token === "token_operator" && (token.data === "&" || token.data === "*")) {
+							type_tokens.push(token);
+							return null; // prevent fallthrough to "Check modifiers".
+						}
+
+						// Enable post_type flag.
+						post_type = true;
+
+						// fallthrough to "Check modifiers".
+					}
+
+					// Check modifiers.
+					if (post_type === true) {
+						
+						// Set check reset requires flag.
+						if (check_reset_requires_tokens === 1) {
+							check_reset_requires_tokens = true;
+						} else {
+							check_reset_requires_tokens = false; // must reset to false since the "Reset the requires tokens..." is not always matched and otherwise the templates wont be parsed.
+						}
+
+						// Skip whitespace.
+						if (token.is_whitespace === true) {
+							return null;
+						}
+
+						// Set parenth depth.
+						// Do not set when inside templates since this would cause the templates not to be parsed.
+						if (is_template === false) {
+							if (token.token === undefined && token.data == "(") {
+								if (parenth_depth === 0) {
+									return false; // STOP ITERATION.
+								}
+								--parenth_depth;
+								if (parenth_depth === 0) {
+									requires_tokens.push(token);
+									check_reset_requires_tokens = 1;
+									return null;
+								}
+							} else if (token.token === undefined && token.data == ")") {
+								++parenth_depth;
+							}
+						}
+
+						//
+						// Resume with if statements after the set parenth depth statement.
+						//
+
+						// Reset the templates when the token before the the opening template is not "template".
+						// Also when the template is not reset there must be checked for a end of modifiers 1) since it was potentially part of a requires clause without parenth or it was the actual close.
+						// Must be after "Skip whitespace".
+						if (is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "token_keyword" || token.data !== "template")) {
+							lookback_requires_tokens = templates_tokens;
+							templates_tokens = [];
+							return check_end_of_modifiers(token);
+						}
+
+						// Rest the requires tokens when the token before the opening parenth is not "requires".
+						// Must be after "Skip whitespace".
+						else if (check_reset_requires_tokens === true && is_template === false && (token.token !== "token_keyword" || token.data !== "requires")) {
+							lookback_requires_tokens = requires_tokens;
+							requires_tokens = [];
+							check_reset_requires_tokens = false;
+							return check_end_of_modifiers(token);
+						}
+
+						// Is inside a parenth.
+						// Must be before the "Inside templates" templates.
+						else if (is_template === false && parenth_depth !== 0) {
+							requires_tokens.push(token);
+						}
+
+						// Inside templates.
+						// But not inside a template since then it should be appended to the template tokens.
+						else if (parenth_depth === 0 && token.is_template === true) {
+							templates_tokens.push(token);
+							is_template = true;
+						}
+
+						// Is a modifier.
+						else if ((token.token === undefined || token.token === "token_keyword") && this.function_modifiers.includes(token.data)) {
+							modifier_tokens.push(token);
+						}
+
+						// Check the end of modiers.
+						else {
+							lookback_requires_tokens = [];
+							return check_end_of_modifiers(token);
+						}
+
+					}
+				}
+			})
+
+			// Assign the type, remove whitespace at the start and end and then concat the tokens to a type.
+			if (type_tokens.length === 0) {
+				console.error(`Unable to determine the function type of function "${tokenizer.line}:${type_def_token.data}()".`);
+			} else {
+				type_def_token.type = trim_tokens(type_tokens, true);	
+			}
+
+			// Assign the template tokens.
+			templates_tokens = trim_tokens(templates_tokens, true);
+			if (templates_tokens.length > 0) {
+				type_def_token.templates = []
+				templates_tokens.iterate((token) => {
+					type_def_token.templates.push(token);
+				})
+			}
+
+			// Assign the requires tokens.
+			requires_tokens = trim_tokens(requires_tokens, true);
+			if (requires_tokens.length > 0) {
+				type_def_token.requires = []
+				requires_tokens.iterate((token) => {
+					type_def_token.requires.push(token);
+				})
+			}
+
+			// Assign modifier tokens.
+			if (modifier_tokens.length > 0) {
+				type_def_token.pre_modifiers = [];
+				modifier_tokens.iterate_reversed((item) => {
+					type_def_token.pre_modifiers.push(item);
+				})
+			}
+		}
+
 		// Set on parenth close callback.
 		this.tokenizer.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
@@ -524,7 +769,7 @@ vhighlight.CPP = class CPP {
 		}) => {
 
 			// Get the closing parentheses.
-			const closing = this.index;
+			const closing = tokenizer.index;
 			if (after_parenth_index != null) {
 
 				// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
@@ -546,14 +791,11 @@ vhighlight.CPP = class CPP {
 					if (
 						(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
 						lookup == "{" || // from opening curly.
-						lookup == "c" || // from "const".
-						lookup == "v" || // from "volatile".
-						lookup == "n" || // from "noexcept".
-						lookup == "o" || // from "override".
-						lookup == "f" || // from "final".
-						lookup == "r" // from "requires".
+						first_char_matches_function_modifier(lookup) // from function modifier.
 					) {
 						prev.token = "token_type_def";
+						let token_for_parse_pre_func_tokens = prev;
+
 
 						// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
 						// So the entire "mylib::mychapter::myfunc() {}" will be a token type def, not just "myfunc" but also "mylib" and "mychapter".
@@ -564,6 +806,7 @@ vhighlight.CPP = class CPP {
 								break;
 							}
 							token.token = "token_type_def";
+							token_for_parse_pre_func_tokens = token;
 						}
 
 						// Set the inside func flag.
@@ -585,6 +828,9 @@ vhighlight.CPP = class CPP {
 							this.inside_func = true;
 							this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
 						}
+
+						// Parse the type def pre modifiers.
+						parse_pre_func_tokens(token_for_parse_pre_func_tokens)
 
 						// Return the set token.
 						return prev;
@@ -611,6 +857,121 @@ vhighlight.CPP = class CPP {
 						}
 					}
 				}
+			}
+		}
+
+		// The on post type def modifier callback.
+		this.tokenizer.on_post_type_def_modifier_end = (type_def_token, last_token) => {
+
+			// Vars.
+			let parenth_depth = 0;			// the parenth depth.
+			let closing_parenth_token;		// the token of the function's parameters closing parentheses.
+			let templates_tokens = [];		// the templates clause tokens, even though it is not allowed still parse them.
+			let requires_tokens = [];		// the requires clause tokens.
+			let modifier_tokens = [];		// the modifier tokens.
+			let is_requires = false; 		// tokens are inside a requires clause.
+			let is_template = false; 		// tokens are inside a templates clause.
+
+			// Iterate backwards to find the start token.
+			tokenizer.tokens.iterate_tokens(type_def_token.line, null, (token) => {
+				if (token.index === last_token.index) {
+					return false; // err.
+				}
+				else if (token.index > type_def_token.index) {
+
+					// Set parenth depth and detect end.
+					if (token.token === undefined && token.data.length === 1) {
+						if (token.data === "(") {
+							++parenth_depth;
+						} else if (token.data === ")") {
+							--parenth_depth;
+							if (parenth_depth === 0) {
+								closing_parenth_token = token;
+								return false;
+							}
+						}
+					}
+				}
+			})
+			if (closing_parenth_token === undefined) {
+				console.error(`Unable to find the closing paremeter parentheses of function "${tokenizer.line}:${type_def_token.data}()".`);
+				return null;
+			}
+
+			// Iterate post modifier tokens forward.
+			tokenizer.tokens.iterate_tokens(closing_parenth_token.line, last_token.line + 1, (token) => {
+				if (token.index > closing_parenth_token.index && token.index <= last_token.index) {
+					const is_keyword = token.token === "token_keyword";
+
+					// Disable is template flag.
+					// Skip whitespace since there may be whitespace between `template` and the first `<` where the `is_template` flag will be enabled.
+					if (is_template && token.is_template !== true && token.is_whitespace !== true) {
+						is_template = false;
+					}
+
+					// Resume with if statements after "Disable is template flag".
+					
+					// Is inside a template.
+					if (is_template) {
+						is_template = true;
+						templates_tokens.push(token);
+					}
+
+					// Template modifier.
+					else if (is_keyword && token.data === "template") {
+						is_template = true;
+						modifier_tokens.push(token);
+					}
+
+					// Requires modifier.
+					else if (is_keyword && token.data === "requires") {
+						is_requires = true;
+						modifier_tokens.push(token);
+					}
+
+					// Is a modifier.
+					// Also terminates the requires clause.
+					else if (is_keyword && this.function_modifiers.includes(token.data)) {
+						is_requires = false;
+						modifier_tokens.push(token);
+					}
+
+					// Is inside a requires clause.
+					// Must be after the "Is a modifier" statement.
+					else if (is_requires) {
+						requires_tokens.push(token);
+					}
+				}
+			})
+			
+			// Assign the template tokens.
+			templates_tokens = trim_tokens(templates_tokens);
+			if (templates_tokens.length > 0) {
+				if (type_def_token.templates === undefined) {
+					type_def_token.templates = []
+				}
+				templates_tokens.iterate((token) => {
+					type_def_token.templates.push(token);
+				})
+			}
+
+			// Assign the requires tokens.
+			requires_tokens = trim_tokens(requires_tokens);
+			if (requires_tokens.length > 0) {
+				if (type_def_token.requires === undefined) {
+					type_def_token.requires = []
+				}
+				requires_tokens.iterate((token) => {
+					type_def_token.requires.push(token);
+				})
+			}
+
+			// Assign modifier tokens.
+			if (modifier_tokens.length > 0) {
+				type_def_token.post_modifiers = [];
+				modifier_tokens.iterate((item) => {
+					type_def_token.post_modifiers.push(item);
+				})
 			}
 		}
 	}
