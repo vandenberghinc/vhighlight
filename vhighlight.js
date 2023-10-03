@@ -31,10 +31,10 @@ vhighlight.get_tokenizer = function(language) {
 	}
 }
 	
-// Highlight
+// Tokenize code.
 // - Returns "null" when the language is not supported.
 // - Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
-vhighlight.highlight = function({
+vhighlight.tokenize = function({
 	element = null,			// the html code element.
 	code = null,			// when the code is assigned the highlighted code will be returned.
 	language = null,		// code language, precedes element attribute "language".
@@ -42,7 +42,7 @@ vhighlight.highlight = function({
 	animate = false,		// animate code writing.
 	delay = 25,				// animation delay in milliseconds, only used when providing parameter "element".
 	// is_func = false,	 	// enable when cpp code is inside a function.
-	return_tokens = false,	// return the tokens instead of the parsed html code.
+	build_html = false,		// with build_html as `true` this function will build the html and return the html code when parameter `code` is defined, with build_html as `false` it will return the array of tokens.
 }) {
 
 	// Get language.
@@ -68,14 +68,13 @@ vhighlight.highlight = function({
 	
 	// When the code is assigned just highlight the code and return the highlighted code/
 	if (code != null) {
-		return tokenizer.highlight(code, return_tokens);
+		return tokenizer.tokenize({code: code, build_html: build_html});
 	}
 
 	// When the element is a <pre> just highlight it.
 	else if (element.tagName == "PRE") {
-		return_tokens = false;
 		code = element.innerText.replaceAll(">", "&gt;").replaceAll("<", "&lt;");
-		element.innerHTML = tokenizer.highlight(code);
+		element.innerHTML = tokenizer.tokenize({code: code, build_html: true});
 		return ;
 	}
 
@@ -258,8 +257,7 @@ vhighlight.highlight = function({
 	setTimeout(() => {
 
 		// Highlight.
-		return_tokens = false;
-		let highlighted_code = tokenizer.highlight(code);
+		let highlighted_code = tokenizer.tokenize({code: code, build_html: true});
 
 		// No line numbers.
 		// So add code directly.
@@ -519,7 +517,7 @@ vhighlight.Tokens = class Tokens extends Array {
 // - @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
 // - Parsing behaviour depends on that every word is seperated as a token, so each word boundary is a seperate token.
-// @todo highlight "@\\s+" patterns outside comments as token_type.
+// @todo highlight "@\\s+" patterns outside comments as type.
 // @todo add support for each language to get parameters, so that vdocs can use this.
 vhighlight.Tokenizer = class Tokenizer {
 	constructor({
@@ -738,7 +736,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// const now = Date.now();
 		return this.tokens.iterate_tokens_reversed((token) => {
 			if (token.index <= index) {
-				if (exclude_comments && token.token === "token_comment") {
+				if (exclude_comments && token.token === "comment") {
 					return null;
 				}
 				if (!exclude.includes(token.data)) {
@@ -1017,7 +1015,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			(extended.is_word_boundary === true) ||
 			(
 				this.batch.length === 1 && 
-				(token === null || token === "token_operator") && // token is null or is token operator in case the language class appends the token as token_operator without the is_word_boundary param.
+				(token === null || token === "operator") && // token is null or is token operator in case the language class appends the token as operator without the is_word_boundary param.
 				this.word_boundaries.includes(this.batch)
 			)
 		) {
@@ -1043,7 +1041,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Set parents.
-		else if (this.do_on_type_def_keyword !== true && token === "token_type_def") {
+		else if (this.do_on_type_def_keyword !== true && token === "type_def") {
 			this.assign_parents(obj);
 			this.add_parent(obj);
 		}
@@ -1139,7 +1137,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 			// Reset next token when the batch is a keyword for example in "constexpr inline X".
 			else if (this.keywords.includes(this.batch)) {
-				appended_token = this.append_token("token_keyword");
+				appended_token = this.append_token("keyword");
 				this.next_token = null;
 				this.do_on_type_def_keyword = false;
 			}
@@ -1166,27 +1164,27 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.type_def_keywords.includes(this.batch) && 
 					(this.prev_nw_token_data == null || this.exclude_type_def_keywords_on_prev.length === 0 || this.exclude_type_def_keywords_on_prev.includes(this.prev_nw_token_data) == false)
 				) {
-					this.next_token = "token_type_def"
+					this.next_token = "type_def"
 					this.do_on_type_def_keyword = this.on_type_def_keyword !== undefined;
 				}
 				
 				// Next tokens.
 				else if (this.type_keywords.includes(this.batch)) {
-					this.next_token = "token_type";
+					this.next_token = "type";
 				}
 				
 				// Append.
-				appended_token = this.append_token("token_keyword");
+				appended_token = this.append_token("keyword");
 			}
 			
 			// Operator.
 			else if (this.operators.includes(this.batch)) {
-				appended_token = this.append_token("token_operator", {is_word_boundary: true});
+				appended_token = this.append_token("operator", {is_word_boundary: true});
 			}
 			
 			// Numeric.
 			else if (this.allow_numerics && /^-?\d+(\.\d+)?$/.test(this.batch)) {
-				appended_token = this.append_token("token_numeric");
+				appended_token = this.append_token("numeric");
 			}
 			
 			// Just a code batch without highlighting.
@@ -1509,10 +1507,24 @@ vhighlight.Tokenizer = class Tokenizer {
 	// - The "this.callback" should return "true" to indicate the character has been appended to the batch, and "false" if not.
 	// - Each word boundary seperates a token. The callback is required to respect this, since this ignoring this behaviour may cause undefined behaviour.
 	// - When performing a forward lookup and editing this.index afterwards, dont forget to incrrement the this.line var on line breaks.
-	tokenize(return_tokens = false, stop_callback = undefined) {
+	tokenize({
+		code = null,
+		stop_callback = undefined,
+		build_html = false,
+	}) {
 
 		// Reset.
 		this.reset();
+
+		// Derived reset.
+		if (this.derived_reset !== undefined) {
+			this.derived_reset();
+		}
+
+		// Assign code when not already assigned.
+		if (code !== null) {
+			this.code = code;
+		}
 
 		// Check seperate batch append token comment codeblock for the first " * " in languages with /* */ multi line comment style
 		const append_comment_codeblock_batch = () => {
@@ -1538,27 +1550,27 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (separate) {
 					const after = this.batch.substr(i);
 					this.batch = this.batch.substr(0, i);
-					this.append_batch("token_comment", {is_comment: true});
+					this.append_batch("comment", {is_comment: true});
 					this.batch = after;
 				}
 			}
-			this.append_batch("token_comment_codeblock", {is_comment: true});
+			this.append_batch("comment_codeblock", {is_comment: true});
 		}
 
 		// Append previous batch when switching comment, string, regex, to something else.
 		const auto_append_batch_switch = (default_append = true) => {
 			if (this.is_comment_keyword) {
-				this.append_batch("token_comment_keyword", {is_comment: true});
+				this.append_batch("comment_keyword", {is_comment: true});
 			} else if (this.is_comment_codeblock) {
 				append_comment_codeblock_batch();
 			} else if (this.is_comment) {
-				this.append_batch("token_comment", {is_comment: true});
+				this.append_batch("comment", {is_comment: true});
 			} else if (this.is_str) {
-				this.append_batch("token_string");
+				this.append_batch("string");
 			} else if (this.is_regex) {
-				this.append_batch("token_string");
+				this.append_batch("string");
 			} else if (this.is_preprocessor) {
-				this.append_batch("token_preprocessor");
+				this.append_batch("preprocessor");
 			} else {
 				if (default_append) {
 					this.append_batch();
@@ -1635,13 +1647,13 @@ vhighlight.Tokenizer = class Tokenizer {
 				// Append tokens.
 				if (last_word_boundary === 0) {
 					this.batch = shebang;
-					this.append_batch("token_comment");
+					this.append_batch("comment");
 				} else {
 					++last_word_boundary;
 					this.batch = shebang.substr(0, last_word_boundary);
-					this.append_batch("token_comment");
+					this.append_batch("comment");
 					this.batch = shebang.substr(last_word_boundary); // interpreter.
-					this.append_batch("token_keyword");
+					this.append_batch("keyword");
 				}
 
 				// Set resume on index.
@@ -1746,7 +1758,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Check for special prefix chars.
 					if (auto_append_batch_switch(false) === false) {
 						if (this.special_string_prefixes.includes(this.batch)) {
-							this.append_batch("token_keyword");
+							this.append_batch("keyword");
 						} else {
 							this.append_batch();
 						}
@@ -1860,7 +1872,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				// End of comment.
 				// Should proceed with the callback since the next character needs to be parsed.
 				if (this.is_comment_keyword) {
-					this.append_batch("token_comment_keyword", {is_comment: true});
+					this.append_batch("comment_keyword", {is_comment: true});
 					this.is_comment_keyword = false;
 				}
 				else if (this.is_comment_codeblock) {
@@ -1868,7 +1880,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.is_comment_codeblock = false;
 				}
 				else if (this.is_comment) {
-					this.append_batch("token_comment", {is_comment: true});
+					this.append_batch("comment", {is_comment: true});
 					this.is_comment = false;
 					this.is_comment_keyword = false;
 					this.is_comment_codeblock = false;
@@ -1877,21 +1889,21 @@ vhighlight.Tokenizer = class Tokenizer {
 				// End of string.
 				// Should proceed with the callback since the next character needs to be parsed.
 				else if (this.is_str) {
-					this.append_batch("token_string");
+					this.append_batch("string");
 					this.is_str = false;
 				}
 				
 				// End of regex.
 				// Should proceed with the callback since the next character needs to be parsed.
 				else if (this.is_regex) {
-					this.append_batch("token_string");
+					this.append_batch("string");
 					this.is_regex = false;
 				}
 
 				// End of preprocessor.
 				// Should proceed with the callback since the next character needs to be parsed.
 				else if (this.is_preprocessor) {
-					this.append_batch("token_preprocessor");
+					this.append_batch("preprocessor");
 					this.is_preprocessor = false;
 				}
 
@@ -1919,7 +1931,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// When there is at least one char used in the decorator then parse it as a decorator.
 					if (batch.length > 1) {
 						this.batch = batch;
-						this.append_batch("token_type", {is_decorator: true, parameters: []});
+						this.append_batch("type", {is_decorator: true, parameters: []});
 						this.index += batch.length - 1;
 						return null;
 					}
@@ -2012,19 +2024,19 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Do not continue when the token before the parent is a keyword, for statements like "if ()".
 					// Since that will never be a type or type def so also do not highlight the params etc.
 					// Except for certain keywords that are allowed in some languages.
-					const is_keyword = token_before_opening_parenth.token === "token_keyword";
+					const is_keyword = token_before_opening_parenth.token === "keyword";
 					if (is_keyword && this.allowed_keywords_before_type_defs.includes(token_before_opening_parenth.data) === false) {
 						return finalize();
 					}
 
-					// When the token before the opening parenth token already is a decorator, token_type or token_type_def there is no need to call on parenth close.
+					// When the token before the opening parenth token already is a decorator, type or type_def there is no need to call on parenth close.
 					// When type def keywords are used this is possible, and with decorators ofcourse.
 					if (
 						token_before_opening_parenth != null && 
 						(
 							token_before_opening_parenth.is_decorator === true ||
-							token_before_opening_parenth.token === "token_type" ||
-							token_before_opening_parenth.token === "token_type_def"
+							token_before_opening_parenth.token === "type" ||
+							token_before_opening_parenth.token === "type_def"
 						)
 					) {
 						type_token = token_before_opening_parenth;
@@ -2039,7 +2051,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Set flags for type def tokens.
-					if (type_token != null && type_token.token === "token_type_def") {
+					if (type_token != null && type_token.token === "type_def") {
 
 						// Enable the is post type def modifier flag.
 						this.is_post_type_def_modifier = true;
@@ -2094,7 +2106,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Iterate the parenth tokens.
-					const is_type_def = type_token != null && type_token.token === "token_type_def";
+					const is_type_def = type_token != null && type_token.token === "type_def";
 					const is_decorator = type_token != null && type_token.is_decorator === true;
 
 					// let log = false;
@@ -2139,9 +2151,9 @@ vhighlight.Tokenizer = class Tokenizer {
 							}
 
 							// Assign to parameter.
-							if (token.token === "token_keyword") {
+							if (token.token === "keyword") {
 								param.modifiers.push(token.data.trim());
-							} else if (token.token === "token_type") {
+							} else if (token.token === "type") {
 								if (param.type == null) {
 									param.type = token.data.trim();
 								} else {
@@ -2154,13 +2166,13 @@ vhighlight.Tokenizer = class Tokenizer {
 									param.type += token.data.trim();
 								}
 							} else {
-								const allow_assignment = (token.token === undefined || token.token === "token_type_def");
+								const allow_assignment = (token.token === undefined || token.token === "type_def");
 
 								// On a type definition always assign to parameter.
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
 								if (is_type_def && allow_assignment) {
 									param.name = token.data.trim();
-									token.token = "token_parameter";
+									token.token = "parameter";
 								}
 
 								// When the token is a type there must be a "=" after this tokens.
@@ -2169,7 +2181,7 @@ vhighlight.Tokenizer = class Tokenizer {
 									const next = get_next_assignment_operator(i);
 									if (next !== null && allow_assignment) {
 										param.name = token.data.trim();
-										token.token = "token_parameter";
+										token.token = "parameter";
 									}
 									else if (next === null && is_decorator) {
 										if (param.value === null) {
@@ -2266,8 +2278,8 @@ vhighlight.Tokenizer = class Tokenizer {
 					// return null;
 
 					// Check if the preceding token is a type def.
-					let is_type_def = type_token != null && type_token.token === "token_type_def";
-					const is_type = type_token == null || type_token.token === "token_type";
+					let is_type_def = type_token != null && type_token.token === "type_def";
+					const is_type = type_token == null || type_token.token === "type";
 					const is_decorator = type_token != null && is_type && type_token.is_decorator === true;
 					let is_anonymous_type_def = false;
 
@@ -2286,7 +2298,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						}
 					}
 
-					// Stop when the preceding is not a token_type or token_type_def.
+					// Stop when the preceding is not a type or type_def.
 					if (!is_anonymous_type_def && !is_type_def && !is_type) {
 
 						// Delete the custom attribute.
@@ -2379,9 +2391,9 @@ vhighlight.Tokenizer = class Tokenizer {
 							}
 
 							// Assign to parameter.
-							if (token.token === "token_keyword") {
+							if (token.token === "keyword") {
 								param.modifiers.push(token.data.trim());
-							} else if (token.token === "token_type") {
+							} else if (token.token === "type") {
 								param.type = token.data.trim();
 							} else {
 
@@ -2389,7 +2401,7 @@ vhighlight.Tokenizer = class Tokenizer {
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
 								if (is_type_def && token.token === undefined) {
 									param.name = token.data.trim();
-									token.token = "token_parameter";
+									token.token = "parameter";
 								}
 
 								// When the token is a type there must be a "=" after this tokens.
@@ -2398,7 +2410,7 @@ vhighlight.Tokenizer = class Tokenizer {
 									const next = get_next_assignment_operator(i);
 									if (next !== null && token.token === undefined) {
 										param.name = token.data.trim();
-										token.token = "token_parameter";
+										token.token = "parameter";
 									} else if (next === null && is_decorator) {
 										if (param.value === null) {
 											param.value = token.data;
@@ -2475,22 +2487,27 @@ vhighlight.Tokenizer = class Tokenizer {
 		// console.log(`append_token time: ${this.append_token_time}ms.`);
 		// console.log(`get_prev_token time: ${this.get_prev_token_time}ms.`);
 
-		// Return tokens.
-		if (return_tokens) {
-			return this.tokens;
+		// Build html.
+		if (build_html) {
+			return this.build_html();
 		}
 
-		// Build html.
-		else {
-			return this.build_tokens();
+		// Return tokens.
+		else  {
+			return this.tokens;
 		}
 	}
 
 	// Partial tokenize.
-	// @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 	/*	@docs: {
 		@title Partial tokenize
 		@description: Partially tokenize text based on edited lines.
+		@warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
+		@parameter: {
+			@name: code
+			@type: string
+			@description: The new code data.
+		}
 		@parameter: {
 			@name: edits_start
 			@type: string
@@ -2513,11 +2530,27 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 	} */
 	partial_tokenize({
+		code = null,
 		edits_start = null,
 		edits_end = null,
 		line_additions = 0,
 		tokens = [],
+		build_html = false,
 	}) {
+
+		// Assign code when not assigned.
+		// So the user can also assign it to the tokenizer without cause two copies.
+		if (code !== null) {
+			this.code = code;
+		}
+
+		// Reset.
+		this.reset();
+
+		// Derived reset.
+		if (this.derived_reset !== undefined) {
+			this.derived_reset();
+		}
 
 		// Args.
 		if (line_additions === undefined || isNaN(line_additions)) {
@@ -2575,7 +2608,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						}
 
 						// Found type def at zero depth.
-						else if (token.token === "token_type_def" && depth === 0) {
+						else if (token.token === "type_def" && depth === 0) {
 							found_separator = token.line;
 							return true;
 						}
@@ -2585,10 +2618,10 @@ vhighlight.Tokenizer = class Tokenizer {
 					const first_token = line_tokens[0];
 					if (
 						found_separator !== null &&
-						first_token.token !== "token_comment" &&
-						first_token.token !== "token_string" &&
+						first_token.token !== "comment" &&
+						first_token.token !== "string" &&
 						first_token.token !== "token_regex" &&
-						first_token.token !== "token_preprocessor"
+						first_token.token !== "preprocessor"
 					) {
 						scope_start = first_token.line;
 						scope_start_offset = first_token.offset;
@@ -2635,7 +2668,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 						// Any other scope seperators.
 						else if (
-							(token.token === undefined || token.token === "token_operator") &&
+							(token.token === undefined || token.token === "operator") &&
 							token.data.length === 1 &&
 							this.scope_separators.includes(token.data)
 						) {
@@ -2648,10 +2681,10 @@ vhighlight.Tokenizer = class Tokenizer {
 					const first_token = line_tokens[0];
 					if (
 						found_separator !== null &&
-						first_token.token !== "token_comment" &&
-						first_token.token !== "token_string" &&
+						first_token.token !== "comment" &&
+						first_token.token !== "string" &&
 						first_token.token !== "token_regex" &&
-						first_token.token !== "token_preprocessor"
+						first_token.token !== "preprocessor"
 					) {
 						scope_start = first_token.line;
 						scope_start_offset = first_token.offset;
@@ -2728,7 +2761,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Tokenize.
 		this.code = this.code.substr(scope_start_offset, this.code.length - scope_start_offset);
-		const insert_tokens = this.tokenize(true, stop_callback);
+		const insert_tokens = this.tokenize({stop_callback: stop_callback});
 
 		// console.log("SCOPE:", this.code);
 		// console.log("Tokenized lines:",insert_tokens.length);
@@ -2790,12 +2823,22 @@ vhighlight.Tokenizer = class Tokenizer {
 		// console.log("combined_tokens:",combined_tokens);
 		// console.log("Combine the tokens:", Date.now() - now, "ms.");
 
-		// Handler.
-		return combined_tokens;
+		// Assign to tokens.
+		this.tokens = combined_tokens;
+
+		// Build html.
+		if (build_html) {
+			return this.build_html();
+		}
+
+		// Return tokens.
+		else  {
+			return this.tokens;
+		}
 	}
 
 	// Build the html from tokens.
-	build_tokens(reformat = true) {
+	build_html({token_prefix = "token_", reformat = true}) {
 
 		// Vars.
 		let html = "";
@@ -2810,10 +2853,14 @@ vhighlight.Tokenizer = class Tokenizer {
 						html += token.data;
 					}
 				} else {
+					let class_ = "";
+					if (token.token !== undefined) {
+						class_ = `class='${token_prefix}${token.token}'`;
+					}
 					if (reformat) {
-						html += `<span class='${token.token}'>${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`
+						html += `<span ${class_}>${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`
 					} else {
-						html += `<span class='${token.token}'>${token.data}</span>`
+						html += `<span ${class_}>${token.data}</span>`
 					}
 					
 				}
@@ -2826,11 +2873,11 @@ vhighlight.Tokenizer = class Tokenizer {
 }// ---------------------------------------------------------
 // Bash highlighter.
 
-vhighlight.Bash = class Bash {
+vhighlight.Bash = class Bash extends vhighlight.Tokenizer {
 	constructor() {
 
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer.
+		super({
 			keywords: [
 				"if",
 				"then",
@@ -2885,36 +2932,32 @@ vhighlight.Bash = class Bash {
 				"}", 
 			],
 		});
-		const tokenizer = this.tokenizer;
-
-		// Assign attributes.
-		this.reset();
 
 		// Set callback.
-		this.tokenizer.callback = (char, is_escaped) => {
+		this.callback = (char, is_escaped) => {
 			
 			// Is whitespace.
-			const is_whitespace = tokenizer.is_whitespace(char);
+			const is_whitespace = this.is_whitespace(char);
 
 			// Start of line excluding whitespace.
 			let start_of_line = false;
-			if (this.current_line != tokenizer.line && !is_whitespace) {
+			if (this.current_line != this.line && !is_whitespace) {
 				start_of_line = true;
-				this.current_line = tokenizer.line;
+				this.current_line = this.line;
 			}
 
 			// Special operators preceded by a "-" such as "-eq".
 			if (char == "-") {
 				let batch = null;
-				if (tokenizer.operators.includes(char + tokenizer.next_char)) {
-					batch = char + tokenizer.next_char;
-				} else if (tokenizer.operators.includes(char + tokenizer.next_char + tokenizer.code.charAt(tokenizer.index + 2))) {
-					batch = char + tokenizer.next_char + tokenizer.code.charAt(tokenizer.index + 2);
+				if (this.operators.includes(char + this.next_char)) {
+					batch = char + this.next_char;
+				} else if (this.operators.includes(char + this.next_char + this.code.charAt(this.index + 2))) {
+					batch = char + this.next_char + this.code.charAt(this.index + 2);
 				}
 				if (batch != null) {
-					tokenizer.append_batch();
-					tokenizer.append_forward_lookup_batch("token_operator", batch);
-					tokenizer.resume_on_index(tokenizer.index + batch.length - 1);
+					this.append_batch();
+					this.append_forward_lookup_batch("operator", batch);
+					this.resume_on_index(this.index + batch.length - 1);
 					return true;
 				}
 			}
@@ -2922,53 +2965,53 @@ vhighlight.Bash = class Bash {
 			// Special keywords preceded by a "$" such as "$1".
 			else if (char == "$") {
 				let batch = "$";
-				let index = tokenizer.index + 1;
+				let index = this.index + 1;
 				while (true) {
-					const c = tokenizer.code.charAt(index);
-					if (tokenizer.is_numerical(c)) {
+					const c = this.code.charAt(index);
+					if (this.is_numerical(c)) {
 						batch += c;
 					} else {
 						break;
 					}
 					++index;
 				}
-				if (batch.length == 1 && (tokenizer.next_char == "#" || tokenizer.next_char == "@" || tokenizer.next_char == "?")) {
-					batch += tokenizer.next_char
+				if (batch.length == 1 && (this.next_char == "#" || this.next_char == "@" || this.next_char == "?")) {
+					batch += this.next_char
 				}
 				if (batch.length > 1) {
-					tokenizer.append_batch();
-					tokenizer.append_forward_lookup_batch("token_keyword", batch);
-					tokenizer.resume_on_index(tokenizer.index + batch.length - 1);
+					this.append_batch();
+					this.append_forward_lookup_batch("keyword", batch);
+					this.resume_on_index(this.index + batch.length - 1);
 					return true;
 				}
 			}
 
 			// Function / command call.
-			else if (start_of_line && tokenizer.is_alphabetical(char)) {
+			else if (start_of_line && this.is_alphabetical(char)) {
 
 				// Do a forward lookup for a "AAA A" pattern, two consecutive words with only whitespace in between.
 				let finished = false;
 				let passed_whitespace = false;
 				let word = "";
 				let end_index = null;
-				for (let i = tokenizer.index; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == " " || c == "\t") {
 						passed_whitespace = true;
-					} else if (!passed_whitespace && (tokenizer.is_alphabetical(c) || tokenizer.is_numerical(c))) {
+					} else if (!passed_whitespace && (this.is_alphabetical(c) || this.is_numerical(c))) {
 						word += c;
 						end_index = i;
-					} else if (passed_whitespace && (char == "\\" || !tokenizer.operators.includes(char))) {
+					} else if (passed_whitespace && (char == "\\" || !this.operators.includes(char))) {
 						finished = true;
 						break;
 					} else {
 						break;
 					}
 				}
-				if (finished && !tokenizer.keywords.includes(word)) {
-					tokenizer.append_batch();
-					tokenizer.append_forward_lookup_batch("token_type", word);
-					tokenizer.resume_on_index(end_index);
+				if (finished && !this.keywords.includes(word)) {
+					this.append_batch();
+					this.append_forward_lookup_batch("type", word);
+					this.resume_on_index(end_index);
 					return true;
 				}
 			}
@@ -2980,12 +3023,12 @@ vhighlight.Bash = class Bash {
 				let style = null;
 				let start_index = null; // the start after the ": <<" or the start after the ": '"
 				let end_index = null;
-				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index + 1; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == " " || c == "\t") {
 						continue;
 					} else if (c == "<") {
-						if (tokenizer.code.charAt(i + 1) == "<") {
+						if (this.code.charAt(i + 1) == "<") {
 							start_index = i + 2;
 							style = 1;
 						}
@@ -3007,13 +3050,13 @@ vhighlight.Bash = class Bash {
 
 					// Eq first.
 					const eq_first = (start_index) => {
-						if (start_index + close_sequence.length > tokenizer.code.length) {
+						if (start_index + close_sequence.length > this.code.length) {
 					        return false;
 					    }
 					    const end = start_index + close_sequence.length;
 					    let y = 0;
 					    for (let x = start_index; x < end; x++) {
-					        if (tokenizer.code.charAt(x) != close_sequence.charAt(y)) {
+					        if (this.code.charAt(x) != close_sequence.charAt(y)) {
 					            return false;
 					        }
 					        ++y;
@@ -3022,18 +3065,18 @@ vhighlight.Bash = class Bash {
 					}
 
 					// Get the closing sequence.
-					for (let i = start_index; i < tokenizer.code.length; i++) {
-						const c = tokenizer.code.charAt(i);
+					for (let i = start_index; i < this.code.length; i++) {
+						const c = this.code.charAt(i);
 						if (!found_close_sequence) {
-							if (tokenizer.is_whitespace(c)) {
+							if (this.is_whitespace(c)) {
 								continue;
 							} else if (
 								c == '"' || 
 								c == "'" || 
 								c == "_" || 
 								c == "-" || 
-								tokenizer.is_numerical(c) || 
-								tokenizer.is_alphabetical(c)
+								this.is_numerical(c) || 
+								this.is_alphabetical(c)
 							) {
 								close_sequence += c;
 							} else {
@@ -3061,9 +3104,9 @@ vhighlight.Bash = class Bash {
 
 				// Style 2, ": ' ' " or ': " " '.
 				else if (style == 2) {
-					const closing_char = tokenizer.code.charAt(start_index - 1);
-					for (let i = start_index; i < tokenizer.code.length; i++) {
-						const c = tokenizer.code.charAt(i);
+					const closing_char = this.code.charAt(start_index - 1);
+					for (let i = start_index; i < this.code.length; i++) {
+						const c = this.code.charAt(i);
 						if (!is_escaped && c == closing_char) {
 							end_index = i;
 							break;
@@ -3073,9 +3116,9 @@ vhighlight.Bash = class Bash {
 
 				// Append tokens.
 				if (end_index != null) {
-					tokenizer.append_batch();
-					tokenizer.append_forward_lookup_batch("token_comment", tokenizer.code.substr(tokenizer.index, end_index - tokenizer.index + 1));
-					tokenizer.resume_on_index(end_index);
+					this.append_batch();
+					this.append_forward_lookup_batch("comment", this.code.substr(this.index, end_index - this.index + 1));
+					this.resume_on_index(end_index);
 					return true;
 				}
 			}
@@ -3085,82 +3128,20 @@ vhighlight.Bash = class Bash {
 		}
 
 		// Set on parenth close.
-		this.tokenizer.on_parenth_close = ({
+		this.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
-			if (after_parenth_index != null && tokenizer.code.charAt(after_parenth_index) === "{") {
-				token_before_opening_parenth.token = "token_type_def";
+			if (after_parenth_index != null && this.code.charAt(after_parenth_index) === "{") {
+				token_before_opening_parenth.token = "type_def";
 				return token_before_opening_parenth;
 			}
 		}
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	reset() {
+	derived_reset() {
 		this.current_line = null; // curent line to detect start of the line.
-	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		this.reset();
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
 	}
 }
 
@@ -3168,11 +3149,11 @@ vhighlight.Bash = class Bash {
 vhighlight.bash = new vhighlight.Bash();// ---------------------------------------------------------
 // C++ highlighter.
 
-vhighlight.CPP = class CPP {
+vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 	constructor() {
 
 		// Initialize the tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		super({
 			keywords: [
 				"alignas",
 				"alignof",
@@ -3288,7 +3269,7 @@ vhighlight.CPP = class CPP {
 				"static",
 				"volatile",
 				"mutable",
-				"namespace", // for the exclude_type_def_keywords_on_prev so that the using namespace xxx will make xxx as a token_type. 
+				"namespace", // for the exclude_type_def_keywords_on_prev so that the using namespace xxx will make xxx as a type. 
 			],
 			operators: [
 				"&&", "||", "!", "==", "!=", ">", "<", ">=", "<=", "+", "-", "*", "/", "%",
@@ -3315,31 +3296,27 @@ vhighlight.CPP = class CPP {
 			],
 			seperate_scope_by_type_def: true,
 		});
-		const tokenizer = this.tokenizer;
-
-		// Assign attributes.
-		this.reset();
 
 		// ---------------------------------------------------------
 		// On default callback.
 
-		this.tokenizer.callback = (char) => {
+		this.callback = (char) => {
 			
 			// Close is func.
-			if (this.inside_func && tokenizer.index > this.inside_func_closing_curly) {
+			if (this.inside_func && this.index > this.inside_func_closing_curly) {
 				this.inside_func = false;
 			}
 
 			// Detect types by the first x words on the line preceded by whitespace and another alphabetical character.
 			// Must be first since other if statements in this func check if the token before x is not a type.
 			if (
-				(this.last_line_type != tokenizer.line && char != " " && char != "\t") || // types are allowed at the start of the line.
-				(tokenizer.prev_char == "(" || (tokenizer.parenth_depth > 0 && tokenizer.prev_char == ",")) // types are allowed inside parentheses.
+				(this.last_line_type != this.line && char != " " && char != "\t") || // types are allowed at the start of the line.
+				(this.prev_char == "(" || (this.parenth_depth > 0 && this.prev_char == ",")) // types are allowed inside parentheses.
 			) {
-				this.last_line_type = tokenizer.line;
+				this.last_line_type = this.line;
 
 				// Append the batch because of the lookup.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Do a lookup to check if there are two consecutive words without any word boundaries except for whitespace.
 				let is_type = false;
@@ -3348,8 +3325,8 @@ vhighlight.CPP = class CPP {
 				let words = 0;
 				let append_to_batch = [];
 				let last_index, last_append_index;
-				for (let index = tokenizer.index; index < tokenizer.code.length; index++) {
-					const c = tokenizer.code.charAt(index);
+				for (let index = this.index; index < this.code.length; index++) {
+					const c = this.code.charAt(index);
 
 					// Hit template, treat different.
 					// Iterate till end of template and then check if there is only whitespace and then a char.
@@ -3361,7 +3338,7 @@ vhighlight.CPP = class CPP {
 						}
 
 						// Stop at first word char.
-						else if (tokenizer.is_alphabetical(c)) {
+						else if (this.is_alphabetical(c)) {
 							if (words == 1) {
 								is_type = true;
 								break;
@@ -3389,31 +3366,31 @@ vhighlight.CPP = class CPP {
 								hit_template = 1;
 							}
 							if (word.length > 0) {
-								if (tokenizer.keywords.includes(word)) { // do not increment words on a keyword.
+								if (this.keywords.includes(word)) { // do not increment words on a keyword.
 									// Stop when a type def keyword was encoutered.
-									if (tokenizer.type_def_keywords.includes(word)) {
+									if (this.type_def_keywords.includes(word)) {
 										return false;
 									}
-									append_to_batch.push(["token_keyword", word]);
+									append_to_batch.push(["keyword", word]);
 								} else {
-									if (c != ":" || tokenizer.code.charAt(index + 1) != ":") { // do not increment on colons like "vlib::String" since they should count as one word.
+									if (c != ":" || this.code.charAt(index + 1) != ":") { // do not increment on colons like "vlib::String" since they should count as one word.
 										++words;
 									}
-									append_to_batch.push(["token_type", word]);
+									append_to_batch.push(["type", word]);
 								}
 								last_index = index;
 								last_append_index = append_to_batch.length - 1;
 								word = "";
 							}
 							if (c == "*" || c == "&") {
-								append_to_batch.push(["token_operator", c]);
+								append_to_batch.push(["operator", c]);
 							} else {
 								append_to_batch.push([null, c]); // @todo changed jerre [false, c] to [null, c] still have to check but it should still highlight numerics in append_token called by append_forward_lookup_token
 							}
 						}
 
 						// Allowed word chars.
-						else if (tokenizer.is_alphabetical(c) || (word.length > 0 && tokenizer.is_numerical(c))) {
+						else if (this.is_alphabetical(c) || (word.length > 0 && this.is_numerical(c))) {
 							if (words == 1) {
 								is_type = true;
 								break;
@@ -3432,9 +3409,9 @@ vhighlight.CPP = class CPP {
 				// length - 1 since 
 				if (is_type) {
 					for (let i = 0; i <= last_append_index; i++) {
-						tokenizer.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
+						this.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
 					}
-					tokenizer.resume_on_index(last_index - 1);
+					this.resume_on_index(last_index - 1);
 					return true;
 				}
 
@@ -3444,28 +3421,28 @@ vhighlight.CPP = class CPP {
 			else if (char == "{") {
 
 				// Append current batch by word boundary separator.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Edit the previous token when the token is not already assigned and when the data is not "(" for a func or "if", and skip operators etc.
 				// Skip where the token before the previous is already type for example "String x {}".
 				// Also skip the tokens between < and > when the initial prev and the prev prev token is a ">".
-				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n", "&", "*"]);
+				let prev = this.get_prev_token(this.added_tokens - 1, [" ", "\t", "\n", "&", "*"]);
 				if (prev == null) { return false; }
 				if (prev.data == ">") {
-					const token = tokenizer.get_opening_template(prev.index);
+					const token = this.get_opening_template(prev.index);
 					if (token != null) {
-						prev = tokenizer.get_prev_token(token.index - 1, []);
+						prev = this.get_prev_token(token.index - 1, []);
 					}
 				}
-				let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "&", "*"]);
+				let prev_prev = this.get_prev_token(prev.index - 1, [" ", "\t", "\n", "&", "*"]);
 				if (prev_prev != null && prev_prev.data == ">") {
-					const token = tokenizer.get_opening_template(prev_prev.index);
+					const token = this.get_opening_template(prev_prev.index);
 					if (token != null) {
-						prev_prev = tokenizer.get_prev_token(token.index - 1, []);
+						prev_prev = this.get_prev_token(token.index - 1, []);
 					}
 				}
-				if ((prev_prev == null || prev_prev.token != "token_type") && prev.token === undefined && prev.data != ")") {
-					prev.token = "token_type";
+				if ((prev_prev == null || prev_prev.token != "type") && prev.token === undefined && prev.data != ")") {
+					prev.token = "type";
 				}
 			}
 
@@ -3473,7 +3450,7 @@ vhighlight.CPP = class CPP {
 			else if (char == "<") {
 
 				// Append the batch because of the lookup.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Do a forward lookup till the closing >, if there are any unallowed characters stop the lookup.
 				// Since lines like "x < y;" are allowed, so not everything is a template.
@@ -3486,10 +3463,10 @@ vhighlight.CPP = class CPP {
 				let c;
 				const add_word = (is_word_boundary = false, set_seperator = false) => {
 					if (word.length > 0) {
-						if (tokenizer.keywords.includes(word)) {
-							append_to_batch.push(["token_keyword", word]);
+						if (this.keywords.includes(word)) {
+							append_to_batch.push(["keyword", word]);
 						} else if (next_is_type) {
-							append_to_batch.push(["token_type", word]);
+							append_to_batch.push(["type", word]);
 							next_is_type = false;
 						} else {
 							append_to_batch.push([false, word]);
@@ -3507,8 +3484,8 @@ vhighlight.CPP = class CPP {
 						}
 					}
 				}
-				for (index = tokenizer.index + 1; index < tokenizer.code.length; index++) {
-					c = tokenizer.code.charAt(index);
+				for (index = this.index + 1; index < this.code.length; index++) {
+					c = this.code.charAt(index);
 
 					// Closing template.
 					if (c == "<") {
@@ -3533,13 +3510,13 @@ vhighlight.CPP = class CPP {
 						add_word(true);
 						append_to_batch.push([false, c]);
 					}
-					else if (tokenizer.is_whitespace(c) || c == "," || c == ":" || c == "*" || c == "&" || c == "\n" || c == "(" || c == ")" || c == "{" || c == "}" || c == "[" || c == "]") {
+					else if (this.is_whitespace(c) || c == "," || c == ":" || c == "*" || c == "&" || c == "\n" || c == "(" || c == ")" || c == "{" || c == "}" || c == "[" || c == "]") {
 						add_word(true);
 						append_to_batch.push([false, c]);
 					}
 
 					// Allowed alpha and numeric
-					else if (tokenizer.is_alphabetical(c) || tokenizer.is_numerical(c)) {
+					else if (this.is_alphabetical(c) || this.is_numerical(c)) {
 						word += c;
 					}
 
@@ -3553,45 +3530,45 @@ vhighlight.CPP = class CPP {
 				// Add the batches when it is a template.
 				if (is_template) {
 					for (let i = 0; i < append_to_batch.length; i++) {
-						tokenizer.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1], {is_template: true});
+						this.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1], {is_template: true});
 					}
-					tokenizer.resume_on_index(index);
+					this.resume_on_index(index);
 					return true;
 				}
 			}
 
 			// Double colon.
-			else if (char == ":" && tokenizer.prev_char == ":") {
+			else if (char == ":" && this.prev_char == ":") {
 
 				// Append batch by separator.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Append to new batch.
-				tokenizer.batch += char;
-				tokenizer.append_batch(false);
+				this.batch += char;
+				this.append_batch(false);
 
 				// Set next token.
-				tokenizer.next_token = "token_type";
+				this.next_token = "type";
 
 				// Set prev token.
 				// Skip the tokens between < and > when the initial prev token is a ">".
-				let prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [":"]);
+				let prev = this.get_prev_token(this.added_tokens - 1, [":"]);
 				if (prev == null) {
 					return false;
 				}
 				if (prev.data == ">") {
-					prev = tokenizer.get_opening_template(prev.index);
+					prev = this.get_opening_template(prev.index);
 					if (prev !== null) {
-						prev = tokenizer.get_prev_token(prev.index - 1, [])
+						prev = this.get_prev_token(prev.index - 1, [])
 					}
 				}
 				if (prev == null) {
 					return false;
 				}
 				if (
-					(prev.token === undefined || prev.token == "token_type_def") // when token is null or prev token from like "using namespace a::b::c;"
-					&& !tokenizer.str_includes_word_boundary(prev.data)) {
-					prev.token = "token_type";
+					(prev.token === undefined || prev.token == "type_def") // when token is null or prev token from like "using namespace a::b::c;"
+					&& !this.str_includes_word_boundary(prev.data)) {
+					prev.token = "type";
 				}
 				return true;
 			}
@@ -3600,7 +3577,7 @@ vhighlight.CPP = class CPP {
 			else if (char === "}" && this.capture_inherit_start_token !== undefined) {
 
 				// Append current batch by word boundary separator.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Vars.
 				const start_token = this.capture_inherit_start_token;
@@ -3610,10 +3587,10 @@ vhighlight.CPP = class CPP {
 				let post_colon = false;
 
 				// Iterate backwards till the extends token is found, capture the types found in between.
-				tokenizer.tokens.iterate_tokens(start_token.line, null, (token) => {
+				this.tokens.iterate_tokens(start_token.line, null, (token) => {
 					if (token.index > start_token.index) {
 						if (post_colon) {
-							if (token.token === "token_keyword") {
+							if (token.token === "keyword") {
 								inherit_privacy_type = token.data;
 							} else if (inherit_privacy_type != null) {
 								if (token.is_whitespace) {
@@ -3622,7 +3599,7 @@ vhighlight.CPP = class CPP {
 								else if (token.is_word_boundary) {
 									inherit_privacy_type = null;
 								} else {
-									token.token = "token_type";
+									token.token = "type";
 									inherited_types.push({
 										type: inherit_privacy_type,
 										token: token,
@@ -3730,7 +3707,7 @@ vhighlight.CPP = class CPP {
 				let ends_with_requires = false;
 				let lookback_parenth_depth = 0;
 				let lookback_curly_depth = 0;
-				tokenizer.tokens.iterate_tokens_reversed(0, token.line + 1, (lookback) => {
+				this.tokens.iterate_tokens_reversed(0, token.line + 1, (lookback) => {
 					if (lookback.index <= token.index) {
 
 						// Set depths.
@@ -3773,7 +3750,7 @@ vhighlight.CPP = class CPP {
 						}
 
 						// Check termination by the lookback is the "requires" keyword.
-						else if (lookback.token === "token_keyword" && lookback.data === "requires") {
+						else if (lookback.token === "keyword" && lookback.data === "requires") {
 							ends_with_requires = true;
 							modifier_tokens.push(lookback)
 							on_lower_than_index = lookback.token; // set the on lower than index to this token's index for the parent iteration.
@@ -3781,7 +3758,7 @@ vhighlight.CPP = class CPP {
 						}
 
 						// Operators are allowed.
-						else if (lookback.token === "token_operator") {
+						else if (lookback.token === "operator") {
 							lookback_requires_tokens.push(lookback);	
 						}
 
@@ -3806,7 +3783,7 @@ vhighlight.CPP = class CPP {
 			}
 
 			// Iterate the previous tokens reversed from the type def token.
-			tokenizer.tokens.iterate_tokens_reversed(0, type_def_token.line + 1, (token) => {
+			this.tokens.iterate_tokens_reversed(0, type_def_token.line + 1, (token) => {
 				if (token.index < on_lower_than_index) {
 					
 					// First go back to the token before the type definition.
@@ -3827,7 +3804,7 @@ vhighlight.CPP = class CPP {
 						}
 
 						// Is a type token.
-						else if (token.token === "token_type") {
+						else if (token.token === "type") {
 							type_tokens.push(token);
 							return null; // prevent fallthrough to "Check modifiers".
 						}
@@ -3835,7 +3812,7 @@ vhighlight.CPP = class CPP {
 						// End of types by a keyword.
 						// Must be after the inside template check, cause keywords are allowed inside templates.
 						// @todo keywords are also allowed for require clauses.
-						else if (first_type_keyword && token.token === "token_keyword") {
+						else if (first_type_keyword && token.token === "keyword") {
 							type_tokens.push(token);
 							post_type = true;
 							first_type_keyword = false;
@@ -3849,7 +3826,7 @@ vhighlight.CPP = class CPP {
 						}
 
 						// Allowed operators.
-						else if (token.token === "token_operator" && (token.data === "&" || token.data === "*")) {
+						else if (token.token === "operator" && (token.data === "&" || token.data === "*")) {
 							type_tokens.push(token);
 							return null; // prevent fallthrough to "Check modifiers".
 						}
@@ -3900,7 +3877,7 @@ vhighlight.CPP = class CPP {
 						// Reset the templates when the token before the the opening template is not "template".
 						// Also when the template is not reset there must be checked for a end of modifiers 1) since it was potentially part of a requires clause without parenth or it was the actual close.
 						// Must be after "Skip whitespace".
-						if (is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "token_keyword" || token.data !== "template")) {
+						if (is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
 							lookback_requires_tokens = templates_tokens;
 							templates_tokens = [];
 							return check_end_of_modifiers(token);
@@ -3908,7 +3885,7 @@ vhighlight.CPP = class CPP {
 
 						// Rest the requires tokens when the token before the opening parenth is not "requires".
 						// Must be after "Skip whitespace".
-						else if (check_reset_requires_tokens === true && is_template === false && (token.token !== "token_keyword" || token.data !== "requires")) {
+						else if (check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
 							lookback_requires_tokens = requires_tokens;
 							requires_tokens = [];
 							check_reset_requires_tokens = false;
@@ -3929,7 +3906,7 @@ vhighlight.CPP = class CPP {
 						}
 
 						// Is a modifier.
-						else if ((token.token === undefined || token.token === "token_keyword") && this.function_modifiers.includes(token.data)) {
+						else if ((token.token === undefined || token.token === "keyword") && this.function_modifiers.includes(token.data)) {
 							modifier_tokens.push(token);
 						}
 
@@ -3945,7 +3922,7 @@ vhighlight.CPP = class CPP {
 
 			// Assign the type, remove whitespace at the start and end and then concat the tokens to a type.
 			if (type_tokens.length === 0) {
-				console.error(`Unable to determine the function type of function "${tokenizer.line}:${type_def_token.data}()".`);
+				console.error(`Unable to determine the function type of function "${this.line}:${type_def_token.data}()".`);
 			} else {
 				type_def_token.type = trim_tokens(type_tokens, true);	
 			}
@@ -3978,49 +3955,49 @@ vhighlight.CPP = class CPP {
 		}
 
 		// Set on parenth close callback.
-		this.tokenizer.on_parenth_close = ({
+		this.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
 
 			// Get the closing parentheses.
-			const closing = tokenizer.index;
+			const closing = this.index;
 			if (after_parenth_index != null) {
 
 				// Edit the previous token when the token is not already assigned, for example skip the keywords in "if () {".
 				// And skip lambda functions with a "]" before the "(".
-				let prev = tokenizer.get_prev_token(token_before_opening_parenth.index, [" ", "\t", "\n", "*", "&"]);
+				let prev = this.get_prev_token(token_before_opening_parenth.index, [" ", "\t", "\n", "*", "&"]);
 				if (prev == null) {
 					return null;
 				}
-				const prev_prev = tokenizer.get_prev_token(prev.index - 1);
+				const prev_prev = this.get_prev_token(prev.index - 1);
 				const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
 				if (
 					(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
-					(prev.token == "token_type" && prev_prev_is_colon === true) // when the previous token is token_type by a double colon.
+					(prev.token == "type" && prev_prev_is_colon === true) // when the previous token is type by a double colon.
 				) {
 
 					// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
 					// Unless the previous non word boundary token is a keyword such as "if () {".
-					const lookup = tokenizer.code.charAt(after_parenth_index); 
+					const lookup = this.code.charAt(after_parenth_index); 
 					if (
 						(lookup == ";" && !this.inside_func) || // from semicolon when not inside a function body.
 						lookup == "{" || // from opening curly.
 						first_char_matches_function_modifier(lookup) // from function modifier.
 					) {
-						prev.token = "token_type_def";
+						prev.token = "type_def";
 						let token_for_parse_pre_func_tokens = prev;
 
 
-						// When the prev prev token is a colon, also set the "token_type" assigned by double colon to "token_type_def".
+						// When the prev prev token is a colon, also set the "type" assigned by double colon to "type_def".
 						// So the entire "mylib::mychapter::myfunc() {}" will be a token type def, not just "myfunc" but also "mylib" and "mychapter".
 						let token = prev;
 						while (true) {
-							token = tokenizer.get_prev_token(token.index - 1, [":"]);
-							if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+							token = this.get_prev_token(token.index - 1, [":"]);
+							if (token == null || this.str_includes_word_boundary(token.data)) {
 								break;
 							}
-							token.token = "token_type_def";
+							token.token = "type_def";
 							token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
 							token_for_parse_pre_func_tokens = token;
 						}
@@ -4030,8 +4007,8 @@ vhighlight.CPP = class CPP {
 						// Semicolons (for header func detection) should not be used in the context between here and the opening curly.
 						// Unless the func is a header definition, but then the forward lookup loop stops.
 						let opening = null;
-						for (let i = closing; i < tokenizer.code.length; i++) {
-							const c = tokenizer.code.charAt(i);
+						for (let i = closing; i < this.code.length; i++) {
+							const c = this.code.charAt(i);
 							if (c == ";") {
 								break;
 							}
@@ -4042,7 +4019,7 @@ vhighlight.CPP = class CPP {
 						}
 						if (opening != null) {
 							this.inside_func = true;
-							this.inside_func_closing_curly = tokenizer.get_closing_curly(opening);
+							this.inside_func_closing_curly = this.get_closing_curly(opening);
 						}
 
 						// Parse the type def pre modifiers.
@@ -4052,24 +4029,24 @@ vhighlight.CPP = class CPP {
 						return prev;
 					}
 
-					// When the first character after the closing parentheses is not a "{" then the previous token is a "token_type".
+					// When the first character after the closing parentheses is not a "{" then the previous token is a "type".
 					// Unless the token before the previous token is already a type, such as "String x()".
 					else {
 
 						// Check if the prev token is a template closing.
 						while (prev.data === ">") {
-							const token = tokenizer.get_opening_template(prev.index);
+							const token = this.get_opening_template(prev.index);
 							if (token != null) {
-								prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+								prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 							} else {
 								break;
 							}
 						}
 
 						// Make sure the token before the prev is not a keyword such as "if ()".
-						let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
-						if (prev_prev == null || (prev_prev.token != "token_type")) {
-							prev.token = "token_type";
+						let prev_prev = this.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
+						if (prev_prev == null || (prev_prev.token != "type")) {
+							prev.token = "type";
 						}
 					}
 				}
@@ -4077,7 +4054,7 @@ vhighlight.CPP = class CPP {
 		}
 
 		// The on post type def modifier callback.
-		this.tokenizer.on_post_type_def_modifier_end = (type_def_token, last_token) => {
+		this.on_post_type_def_modifier_end = (type_def_token, last_token) => {
 
 			// Vars.
 			let parenth_depth = 0;			// the parenth depth.
@@ -4089,7 +4066,7 @@ vhighlight.CPP = class CPP {
 			let is_template = false; 		// tokens are inside a templates clause.
 
 			// Iterate backwards to find the start token.
-			tokenizer.tokens.iterate_tokens(type_def_token.line, null, (token) => {
+			this.tokens.iterate_tokens(type_def_token.line, null, (token) => {
 				if (token.index === last_token.index) {
 					return false; // err.
 				}
@@ -4110,14 +4087,14 @@ vhighlight.CPP = class CPP {
 				}
 			})
 			if (closing_parenth_token === undefined) {
-				console.error(`Unable to find the closing paremeter parentheses of function "${tokenizer.line}:${type_def_token.data}()".`);
+				console.error(`Unable to find the closing paremeter parentheses of function "${this.line}:${type_def_token.data}()".`);
 				return null;
 			}
 
 			// Iterate post modifier tokens forward.
-			tokenizer.tokens.iterate_tokens(closing_parenth_token.line, last_token.line + 1, (token) => {
+			this.tokens.iterate_tokens(closing_parenth_token.line, last_token.line + 1, (token) => {
 				if (token.index > closing_parenth_token.index && token.index <= last_token.index) {
-					const is_keyword = token.token === "token_keyword";
+					const is_keyword = token.token === "keyword";
 
 					// Disable is template flag.
 					// Skip whitespace since there may be whitespace between `template` and the first `<` where the `is_template` flag will be enabled.
@@ -4194,14 +4171,14 @@ vhighlight.CPP = class CPP {
 		// Set the on type def keyword callback.
 		// The parents always need to be set, but when a class is defined like "mylib.MyClass = class MyClass {}" the tokenizer will not add mylib as a parent.
 		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
-		this.tokenizer.on_type_def_keyword = (token) => {
+		this.on_type_def_keyword = (token) => {
 			
 			// Assign parents.
-			tokenizer.assign_parents(token);
-			tokenizer.add_parent(token);
+			this.assign_parents(token);
+			this.add_parent(token);
 
 			// Set the start token to capture inherited classes when the previous token is either struct or class.
-			const prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 			if (prev !== null && (prev.data === "struct" || prev.data === "class")) {
 				this.capture_inherit_start_token = token;
 			}
@@ -4209,7 +4186,7 @@ vhighlight.CPP = class CPP {
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	reset() {
+	derived_reset() {
 		
 		// The last line to detect types.
 		this.last_line_type = null;
@@ -4223,79 +4200,17 @@ vhighlight.CPP = class CPP {
 		// Used to detect type def inheritance.
 		this.capture_inherit_start_token = undefined;
 	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		this.reset();
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
-	}
 }
 
 // Initialize.
 vhighlight.cpp = new vhighlight.CPP();// ---------------------------------------------------------
 // CSS highlighter.
 
-vhighlight.CSS = class CSS {
+vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 	constructor() {
 
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer .
+		super({
 			keywords: [
 				// Transition Timing Functions
 				'ease',
@@ -4531,9 +4446,6 @@ vhighlight.CSS = class CSS {
 			],
 		});
 
-		// Assign attributes.
-		this.reset();
-
 		// Numerics regex.
 		const numeric_suffixes = [
 			'px',
@@ -4568,59 +4480,58 @@ vhighlight.CSS = class CSS {
 		this.numeric_regex = new RegExp(`^-?\\d+(\\.\\d+)?(${numeric_suffixes})*$`);
 
 		// Set callback.
-		this.tokenizer.callback = (char, is_escaped) => {
-			const tokenizer = this.tokenizer;
+		this.callback = (char, is_escaped) => {
 			
 			// At keywords such as "@keyframes".
 			if (char == "@") {
-				const end = tokenizer.get_first_word_boundary(tokenizer.index + 1);
-				tokenizer.append_batch();
-				tokenizer.append_forward_lookup_batch("token_keyword", tokenizer.code.substr(tokenizer.index, end - tokenizer.index));
-				tokenizer.resume_on_index(end - 1);
+				const end = this.get_first_word_boundary(this.index + 1);
+				this.append_batch();
+				this.append_forward_lookup_batch("keyword", this.code.substr(this.index, end - this.index));
+				this.resume_on_index(end - 1);
 				return true;
 			}
 
 			// Hex colors.
-			if (tokenizer.batch == "" && char == "#") {
-				const end = tokenizer.get_first_word_boundary(tokenizer.index + 1);
-				tokenizer.append_batch();
-				tokenizer.append_forward_lookup_batch("token_string", tokenizer.code.substr(tokenizer.index, end - tokenizer.index));
-				tokenizer.resume_on_index(end - 1);
+			if (this.batch == "" && char == "#") {
+				const end = this.get_first_word_boundary(this.index + 1);
+				this.append_batch();
+				this.append_forward_lookup_batch("string", this.code.substr(this.index, end - this.index));
+				this.resume_on_index(end - 1);
 				return true;
 			}
 
 			// Css class definitions.
 			else if (char == "{") {
-				tokenizer.append_batch();
-				let index = tokenizer.added_tokens - 1;
+				this.append_batch();
+				let index = this.added_tokens - 1;
 				while (true) {
-					const prev = tokenizer.get_prev_token(index, [" ", ",", "\t", ":"]);
+					const prev = this.get_prev_token(index, [" ", ",", "\t", ":"]);
 					if (prev == null || prev.data == "\n") {
 						break;
 					}
 					else if (
-						(prev.token == "token_string") || // for "#myid" which will otherwise be treated as hex strings.
-						(prev.token == "token_keyword" && prev.data.charAt(0) != "@") ||
+						(prev.token == "string") || // for "#myid" which will otherwise be treated as hex strings.
+						(prev.token == "keyword" && prev.data.charAt(0) != "@") ||
 						(prev.token === undefined && 
 							(
 								prev.data == "#" || 
 								prev.data == "." || 
 								prev.data == "*" || 
 								prev.data == "-" || 
-								tokenizer.is_alphabetical(prev.data.charAt(0))
+								this.is_alphabetical(prev.data.charAt(0))
 							)
 						)
 					) {
-						const pprev = tokenizer.tokens[prev.index - 1];
+						const pprev = this.tokens[prev.index - 1];
 						if (pprev != null && pprev.data == ":") {
-							prev.token = "token_keyword";
-							// pprev.token = "token_keyword";
-							// const ppprev = tokenizer.tokens[pprev.index - 1];
+							prev.token = "keyword";
+							// pprev.token = "keyword";
+							// const ppprev = this.tokens[pprev.index - 1];
 							// if (ppprev != null && ppprev.data == ":") {
-							// 	ppprev.token = "token_keyword";
+							// 	ppprev.token = "keyword";
 							// }
 						} else {
-							prev.token = "token_type_def";
+							prev.token = "type_def";
 						}
 					}
 					index = prev.index - 1;
@@ -4628,13 +4539,13 @@ vhighlight.CSS = class CSS {
 			}
 
 			// CSS style attribute, curly depth is higher then 1 with pattern "^\s*XXX:" or ";\s*XXX:".
-			else if (tokenizer.curly_depth > 0 && char == ":") {
-				tokenizer.append_batch();
-				let index = tokenizer.added_tokens - 1;
+			else if (this.curly_depth > 0 && char == ":") {
+				this.append_batch();
+				let index = this.added_tokens - 1;
 				let edits = [];
 				let finished = false;
 				while (true) {
-					const prev = tokenizer.get_prev_token(index, [" ", "\t"]);
+					const prev = this.get_prev_token(index, [" ", "\t"]);
 					if (prev == null) {
 						break;
 					}
@@ -4650,13 +4561,13 @@ vhighlight.CSS = class CSS {
 				}
 				if (finished) {
 					for (let i = 0; i < edits.length; i++) {
-						edits[i].token = "token_keyword";
+						edits[i].token = "keyword";
 					}
 					
 					// Set style start and end.
-					this.style_start = tokenizer.index;
-					for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
-						const c = tokenizer.code.charAt(i);
+					this.style_start = this.index;
+					for (let i = this.index + 1; i < this.code.length; i++) {
+						const c = this.code.charAt(i);
 						if (c == "\n") {
 							this.style_start = null;
 							break;
@@ -4669,25 +4580,25 @@ vhighlight.CSS = class CSS {
 			}
 
 			// Numerics.
-			else if (char == "%" && this.numeric_regex.test(tokenizer.batch + char)) {
-				tokenizer.batch += char;
-				tokenizer.append_batch("token_numeric");
+			else if (char == "%" && this.numeric_regex.test(this.batch + char)) {
+				this.batch += char;
+				this.append_batch("numeric");
 				return true;
 			}
-			else if (tokenizer.word_boundaries.includes(char) && this.numeric_regex.test(tokenizer.batch)) {
-				tokenizer.append_batch("token_numeric");
+			else if (this.word_boundaries.includes(char) && this.numeric_regex.test(this.batch)) {
+				this.append_batch("numeric");
 			}
 
 			// Style attribute value keywords.
 			// Basically every token that does not have an assigned token and does not contain a word boundary except for "-" between the style start and end.
 			// Must be after numerics.
-			else if (this.style_end != null && tokenizer.index >= this.style_end) {
-				tokenizer.append_batch();
-				let index = tokenizer.added_tokens - 1;
+			else if (this.style_end != null && this.index >= this.style_end) {
+				this.append_batch();
+				let index = this.added_tokens - 1;
 				let finished = false;
 				const edits = [];
 				while (true) {
-					const prev = tokenizer.get_prev_token(index, [" ", "\t"]);
+					const prev = this.get_prev_token(index, [" ", "\t"]);
 					if (prev == null || prev == "\n") {
 						break;
 					}
@@ -4695,14 +4606,14 @@ vhighlight.CSS = class CSS {
 						finished = true;
 						break;
 					}
-					else if (prev.token === undefined && !tokenizer.str_includes_word_boundary(prev.data)) {
+					else if (prev.token === undefined && !this.str_includes_word_boundary(prev.data)) {
 						edits.push(prev);
 					}
 					index = prev.index - 1;
 				}
 				if (finished) {
 					for (let i = 0; i < edits.length; i++) {
-						edits[i].token = "token_keyword";
+						edits[i].token = "keyword";
 					}
 				}
 				this.style_end = null;
@@ -4713,85 +4624,23 @@ vhighlight.CSS = class CSS {
 		}
 
 		// Set on parenth close.
-		this.tokenizer.on_parenth_close = ({
+		this.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
 			if (token_before_opening_parenth != null && token_before_opening_parenth.token === undefined) {
-				token_before_opening_parenth.token = "token_type";
+				token_before_opening_parenth.token = "type";
 				return token_before_opening_parenth;
 			}
 		}
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	reset() {
+	derived_reset() {
 
 		// Start and end of css style attribute index, start begins after the ":" and the end is at the ";".
 		this.style_start = null;
 		this.style_end = null;
-	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		this.reset();
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
 	}
 }
 
@@ -4799,7 +4648,7 @@ vhighlight.CSS = class CSS {
 vhighlight.css = new vhighlight.CSS();// ---------------------------------------------------------
 // Python highlighter.
 
-vhighlight.HTML = class HTML {
+vhighlight.HTML = class HTML extends vhighlight.Tokenizer {
 
 	// Static attributes.
 	static language_tags = [
@@ -4819,11 +4668,8 @@ vhighlight.HTML = class HTML {
 		allow_entities = true, // when allow_entities is true an entity like &gt; will not be converted to &amp;gt;
 	} = {}) {
 
-		// Params.
-		this.allow_entities = allow_entities;
-
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer.
+		super({
 			multi_line_comment_start: "<!--",
 			multi_line_comment_end: "-->",
 			allow_parameters: false,
@@ -4838,15 +4684,17 @@ vhighlight.HTML = class HTML {
 			],
 		});
 
+		// Params.
+		this.allow_entities = allow_entities;
+
 		// Set callback.
-		this.tokenizer.callback = (char) => {
-			const tokenizer = this.tokenizer;
+		this.callback = (char) => {
 
 			// Highlight entities.
 			if (char === "&") {
 
 				// Append batch by word boundary.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Do a forward lookup to check if the entity ends with a ';' without encountering a space or tab or newline.
 				let batch;
@@ -4857,8 +4705,8 @@ vhighlight.HTML = class HTML {
 				}
 				let success = false;
 				let index = 0;
-				for (index = tokenizer.index + 1; index < tokenizer.code.length; index++) {
-					const c = tokenizer.code.charAt(index);
+				for (index = this.index + 1; index < this.code.length; index++) {
+					const c = this.code.charAt(index);
 					batch += c;
 					if (c === " " || c === "\t" || c === "\n") {
 						break;
@@ -4871,9 +4719,9 @@ vhighlight.HTML = class HTML {
 
 				// On success.
 				if (success) {
-					tokenizer.batch = batch;
-					tokenizer.append_batch("token_keyword");
-					tokenizer.resume_on_index(index);
+					this.batch = batch;
+					this.append_batch("keyword");
+					this.resume_on_index(index);
 					return true;
 				}
 			}
@@ -4886,35 +4734,35 @@ vhighlight.HTML = class HTML {
 				let resume_on_index = null;
 
 				// Get tag indexes.
-				let tag_name_start = tokenizer.get_first_non_whitespace(tokenizer.index + 1, true);
+				let tag_name_start = this.get_first_non_whitespace(this.index + 1, true);
 				if (tag_name_start === null) { return false; }
-				const is_tag_closer = tokenizer.code.charAt(tag_name_start) === "/";
-				const tag_end_index = tokenizer.lookup({query: ">", index: tokenizer.index});
+				const is_tag_closer = this.code.charAt(tag_name_start) === "/";
+				const tag_end_index = this.lookup({query: ">", index: this.index});
 				if (tag_end_index === null) { return false; }
 
 				// Append < token.
-				lookup_tokens.push(["token_operator", "<"]);
+				lookup_tokens.push(["operator", "<"]);
 
 				// Append whitespace tokens.
-				const whitespace = tag_name_start - (tokenizer.index + 1);
+				const whitespace = tag_name_start - (this.index + 1);
 				if (whitespace > 0) {
-					lookup_tokens.push([false, tokenizer.code.substr(tokenizer.index + 1, whitespace)]);
+					lookup_tokens.push([false, this.code.substr(this.index + 1, whitespace)]);
 				}
 
 				// Add / or ! tokens at the tag name start.
 				let skip = ["/", "!"];
-				while (skip.includes(tokenizer.code.charAt(tag_name_start))) {
+				while (skip.includes(this.code.charAt(tag_name_start))) {
 
-					lookup_tokens.push(["token_operator", tokenizer.code.charAt(tag_name_start)]);
+					lookup_tokens.push(["operator", this.code.charAt(tag_name_start)]);
 					
 					// Get real start of tag name.
-					const real_tag_name_start = tokenizer.get_first_non_whitespace(tag_name_start + 1, true);
+					const real_tag_name_start = this.get_first_non_whitespace(tag_name_start + 1, true);
 					if (real_tag_name_start === null) { return false; }
 
 					// Append whitespace tokens.
 					const whitespace = real_tag_name_start - (tag_name_start + 1);
 					if (whitespace > 0) {
-						lookup_tokens.push([false, tokenizer.code.substr(tag_name_start + 1, whitespace)]);
+						lookup_tokens.push([false, this.code.substr(tag_name_start + 1, whitespace)]);
 					}
 
 					// Update tag name start.
@@ -4922,10 +4770,10 @@ vhighlight.HTML = class HTML {
 				}
 
 				// Append the tag name as keyword.
-				const tag_name_end = tokenizer.get_first_word_boundary(tag_name_start);
+				const tag_name_end = this.get_first_word_boundary(tag_name_start);
 				if (tag_name_end === null) { return false; }
-				const tag_name = tokenizer.code.substr(tag_name_start, tag_name_end - tag_name_start);
-				lookup_tokens.push(["token_keyword", tag_name]);
+				const tag_name = this.code.substr(tag_name_start, tag_name_end - tag_name_start);
+				lookup_tokens.push(["keyword", tag_name]);
 
 				// Parse the attributes.
 				const info = {index: null};
@@ -4933,7 +4781,7 @@ vhighlight.HTML = class HTML {
 				let was_comment = false, comment_start = 0;
 				let last_index = tag_end_index - 1;
 				let is_attr_type = false, attr_type = null;
-				const err = tokenizer.iterate_code(info, tag_name_end, tag_end_index, (char, is_str, _, is_comment) => {
+				const err = this.iterate_code(info, tag_name_end, tag_end_index, (char, is_str, _, is_comment) => {
 					const is_last_index = info.index === last_index;
 
 					// String end.
@@ -4941,8 +4789,8 @@ vhighlight.HTML = class HTML {
 						let end;
 						if (last_index === info.index) { end = info.index + 1; }
 						else { end = info.index; }
-						const data = tokenizer.code.substr(str_start, end - str_start);
-						lookup_tokens.push(["token_string", data]);
+						const data = this.code.substr(str_start, end - str_start);
+						lookup_tokens.push(["string", data]);
 						if (is_attr_type) {
 							if ((data.startsWith('"') && data.endsWith('"')) || (data.startsWith("'") && data.endsWith("'"))) {
 								attr_type = data.slice(1, -1);
@@ -4958,7 +4806,7 @@ vhighlight.HTML = class HTML {
 						let end;
 						if (last_index === info.index) { end = info.index + 1; }
 						else { end = info.index; }
-						lookup_tokens.push(["token_comment", tokenizer.code.substr(comment_start, end - comment_start)]);
+						lookup_tokens.push(["comment", this.code.substr(comment_start, end - comment_start)]);
 						was_comment = false;
 					}
 
@@ -4991,19 +4839,19 @@ vhighlight.HTML = class HTML {
 
 					// Assignment operator.
 					else if (char === "=") {
-						lookup_tokens.push(["token_operator", char]);
+						lookup_tokens.push(["operator", char]);
 					}
 
 					// Attribute keyword.
 					else {
-						const end = tokenizer.get_first_word_boundary(info.index);
+						const end = this.get_first_word_boundary(info.index);
 						if (end === info.index) { // current char is word boundary, prevent infinite loop.
 							lookup_tokens.push([null, char]);
 							return null;
 						}
 						if (end > tag_end_index) { return true; }
-						const data = tokenizer.code.substr(info.index, end - info.index);
-						lookup_tokens.push(["token_keyword", data]);
+						const data = this.code.substr(info.index, end - info.index);
+						lookup_tokens.push(["keyword", data]);
 						info.index = end - 1;
 						is_attr_type = data === "type";
 					}
@@ -5013,16 +4861,16 @@ vhighlight.HTML = class HTML {
 				}
 
 				// Add the closing > token.
-				lookup_tokens.push(["token_operator", ">"]);
+				lookup_tokens.push(["operator", ">"]);
 
 				// Set default resume on index.
 				resume_on_index = tag_end_index;
 
 				// Append the lookup tokens.
 				for (let i = 0; i < lookup_tokens.length; i++) {
-					tokenizer.append_forward_lookup_batch(lookup_tokens[i][0], lookup_tokens[i][1]);
+					this.append_forward_lookup_batch(lookup_tokens[i][0], lookup_tokens[i][1]);
 				}
-				tokenizer.resume_on_index(resume_on_index);
+				this.resume_on_index(resume_on_index);
 
 				// Parse the entire tag till closing tag on certain tags.
 				let verbatim_tag = false;
@@ -5041,12 +4889,12 @@ vhighlight.HTML = class HTML {
 					const info = {index: null};
 					let close_tag_start_index = null, close_tag_end_index = null;
 					let close_tag = `/${tag_name}>`;
-					tokenizer.iterate_code(info, tag_end_index, null, (char, is_str, _, is_comment) => {
+					this.iterate_code(info, tag_end_index, null, (char, is_str, _, is_comment) => {
 						if (is_str === false && is_comment === false && char === "<") {
 							close_tag_start_index = info.index;
 							let tag_i = 0;
-							for (let i = info.index + 1; i < tokenizer.code.length; i++) {
-								const c = tokenizer.code.charAt(i);
+							for (let i = info.index + 1; i < this.code.length; i++) {
+								const c = this.code.charAt(i);
 								if (c === " " || c === "\t" || c === "\n") {
 									continue;
 								} else if (c !== close_tag.charAt(tag_i)) {
@@ -5063,35 +4911,35 @@ vhighlight.HTML = class HTML {
 
 					// When the close tag is not found then skip everything afterwards.
 					if (close_tag_end_index === null) {
-						tokenizer.append_forward_lookup_batch(false, tokenizer.code.substr(content_start));
-						tokenizer.resume_on_index(tokenizer.code.length);
+						this.append_forward_lookup_batch(false, this.code.substr(content_start));
+						this.resume_on_index(this.code.length);
 					}
 
 
 					// For certain tags the highlighting needs to be skipped until the tag closes.
 					else if (verbatim_tag) {
-						tokenizer.append_forward_lookup_batch(false, tokenizer.code.substr(content_start, close_tag_start_index - content_start));
-						tokenizer.resume_on_index(close_tag_start_index - 1);
+						this.append_forward_lookup_batch(false, this.code.substr(content_start, close_tag_start_index - content_start));
+						this.resume_on_index(close_tag_start_index - 1);
 					}
 
 					// Parse css.
 					else if (tag_name === "style") {
-						const tokens = vhighlight.css.highlight(tokenizer.code.substr(content_start, close_tag_start_index - content_start), true)
-						tokenizer.concat_tokens(tokens);
-						tokenizer.resume_on_index(close_tag_start_index - 1);
+						const tokens = vhighlight.css.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start)})
+						this.concat_tokens(tokens);
+						this.resume_on_index(close_tag_start_index - 1);
 					}
 
 					// Parse javascript.
 					else if (tag_name === "script" && (attr_type == null || attr_type === "text/javascript" || attr_type === "application/javascript")) {
-						const tokens = vhighlight.js.highlight(tokenizer.code.substr(content_start, close_tag_start_index - content_start), true)
-						tokenizer.concat_tokens(tokens);
-						tokenizer.resume_on_index(close_tag_start_index - 1);
+						const tokens = vhighlight.js.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start)})
+						this.concat_tokens(tokens);
+						this.resume_on_index(close_tag_start_index - 1);
 					}
 
 					// Uncaucht so add as plain text.
 					else {
-						tokenizer.append_forward_lookup_batch(false, tokenizer.code.substr(content_start, close_tag_start_index - content_start));
-						tokenizer.resume_on_index(close_tag_start_index - 1);
+						this.append_forward_lookup_batch(false, this.code.substr(content_start, close_tag_start_index - content_start));
+						this.resume_on_index(close_tag_start_index - 1);
 					}
 				
 				}
@@ -5105,21 +4953,13 @@ vhighlight.HTML = class HTML {
 			return false;
 		}
 	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
 }
 
 // Initialize.
 vhighlight.html = new vhighlight.HTML();// ---------------------------------------------------------
 // Javascript highlighter.
 
-vhighlight.JS = class JS {
+vhighlight.JS = class JS extends vhighlight.Tokenizer {
 	constructor({
 		keywords = [
 			"break",
@@ -5203,8 +5043,8 @@ vhighlight.JS = class JS {
 		],
 	} = {}) {
 
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer.
+		super({
 			keywords: keywords,
 			type_def_keywords: type_def_keywords, 
 			type_keywords: type_keywords,
@@ -5218,20 +5058,19 @@ vhighlight.JS = class JS {
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,
 		});
-		const tokenizer = this.tokenizer;
 
 		// Function modifiers.
 		this.function_modifiers = ["async", "static", "get", "set", "*"];
 
-		// Add the parent tokens  from a type def assignment like "mylib.mymodule.MyClass" to the tokenizer.
+		// Add the parent tokens  from a type def assignment like "mylib.mymodule.MyClass" to the this.
 		// The parameter token must be the type def token so "MyClass" in the example.
 		const add_parent_tokens = (type_def_token) => {
 			let parents = [];
-			let parent_token = tokenizer.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
-			while ((parent_token = tokenizer.get_prev_token(parent_token.index - 1, [])) != null) {
+			let parent_token = this.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
+			while ((parent_token = this.get_prev_token(parent_token.index - 1, [])) != null) {
 				if ((parent_token.token === undefined && parent_token.data === ".")) {
 					continue;
-				} else if (parent_token.token === "token_keyword") { // also allow keywords since a user may do something like "mylib.module = ...";
+				} else if (parent_token.token === "keyword") { // also allow keywords since a user may do something like "mylib.module = ...";
 					parents.push(parent_token);
 				} else if (parent_token.is_word_boundary === true || parent_token.token !== undefined) {
 					break;
@@ -5240,17 +5079,17 @@ vhighlight.JS = class JS {
 				}
 			}
 			parents.iterate_reversed((item) => {
-				tokenizer.add_parent(item);
+				this.add_parent(item);
 			})
 		}
 
 		// Set the on type def keyword callback.
 		// The parents always need to be set, but when a class is defined like "mylib.MyClass = class MyClass {}" the tokenizer will not add mylib as a parent.
 		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
-		this.tokenizer.on_type_def_keyword = (token) => {
+		this.on_type_def_keyword = (token) => {
 
 			// Get the assignment token.
-			const assignment = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n", "class"]);
+			const assignment = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "class"]);
 			if (assignment != null && assignment.data === "=") {
 
 				//
@@ -5258,22 +5097,22 @@ vhighlight.JS = class JS {
 				//
 
 				// Get the token before the assignment, aka the other type def token.
-				let type_def_token = tokenizer.get_prev_token(assignment.index - 1, [" ", "\t", "\n"]);
+				let type_def_token = this.get_prev_token(assignment.index - 1, [" ", "\t", "\n"]);
 
 				// Get the parent values but start from the token before the "type_def_token" since that is the name of the type def and not the parent.
 				add_parent_tokens(type_def_token);
 
 				// Assign parents to the first type def token for vdocs and not to the second.
-				type_def_token.token = "token_type_def";
+				type_def_token.token = "type_def";
 				token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
-				tokenizer.assign_parents(type_def_token);
-				tokenizer.add_parent(type_def_token);
+				this.assign_parents(type_def_token);
+				this.add_parent(type_def_token);
 			}
 
 			// Assign parents.
 			else {
-				tokenizer.assign_parents(token);
-				tokenizer.add_parent(token);
+				this.assign_parents(token);
+				this.add_parent(token);
 			}
 
 			// Set the start token to capture inherited classes.
@@ -5281,7 +5120,7 @@ vhighlight.JS = class JS {
 		}
 
 		// Set on parenth close callback.
-		this.tokenizer.on_parenth_close = ({
+		this.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
@@ -5291,13 +5130,13 @@ vhighlight.JS = class JS {
 			let type_def_modifiers = [];
 			// let prev_token_is_function_keyword = false;
 			let iter_prev = token_before_opening_parenth;
-			while (iter_prev.token === "token_keyword" || (iter_prev.token === "token_operator" && iter_prev.data === "*")) {
+			while (iter_prev.token === "keyword" || (iter_prev.token === "operator" && iter_prev.data === "*")) {
 				if (this.function_modifiers.includes(iter_prev.data)) {
 					type_def_modifiers.push(iter_prev.data);
 				} else if (iter_prev.data === "function") {
 					// prev_token_is_function_keyword = true;
 				}
-				iter_prev = tokenizer.get_prev_token(iter_prev.index - 1, [" ", "\t", "\n"]);
+				iter_prev = this.get_prev_token(iter_prev.index - 1, [" ", "\t", "\n"]);
 				if (iter_prev == null) {
 					return null;
 				}
@@ -5305,11 +5144,11 @@ vhighlight.JS = class JS {
 
 			// Check if the token is a keyword.
 			let prev = token_before_opening_parenth;
-			if (prev.token === "token_keyword") {
+			if (prev.token === "keyword") {
 				if (prev.data !== "function" && this.function_modifiers.includes(prev.data) === false) {
 					return null;
 				}
-			} else if (prev.token !== undefined && prev.token !== "token_operator") {
+			} else if (prev.token !== undefined && prev.token !== "operator") {
 				return null;
 			}
 
@@ -5317,16 +5156,16 @@ vhighlight.JS = class JS {
 			if (after_parenth_index == null) {
 				return null;
 			}
-			const after_parenth = tokenizer.code.charAt(after_parenth_index);
+			const after_parenth = this.code.charAt(after_parenth_index);
 
 			// Valid characters for a function declaration.
 			// Either a "{" after the closing parentheses.
 			// Or a "=>" after the closing parentheses.
-			const is_anonymous_func = after_parenth === "=" && tokenizer.code.charAt(after_parenth_index + 1) === ">";
+			const is_anonymous_func = after_parenth === "=" && this.code.charAt(after_parenth_index + 1) === ">";
 			if (after_parenth === "{" || is_anonymous_func) {
 
 				// Get the previous token, skip whitespace and ":" and function modifiers, but not the "=".
-				let token = tokenizer.get_prev_token(prev.index, [" ", "\t", "\n", ":", "function", ...this.function_modifiers]);
+				let token = this.get_prev_token(prev.index, [" ", "\t", "\n", ":", "function", ...this.function_modifiers]);
 				if (token === null) {
 					return null;
 				}
@@ -5337,43 +5176,43 @@ vhighlight.JS = class JS {
 
 					// When the new parents are assigned using the "=" operator then the old parents need to be restored after assigning the parents to the token.
 					// Otherwise it will have the wrong parents when a user does something like "mylib.myfunc = function() { ...; mylib.myotherfunc = function() {}; }"
-					old_parents = tokenizer.copy_parents();
+					old_parents = this.copy_parents();
 
 					// Get the parent values but start from the token before the var "token" since that is the name of the type def and not the parent.
-					token = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);	
+					token = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);	
 					add_parent_tokens(token);
 				}
 
 				// Check token.
-				if (token == null || tokenizer.str_includes_word_boundary(token.data)) {
+				if (token == null || this.str_includes_word_boundary(token.data)) {
 					return null;
 				}
 
 				// Set token.
-				token.token = "token_type_def";
+				token.token = "type_def";
 				token.pre_modifiers = type_def_modifiers;
-				tokenizer.assign_parents(token);
+				this.assign_parents(token);
 				if (old_parents !== undefined) {
-					tokenizer.parents = old_parents;
+					this.parents = old_parents;
 				}
 				return token;
 			}
 
 			// Otherwise it is a function call.
-			else if (!tokenizer.str_includes_word_boundary(prev.data)) {
-				prev.token = "token_type";
+			else if (!this.str_includes_word_boundary(prev.data)) {
+				prev.token = "type";
 				return prev;
 			}
 		}
 
 		// Set the default callback.
-		this.tokenizer.callback = (char) => {
+		this.callback = (char) => {
 
 			// Set the inherited classes when the flag is enabled.
 			if (char === "}" && this.capture_inherit_start_token !== undefined) {
 
 				// Append current batch by word boundary separator.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Vars.
 				const start_token = this.capture_inherit_start_token;
@@ -5381,15 +5220,15 @@ vhighlight.JS = class JS {
 				let inherited_types = [];
 
 				// Iterate backwards till the extends token is found, capture the types found in between.
-				tokenizer.tokens.iterate_tokens_reversed((token) => {
+				this.tokens.iterate_tokens_reversed((token) => {
 					if (token.index <= start_token.index) {
 						return false;
 					}
-					else if (token.token === "token_keyword" && token.data === "extends") {
+					else if (token.token === "keyword" && token.data === "extends") {
 						success = true;
 						return false;
 					}
-					else if (token.token === "token_type") {
+					else if (token.token === "type") {
 						inherited_types.push({
 							type: "public",
 							token: token,
@@ -5409,73 +5248,10 @@ vhighlight.JS = class JS {
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	reset() {
+	derived_reset() {
 
 		// Used to detect type def inheritance.
 		this.capture_inherit_start_token = undefined;
-
-	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		this.reset();
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
 	}
 }
 
@@ -5483,11 +5259,11 @@ vhighlight.JS = class JS {
 vhighlight.js = new vhighlight.JS();// ---------------------------------------------------------
 // Json highlighter.
 
-vhighlight.Json = class Json {
+vhighlight.Json = class Json extends vhighlight.Tokenizer {
 	constructor() {
 
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer.
+		super({
 			keywords: [
 				"true",
 				"false",
@@ -5505,78 +5281,17 @@ vhighlight.Json = class Json {
 			],
 		});
 	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
-	}
 }
 
 // Initialize.
 vhighlight.json = new vhighlight.Json();// ---------------------------------------------------------
 // Markdown highlighter.
 
-vhighlight.Markdown = class Markdown {
+vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 	constructor() {
 
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer.
+		super({
 			multi_line_comment_start: "<!--",
 			multi_line_comment_end: "-->",
 			allow_strings: false,
@@ -5585,38 +5300,34 @@ vhighlight.Markdown = class Markdown {
 			scope_separators: [],
 		});
 
-		// Assign attributes.
-		this.reset();
-
 		// Set callback.
-		this.tokenizer.callback = (char) => {
-			const tokenizer = this.tokenizer;
+		this.callback = (char) => {
 			
 			// Start of line excluding whitespace.
 			let start_of_line = false;
-			if (this.current_line != tokenizer.line && !tokenizer.is_whitespace(char)) {
+			if (this.current_line != this.line && !this.is_whitespace(char)) {
 				start_of_line = true;
-				this.current_line = tokenizer.line;
+				this.current_line = this.line;
 			}
 
 			// Headings.
 			if (start_of_line && char == "#") {
 
 				// Append batch by word boundary.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Do a forward lookup.
 				const add = [];
 				let last_index = null;
 				let at_start = true;
 				let word = "";
-				for (let i = tokenizer.index; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 
 					// Stop at linebreak.
 					if (c == "\n") {
 						if (word.length > 0) {
-							add.push(["token_bold", word]);
+							add.push(["bold", word]);
 						}
 						last_index = i - 1;
 						break;
@@ -5625,7 +5336,7 @@ vhighlight.Markdown = class Markdown {
 					// Add whitespace seperately to not break "at_start".
 					else if (c == " " || c == "\t") {
 						if (word.length > 0) {
-							add.push(["token_bold", word]);
+							add.push(["bold", word]);
 							word = "";
 						}
 						add.push([false, c]);
@@ -5633,14 +5344,14 @@ vhighlight.Markdown = class Markdown {
 
 					// Add # as keyword.
 					else if (at_start && c == "#") {
-						add.push(["token_keyword", c]);
+						add.push(["keyword", c]);
 					}
 
 					// Seperate words by a word boundary.
-					else if (tokenizer.word_boundaries.includes(c)) {
+					else if (this.word_boundaries.includes(c)) {
 						at_start = false;
 						if (word.length > 0) {
-							add.push(["token_bold", word]);
+							add.push(["bold", word]);
 							word = "";
 						}
 						add.push([false, c]);
@@ -5657,12 +5368,12 @@ vhighlight.Markdown = class Markdown {
 				// Append.
 				if (add.length > 0) {
 					if (last_index == null) {
-						last_index = tokenizer.code.length;
+						last_index = this.code.length;
 					}
 					for (let i = 0; i < add.length; i++) {
-						tokenizer.append_forward_lookup_batch(add[i][0], add[i][1]);
+						this.append_forward_lookup_batch(add[i][0], add[i][1]);
 					}
-					tokenizer.resume_on_index(last_index);
+					this.resume_on_index(last_index);
 					return true;
 				}
 			}
@@ -5671,16 +5382,16 @@ vhighlight.Markdown = class Markdown {
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
 				(
-					(char == "*" && tokenizer.next_char == "*") ||
-					(char == "_" && tokenizer.next_char == "_")
+					(char == "*" && this.next_char == "*") ||
+					(char == "_" && this.next_char == "_")
 				) &&
-				!tokenizer.is_whitespace(tokenizer.index + 2)
+				!this.is_whitespace(this.index + 2)
 			) {
 
 				// Find closing char.
 				let closing_index = null;
-				for (let i = tokenizer.index + 2; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index + 2; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == char) {
 						closing_index = i;
 						break;
@@ -5689,15 +5400,15 @@ vhighlight.Markdown = class Markdown {
 				if (closing_index == null) { return false; }
 
 				// Append batch by separator.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Add tokens.
-				tokenizer.append_forward_lookup_batch("token_keyword", char + char);
-				tokenizer.append_forward_lookup_batch("token_bold", tokenizer.code.substr(tokenizer.index + 2, closing_index - (tokenizer.index + 2)));
-				tokenizer.append_forward_lookup_batch("token_keyword", char + char);
+				this.append_forward_lookup_batch("keyword", char + char);
+				this.append_forward_lookup_batch("bold", this.code.substr(this.index + 2, closing_index - (this.index + 2)));
+				this.append_forward_lookup_batch("keyword", char + char);
 
 				// Set resume index.
-				tokenizer.resume_on_index(closing_index + 1);
+				this.resume_on_index(closing_index + 1);
 				return true;
 			}
 
@@ -5705,13 +5416,13 @@ vhighlight.Markdown = class Markdown {
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
 				(char == "*" || char == "_") &&
-				!tokenizer.is_whitespace(tokenizer.next_char)
+				!this.is_whitespace(this.next_char)
 			) {
 
 				// Find closing char.
 				let closing_index = null;
-				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index + 1; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == char) {
 						closing_index = i;
 						break;
@@ -5720,23 +5431,23 @@ vhighlight.Markdown = class Markdown {
 				if (closing_index == null) { return false; }
 
 				// Append batch by separator.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Add tokens.
-				tokenizer.append_forward_lookup_batch("token_keyword", char);
-				tokenizer.append_forward_lookup_batch("token_italic", tokenizer.code.substr(tokenizer.index + 1, closing_index - (tokenizer.index + 1)));
-				tokenizer.append_forward_lookup_batch("token_keyword", char);
+				this.append_forward_lookup_batch("keyword", char);
+				this.append_forward_lookup_batch("italic", this.code.substr(this.index + 1, closing_index - (this.index + 1)));
+				this.append_forward_lookup_batch("keyword", char);
 
 				// Set resume index.
-				tokenizer.resume_on_index(closing_index);
+				this.resume_on_index(closing_index);
 				return true;
 			}
 
 			// Block quote.
 			else if (start_of_line && char == ">") {
-				tokenizer.append_batch();
-				tokenizer.batch = char;
-				tokenizer.append_batch("token_keyword");
+				this.append_batch();
+				this.batch = char;
+				this.append_batch("keyword");
 				return true;
 			}
 
@@ -5745,23 +5456,23 @@ vhighlight.Markdown = class Markdown {
 			else if (
 				start_of_line && 
 				(char == "-" || char == "*" || char == "+") && 
-				tokenizer.is_whitespace(tokenizer.next_char)
+				this.is_whitespace(this.next_char)
 			) {
-				tokenizer.append_batch();
-				tokenizer.batch = char;
-				tokenizer.append_batch("token_keyword");
+				this.append_batch();
+				this.batch = char;
+				this.append_batch("keyword");
 				return true;
 			}
 
 			// Ordered list.
-			else if (start_of_line && tokenizer.is_numerical(char)) {
+			else if (start_of_line && this.is_numerical(char)) {
 
 				// Do a forward lookup to check if there are only numerical chars and then a dot.
 				let batch = char;
 				let finished = false;
 				let last_index = null;
-				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index + 1; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == "\n") {
 						break;
 					} else if (c == ".") {
@@ -5769,7 +5480,7 @@ vhighlight.Markdown = class Markdown {
 						finished = true;
 						last_index = i;
 						break;
-					} else if (tokenizer.is_numerical(c)) {
+					} else if (this.is_numerical(c)) {
 						batch += c;
 					} else {
 						break;
@@ -5778,9 +5489,9 @@ vhighlight.Markdown = class Markdown {
 
 				// Check if finished successfully.
 				if (finished) {
-					tokenizer.append_batch();
-					tokenizer.append_forward_lookup_batch("token_keyword", batch);
-					tokenizer.resume_on_index(last_index);
+					this.append_batch();
+					this.append_forward_lookup_batch("keyword", batch);
+					this.resume_on_index(last_index);
 					return true;
 				}
 			}
@@ -5789,17 +5500,17 @@ vhighlight.Markdown = class Markdown {
 			else if (char == "[") {
 
 				// Append batch by word boundary.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Get closing bracket.
-				const opening_bracket = tokenizer.index;
-				const closing_bracket = tokenizer.get_closing_bracket(opening_bracket);
+				const opening_bracket = this.index;
+				const closing_bracket = this.get_closing_bracket(opening_bracket);
 				if (closing_bracket == null) { return false; }
 
 				// Get opening and closing parentheses, but no chars except for whitespace may be between the closing barcket and opening parentheses.
 				let opening_parentheses = null;
-				for (let i = closing_bracket + 1; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = closing_bracket + 1; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == " " || c == "\t") {
 						continue;
 					} else if (c == "(") {
@@ -5810,38 +5521,38 @@ vhighlight.Markdown = class Markdown {
 					}
 				}
 				if (opening_parentheses == null) { return false; }
-				const closing_parentheses = tokenizer.get_closing_parentheses(opening_parentheses);
+				const closing_parentheses = this.get_closing_parentheses(opening_parentheses);
 				if (closing_parentheses == null) { return false; }
 
 				// Check if it is a link or an image by preceding "!".
-				const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t"]);
+				const prev = this.get_prev_token(this.added_tokens - 1, [" ", "\t"]);
 				const is_image = prev != null && prev.data == "!";
 				if (is_image) {
-					prev.token = "token_keyword";
+					prev.token = "keyword";
 				}
 
 				// Add text tokens.
-				tokenizer.append_forward_lookup_batch("token_keyword", "[");
-				tokenizer.append_forward_lookup_batch("token_string", tokenizer.code.substr(opening_bracket + 1, (closing_bracket - 1) - (opening_bracket + 1) + 1));
-				tokenizer.append_forward_lookup_batch("token_keyword", "]");
+				this.append_forward_lookup_batch("keyword", "[");
+				this.append_forward_lookup_batch("string", this.code.substr(opening_bracket + 1, (closing_bracket - 1) - (opening_bracket + 1) + 1));
+				this.append_forward_lookup_batch("keyword", "]");
 
 				// Add url tokens.
-				tokenizer.append_forward_lookup_batch("token_keyword", "(");
-				tokenizer.append_forward_lookup_batch("token_string", tokenizer.code.substr(opening_parentheses + 1, (closing_parentheses - 1) - (opening_parentheses + 1) + 1));
-				tokenizer.append_forward_lookup_batch("token_keyword", ")");
+				this.append_forward_lookup_batch("keyword", "(");
+				this.append_forward_lookup_batch("string", this.code.substr(opening_parentheses + 1, (closing_parentheses - 1) - (opening_parentheses + 1) + 1));
+				this.append_forward_lookup_batch("keyword", ")");
 
 				// Set resume index.
-				tokenizer.resume_on_index(closing_parentheses);
+				this.resume_on_index(closing_parentheses);
 				return true;
 			}
 
 			// Single line code block.
-			else if (char == "`" && tokenizer.next_char != "`" && tokenizer.prev_char != "`") {
+			else if (char == "`" && this.next_char != "`" && this.prev_char != "`") {
 
 				// Do a forward lookup till the next "`".
 				let closing_index = null;
-				for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
+				for (let i = this.index + 1; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
 					if (c == "`") {
 						closing_index = i;
 						break;
@@ -5850,29 +5561,29 @@ vhighlight.Markdown = class Markdown {
 				if (closing_index == null) { return false; }
 
 				// Add token.
-				tokenizer.append_forward_lookup_batch("token_codeblock", tokenizer.code.substr(tokenizer.index, closing_index - tokenizer.index + 1));
+				this.append_forward_lookup_batch("codeblock", this.code.substr(this.index, closing_index - this.index + 1));
 
 				// Set resume index.
-				tokenizer.resume_on_index(closing_index);
+				this.resume_on_index(closing_index);
 				return true;
 			}
 
 			// Multi line code block.
-			else if (char == "`" && tokenizer.next_char == "`" && tokenizer.code.charAt(tokenizer.index + 2) == "`") {
+			else if (char == "`" && this.next_char == "`" && this.code.charAt(this.index + 2) == "`") {
 
 				// Do a forward lookup till the next "`".
 				let closing_index = null;
 				let do_language = true;
 				let language = "";
-				for (let i = tokenizer.index + 3; i < tokenizer.code.length; i++) {
-					const c = tokenizer.code.charAt(i);
-					const is_whitespace = tokenizer.is_whitespace(c);
-					if (c == "`" && tokenizer.code.charAt(i + 1) == '`' && tokenizer.code.charAt(i + 2) == "`") {
+				for (let i = this.index + 3; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
+					const is_whitespace = this.is_whitespace(c);
+					if (c == "`" && this.code.charAt(i + 1) == '`' && this.code.charAt(i + 2) == "`") {
 						closing_index = i + 2;
 						break;
 					} else if (do_language && language.length > 0 && (is_whitespace || c == "\n")) {
 						do_language = false;
-					} else if (do_language && language.length == 0 && !is_whitespace && !tokenizer.is_alphabetical(c)) {
+					} else if (do_language && language.length == 0 && !is_whitespace && !this.is_alphabetical(c)) {
 						do_language = false;
 					} else if (do_language && !is_whitespace && c != "\n") {
 						language += c;
@@ -5881,29 +5592,29 @@ vhighlight.Markdown = class Markdown {
 				if (closing_index == null) { return false; }
 
 				// Highlight the code.
-				const start = tokenizer.index + 3 + language.length;
-				const code = tokenizer.code.substr(start, (closing_index - 3) - start + 1);
+				const start = this.index + 3 + language.length;
+				const code = this.code.substr(start, (closing_index - 3) - start + 1);
 				let result = null;
 				if (language != "") {
-					result = vhighlight.highlight({
+					result = vhighlight.tokenize({
 						language: language,
 						code: code,
-						return_tokens: true,
+						build_html: false,
 					})
 				}
 
 				// Add tokens.
-				tokenizer.append_forward_lookup_batch("token_keyword", "```");
+				this.append_forward_lookup_batch("keyword", "```");
 				if (result == null) {
-					tokenizer.append_forward_lookup_batch("token_codeblock", language + code);
+					this.append_forward_lookup_batch("codeblock", language + code);
 				} else {
-					tokenizer.append_forward_lookup_batch("token_keyword", language);
-					tokenizer.concat_tokens(result);
+					this.append_forward_lookup_batch("keyword", language);
+					this.concat_tokens(result);
 				}
-				tokenizer.append_forward_lookup_batch("token_keyword", "```");
+				this.append_forward_lookup_batch("keyword", "```");
 
 				// Set resume index.
-				tokenizer.resume_on_index(closing_index);
+				this.resume_on_index(closing_index);
 				return true;
 				
 			}
@@ -5915,70 +5626,8 @@ vhighlight.Markdown = class Markdown {
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	reset() {
+	derived_reset() {
 		this.current_line = null; // curent line to detect start of the line.
-	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		this.reset();
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
 	}
 }
 
@@ -5986,11 +5635,11 @@ vhighlight.Markdown = class Markdown {
 vhighlight.md = new vhighlight.Markdown();// ---------------------------------------------------------
 // Python highlighter.
 
-vhighlight.Python = class Python {
+vhighlight.Python = class Python extends vhighlight.Tokenizer {
 	constructor() {
 
-		// Initialize the this.tokenizer.
-		this.tokenizer = new vhighlight.Tokenizer({
+		// Initialize the tokenizer.
+		super({
 			keywords: [
 				"and",
 				"as",
@@ -6051,16 +5700,15 @@ vhighlight.Python = class Python {
 				":", 
 			],
 		});
-		const tokenizer = this.tokenizer;
 
 		// Set callback.
-		this.tokenizer.callback = (char) => {
+		this.callback = (char) => {
 			
 			// Highlight function calls.
 			if (char == "(") {
 
 				// Append batch by word boundary.
-				tokenizer.append_batch();
+				this.append_batch();
 
 				// Do a forward lookup to parse the inherited classes when the `this.capture_inherit_start_token` flag is enanabled.
 				// A forward lookup is requires since we can not catch the ")" parenth closed event since that is catched by tokenizer to parse the params.
@@ -6071,7 +5719,7 @@ vhighlight.Python = class Python {
 					const start_token = this.capture_inherit_start_token;
 					let depth = 0; 						// parenth depth.
 					let batch = "";						// the current batch.
-					let lookup_tokens = [];				// the lookup token data `[token_type, token_data]`.
+					let lookup_tokens = [];				// the lookup token data `[type, token_data]`.
 					let resume_on_index;				// resume on index of the closing parentheses, only assigned when the closing parenth is successfully found.
 
 					// Append batch wrapper.
@@ -6080,15 +5728,15 @@ vhighlight.Python = class Python {
 							if (token != null) {
 								lookup_tokens.push([token, batch]);
 							} else {
-								lookup_tokens.push(["token_type", batch]);
+								lookup_tokens.push(["type", batch]);
 							}
 							batch = "";
 						}
 					}
 					
 					// Iterate forwards till the closing parentheses.
-					for (let i = tokenizer.index; i < tokenizer.code.length; i++) {
-						const c = tokenizer.code.charAt(i);
+					for (let i = this.index; i < this.code.length; i++) {
+						const c = this.code.charAt(i);
 
 						// Depth increaser.
 						if (c === "(") {
@@ -6100,7 +5748,6 @@ vhighlight.Python = class Python {
 
 						// Depth increaser.
 						else if (c === ")") {
-							console.log("CLOSE1",{c:c,depth:depth});
 							append_batch();
 							batch = c;
 							append_batch(false);
@@ -6119,14 +5766,12 @@ vhighlight.Python = class Python {
 						}
 
 						// Non allowed word boundary.
-						else if (c !== "." && c !== "_" && tokenizer.word_boundaries.includes(c)) {
-							console.log("STOP1",{c:c});
+						else if (c !== "." && c !== "_" && this.word_boundaries.includes(c)) {
 							break;
 						}
 
 						// New batch and char is not alphabetical and not "_" so stop.
-						else if (batch.length === 0 && c !== "_" && tokenizer.is_alphabetical(c) === false) {
-							console.log("STOP1",{c:c});
+						else if (batch.length === 0 && c !== "_" && this.is_alphabetical(c) === false) {
 							break;
 						}
 
@@ -6145,9 +5790,9 @@ vhighlight.Python = class Python {
 					if (resume_on_index !== undefined) {
 						let inherited_types = [];
 						for (let i = 0; i < lookup_tokens.length; i++) {
-							const appended_tokens = tokenizer.append_forward_lookup_batch(lookup_tokens[i][0], lookup_tokens[i][1]);
+							const appended_tokens = this.append_forward_lookup_batch(lookup_tokens[i][0], lookup_tokens[i][1]);
 							appended_tokens.iterate((token) => {
-								if (token.token === "token_type") {
+								if (token.token === "type") {
 									inherited_types.push({
 										type: "public",
 										token: token,
@@ -6155,17 +5800,11 @@ vhighlight.Python = class Python {
 								}
 							})
 						}
-						tokenizer.resume_on_index(resume_on_index - 1);
+						this.resume_on_index(resume_on_index - 1);
 						if (inherited_types.length > 0) {
 							start_token.inherited = inherited_types;
 						}
-						console.log("===============");
-						console.log(start_token);
-						console.log(inherited_types);
-						console.log("===============");
 						return true;
-					} else {
-						console.log("Noooooooooo");
 					}
 				}
 
@@ -6173,11 +5812,11 @@ vhighlight.Python = class Python {
 				else {
 
 					// Get prev token.
-					// Prev token must be null since "token_type_def" is already assigned.
+					// Prev token must be null since "type_def" is already assigned.
 					// And also skip tuples by checking if the prev contains a word boundary.
-					const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
-					if (prev != null && prev.token === undefined && !tokenizer.str_includes_word_boundary(prev.data)) {
-						prev.token = "token_type";
+					const prev = this.get_prev_token(this.added_tokens - 1, [" ", "\t", "\n"]);
+					if (prev != null && prev.token === undefined && !this.str_includes_word_boundary(prev.data)) {
+						prev.token = "type";
 					}
 				}
 
@@ -6193,93 +5832,31 @@ vhighlight.Python = class Python {
 		// Set the on type def keyword callback.
 		// Used to detect the "async" function modifier.
 		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
-		this.tokenizer.on_type_def_keyword = (token) => {
+		this.on_type_def_keyword = (token) => {
 
 			// Get the assignment token.
-			const async_token = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n", "def"]);
-			if (async_token != null && async_token.token === "token_keyword" && async_token.data === "async") {
+			const async_token = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "def"]);
+			if (async_token != null && async_token.token === "keyword" && async_token.data === "async") {
 				token.pre_modifiers = [async_token];
 			}
 
 			// Set the start token to capture inherited classes when the previous token is either struct or class.
-			const prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 			if (prev !== null && prev.data === "class") {
 				this.capture_inherit_start_token = token;
 			}
 
 			// Assign parents.
-			tokenizer.assign_parents(token);
-			tokenizer.add_parent(token);
+			this.assign_parents(token);
+			this.add_parent(token);
 		}
 	}
 
 	// Reset attributes that need to reset for each parse.
-	reset() {
+	derived_reset() {
 
 		// Used to detect type def inheritance.
 		this.capture_inherit_start_token = undefined;
-	}
-
-	// Highlight.
-	highlight(code = null, return_tokens = false) {
-		this.reset();
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-		return this.tokenizer.tokenize(return_tokens);
-	}
-
-	// Partial highlight.
-	/*	@docs: {
-		@title Partial highlight.
-		@description: Partially highlight text based on edited lines.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line of the new edits.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line of the new edits. The end line includes the line itself.
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_highlight({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.tokenizer.code = code;
-		}
-
-		// Reset.
-		if (this.reset != undefined) {
-			this.reset();
-		}
-
-		// Partial tokenize.
-		return this.tokenizer.partial_tokenize({
-			edits_start: edits_start,
-			edits_end: edits_end,
-			line_additions: line_additions,
-			tokens: tokens,
-		})
 	}
 }
 
@@ -6441,7 +6018,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Tokenize.			
 
 			// Parse tokens.
-			this.tokens = this.tokenizer.highlight(code_data, true)
+			this.tokenizer.code = code_data;
+			this.tokens = this.tokenizer.tokenize()
 
 			// ---------------------------------------------------------
 			// Compile.		
@@ -6502,10 +6080,10 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					++token_index;
 					let add_to_code = true;
 					const is_whitespace = token.is_word_boundary === true && token.data.length === 1 && (token.data === " " || token.data === "\t");
-					const is_operator = token.token === "token_operator";
+					const is_operator = token.token === "operator";
 					const next_nw_token = get_next_token(1, [" ", "\t", "\n"]);
 					const next_token = get_next_token(1);
-					const next_is_operator = next_token !== null && next_token.token == "token_operator";
+					const next_is_operator = next_token !== null && next_token.token == "operator";
 					const next_is_whitespace = next_token !== null && next_token.is_word_boundary === true && next_token.data.length === 1 && (next_token.data === " " || next_token.data === "\t");
 					if (at_line_start && is_whitespace === false) {
 						at_line_start = false;
@@ -6543,7 +6121,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							(this.double_line_breaks === false && added_tokens == 0)
 						)
 					) {
-						if (prev_token !== undefined && prev_token.token === "token_keyword") {
+						if (prev_token !== undefined && prev_token.token === "keyword") {
 							code += " ";
 						}
 						return null;
@@ -6562,8 +6140,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							next_is_whitespace ||
 							next_is_operator ||
 							(
-								(prev_nw_token == null || prev_nw_token.token !== "token_keyword") &&
-								(next_token == null || next_token.token !== "token_keyword")
+								(prev_nw_token == null || prev_nw_token.token !== "keyword") &&
+								(next_token == null || next_token.token !== "keyword")
 							)
 						)
 					) {
@@ -6586,8 +6164,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 
 					if (
 						prev_nw_token !== undefined &&
-						prev_nw_token.token === "token_string" &&
-						token.token === "token_string" &&
+						prev_nw_token.token === "string" &&
+						token.token === "string" &&
 						this.str_chars.includes(prev_nw_token.data[prev_nw_token.data.length - 1]) &&
 						this.str_chars.includes(token.data[0]) &&
 						prev_nw_token.data[prev_nw_token.data.length - 1] === token.data[0]
@@ -6611,7 +6189,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					// ---------------------------------------------------------
 					// Convert numeric tokens followed by a "%" to a string.
 
-					if (token.token === "token_numeric") {
+					if (token.token === "numeric") {
 						if (next_nw_token != null && next_nw_token.is_word_boundary) {
 							if (next_nw_token.data.length === 1 && next_nw_token.data === "%") {
 								code += `"${token.data}%"`;
@@ -6678,11 +6256,11 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 		// ---------------------------------------------------------
 		// Utils.
 
-		// Get the next `token_type_def` token from a start line and token index.
+		// Get the next `type_def` token from a start line and token index.
 		// Returns `null` when no token is found.
 		get_next_type_def(line, start_index) {
 			return this.tokens.iterate_tokens(line, null, (token) => {
-				if (token.index >= start_index && token.token === "token_type_def") {
+				if (token.index >= start_index && token.token === "type_def") {
 					return token;
 				}
 			})

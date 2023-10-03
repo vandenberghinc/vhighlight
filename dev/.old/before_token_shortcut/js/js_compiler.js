@@ -160,8 +160,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Tokenize.			
 
 			// Parse tokens.
-			this.tokenizer.code = code_data;
-			this.tokens = this.tokenizer.tokenize()
+			this.tokens = this.tokenizer.highlight(code_data, true)
 
 			// ---------------------------------------------------------
 			// Compile.		
@@ -222,10 +221,10 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					++token_index;
 					let add_to_code = true;
 					const is_whitespace = token.is_word_boundary === true && token.data.length === 1 && (token.data === " " || token.data === "\t");
-					const is_operator = token.token === "operator";
+					const is_operator = token.token === "token_operator";
 					const next_nw_token = get_next_token(1, [" ", "\t", "\n"]);
 					const next_token = get_next_token(1);
-					const next_is_operator = next_token !== null && next_token.token == "operator";
+					const next_is_operator = next_token !== null && next_token.token == "token_operator";
 					const next_is_whitespace = next_token !== null && next_token.is_word_boundary === true && next_token.data.length === 1 && (next_token.data === " " || next_token.data === "\t");
 					if (at_line_start && is_whitespace === false) {
 						at_line_start = false;
@@ -263,7 +262,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							(this.double_line_breaks === false && added_tokens == 0)
 						)
 					) {
-						if (prev_token !== undefined && prev_token.token === "keyword") {
+						if (prev_token !== undefined && prev_token.token === "token_keyword") {
 							code += " ";
 						}
 						return null;
@@ -282,8 +281,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							next_is_whitespace ||
 							next_is_operator ||
 							(
-								(prev_nw_token == null || prev_nw_token.token !== "keyword") &&
-								(next_token == null || next_token.token !== "keyword")
+								(prev_nw_token == null || prev_nw_token.token !== "token_keyword") &&
+								(next_token == null || next_token.token !== "token_keyword")
 							)
 						)
 					) {
@@ -306,8 +305,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 
 					if (
 						prev_nw_token !== undefined &&
-						prev_nw_token.token === "string" &&
-						token.token === "string" &&
+						prev_nw_token.token === "token_string" &&
+						token.token === "token_string" &&
 						this.str_chars.includes(prev_nw_token.data[prev_nw_token.data.length - 1]) &&
 						this.str_chars.includes(token.data[0]) &&
 						prev_nw_token.data[prev_nw_token.data.length - 1] === token.data[0]
@@ -331,7 +330,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					// ---------------------------------------------------------
 					// Convert numeric tokens followed by a "%" to a string.
 
-					if (token.token === "numeric") {
+					if (token.token === "token_numeric") {
 						if (next_nw_token != null && next_nw_token.is_word_boundary) {
 							if (next_nw_token.data.length === 1 && next_nw_token.data === "%") {
 								code += `"${token.data}%"`;
@@ -398,11 +397,11 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 		// ---------------------------------------------------------
 		// Utils.
 
-		// Get the next `type_def` token from a start line and token index.
+		// Get the next `token_type_def` token from a start line and token index.
 		// Returns `null` when no token is found.
 		get_next_type_def(line, start_index) {
 			return this.tokens.iterate_tokens(line, null, (token) => {
-				if (token.index >= start_index && token.token === "type_def") {
+				if (token.index >= start_index && token.token === "token_type_def") {
 					return token;
 				}
 			})

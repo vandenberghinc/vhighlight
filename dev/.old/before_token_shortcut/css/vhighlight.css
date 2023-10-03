@@ -62,6 +62,9 @@
 .token_bold { /* for markdown */
 	font-weight: bold;
 }
+.token_codeline { /* for markdown */
+	background: #FFFFFF25;
+}
 .token_codeblock { /* for markdown */
 	width: 100%;
 	background: #FFFFFF25;

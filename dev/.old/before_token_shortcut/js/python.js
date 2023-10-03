@@ -6,11 +6,11 @@
 // ---------------------------------------------------------
 // Python highlighter.
 
-vhighlight.Python = class Python extends vhighlight.Tokenizer {
+vhighlight.Python = class Python {
 	constructor() {
 
-		// Initialize the tokenizer.
-		super({
+		// Initialize the this.tokenizer.
+		this.tokenizer = new vhighlight.Tokenizer({
 			keywords: [
 				"and",
 				"as",
@@ -71,15 +71,16 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 				":", 
 			],
 		});
+		const tokenizer = this.tokenizer;
 
 		// Set callback.
-		this.callback = (char) => {
+		this.tokenizer.callback = (char) => {
 			
 			// Highlight function calls.
 			if (char == "(") {
 
 				// Append batch by word boundary.
-				this.append_batch();
+				tokenizer.append_batch();
 
 				// Do a forward lookup to parse the inherited classes when the `this.capture_inherit_start_token` flag is enanabled.
 				// A forward lookup is requires since we can not catch the ")" parenth closed event since that is catched by tokenizer to parse the params.
@@ -90,7 +91,7 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 					const start_token = this.capture_inherit_start_token;
 					let depth = 0; 						// parenth depth.
 					let batch = "";						// the current batch.
-					let lookup_tokens = [];				// the lookup token data `[type, token_data]`.
+					let lookup_tokens = [];				// the lookup token data `[token_type, token_data]`.
 					let resume_on_index;				// resume on index of the closing parentheses, only assigned when the closing parenth is successfully found.
 
 					// Append batch wrapper.
@@ -99,15 +100,15 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 							if (token != null) {
 								lookup_tokens.push([token, batch]);
 							} else {
-								lookup_tokens.push(["type", batch]);
+								lookup_tokens.push(["token_type", batch]);
 							}
 							batch = "";
 						}
 					}
 					
 					// Iterate forwards till the closing parentheses.
-					for (let i = this.index; i < this.code.length; i++) {
-						const c = this.code.charAt(i);
+					for (let i = tokenizer.index; i < tokenizer.code.length; i++) {
+						const c = tokenizer.code.charAt(i);
 
 						// Depth increaser.
 						if (c === "(") {
@@ -137,12 +138,12 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 						}
 
 						// Non allowed word boundary.
-						else if (c !== "." && c !== "_" && this.word_boundaries.includes(c)) {
+						else if (c !== "." && c !== "_" && tokenizer.word_boundaries.includes(c)) {
 							break;
 						}
 
 						// New batch and char is not alphabetical and not "_" so stop.
-						else if (batch.length === 0 && c !== "_" && this.is_alphabetical(c) === false) {
+						else if (batch.length === 0 && c !== "_" && tokenizer.is_alphabetical(c) === false) {
 							break;
 						}
 
@@ -161,9 +162,9 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 					if (resume_on_index !== undefined) {
 						let inherited_types = [];
 						for (let i = 0; i < lookup_tokens.length; i++) {
-							const appended_tokens = this.append_forward_lookup_batch(lookup_tokens[i][0], lookup_tokens[i][1]);
+							const appended_tokens = tokenizer.append_forward_lookup_batch(lookup_tokens[i][0], lookup_tokens[i][1]);
 							appended_tokens.iterate((token) => {
-								if (token.token === "type") {
+								if (token.token === "token_type") {
 									inherited_types.push({
 										type: "public",
 										token: token,
@@ -171,7 +172,7 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 								}
 							})
 						}
-						this.resume_on_index(resume_on_index - 1);
+						tokenizer.resume_on_index(resume_on_index - 1);
 						if (inherited_types.length > 0) {
 							start_token.inherited = inherited_types;
 						}
@@ -183,11 +184,11 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 				else {
 
 					// Get prev token.
-					// Prev token must be null since "type_def" is already assigned.
+					// Prev token must be null since "token_type_def" is already assigned.
 					// And also skip tuples by checking if the prev contains a word boundary.
-					const prev = this.get_prev_token(this.added_tokens - 1, [" ", "\t", "\n"]);
-					if (prev != null && prev.token === undefined && !this.str_includes_word_boundary(prev.data)) {
-						prev.token = "type";
+					const prev = tokenizer.get_prev_token(tokenizer.added_tokens - 1, [" ", "\t", "\n"]);
+					if (prev != null && prev.token === undefined && !tokenizer.str_includes_word_boundary(prev.data)) {
+						prev.token = "token_type";
 					}
 				}
 
@@ -203,31 +204,93 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 		// Set the on type def keyword callback.
 		// Used to detect the "async" function modifier.
 		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
-		this.on_type_def_keyword = (token) => {
+		this.tokenizer.on_type_def_keyword = (token) => {
 
 			// Get the assignment token.
-			const async_token = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "def"]);
-			if (async_token != null && async_token.token === "keyword" && async_token.data === "async") {
+			const async_token = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n", "def"]);
+			if (async_token != null && async_token.token === "token_keyword" && async_token.data === "async") {
 				token.pre_modifiers = [async_token];
 			}
 
 			// Set the start token to capture inherited classes when the previous token is either struct or class.
-			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			const prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 			if (prev !== null && prev.data === "class") {
 				this.capture_inherit_start_token = token;
 			}
 
 			// Assign parents.
-			this.assign_parents(token);
-			this.add_parent(token);
+			tokenizer.assign_parents(token);
+			tokenizer.add_parent(token);
 		}
 	}
 
 	// Reset attributes that need to reset for each parse.
-	derived_reset() {
+	reset() {
 
 		// Used to detect type def inheritance.
 		this.capture_inherit_start_token = undefined;
+	}
+
+	// Highlight.
+	highlight(code = null, return_tokens = false) {
+		this.reset();
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
+		return this.tokenizer.tokenize(return_tokens);
+	}
+
+	// Partial highlight.
+	/*	@docs: {
+		@title Partial highlight.
+		@description: Partially highlight text based on edited lines.
+		@parameter: {
+			@name: code
+			@type: string
+			@description: The new code data.
+		}
+		@parameter: {
+			@name: edits_start
+			@type: string
+			@description: The start line of the new edits.
+		}
+		@parameter: {
+			@name: edits_end
+			@type: string
+			@description: The end line of the new edits. The end line includes the line itself.
+		}
+		@parameter: {
+			@name: tokens
+			@type: array[object]
+			@description: The old tokens.
+		}
+	} */
+	partial_highlight({
+		code = null,
+		edits_start = null,
+		edits_end = null,
+		line_additions = 0,
+		tokens = [],
+	}) {
+
+		// Assign code when not assigned.
+		// So the user can also assign it to the tokenizer without cause two copies.
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
+
+		// Reset.
+		if (this.reset != undefined) {
+			this.reset();
+		}
+
+		// Partial tokenize.
+		return this.tokenizer.partial_tokenize({
+			edits_start: edits_start,
+			edits_end: edits_end,
+			line_additions: line_additions,
+			tokens: tokens,
+		})
 	}
 }
 

@@ -11,11 +11,11 @@
 // ---------------------------------------------------------
 // CSS highlighter.
 
-vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
+vhighlight.CSS = class CSS {
 	constructor() {
 
-		// Initialize the tokenizer .
-		super({
+		// Initialize the this.tokenizer.
+		this.tokenizer = new vhighlight.Tokenizer({
 			keywords: [
 				// Transition Timing Functions
 				'ease',
@@ -251,6 +251,9 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 			],
 		});
 
+		// Assign attributes.
+		this.reset();
+
 		// Numerics regex.
 		const numeric_suffixes = [
 			'px',
@@ -285,58 +288,59 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 		this.numeric_regex = new RegExp(`^-?\\d+(\\.\\d+)?(${numeric_suffixes})*$`);
 
 		// Set callback.
-		this.callback = (char, is_escaped) => {
+		this.tokenizer.callback = (char, is_escaped) => {
+			const tokenizer = this.tokenizer;
 			
 			// At keywords such as "@keyframes".
 			if (char == "@") {
-				const end = this.get_first_word_boundary(this.index + 1);
-				this.append_batch();
-				this.append_forward_lookup_batch("keyword", this.code.substr(this.index, end - this.index));
-				this.resume_on_index(end - 1);
+				const end = tokenizer.get_first_word_boundary(tokenizer.index + 1);
+				tokenizer.append_batch();
+				tokenizer.append_forward_lookup_batch("token_keyword", tokenizer.code.substr(tokenizer.index, end - tokenizer.index));
+				tokenizer.resume_on_index(end - 1);
 				return true;
 			}
 
 			// Hex colors.
-			if (this.batch == "" && char == "#") {
-				const end = this.get_first_word_boundary(this.index + 1);
-				this.append_batch();
-				this.append_forward_lookup_batch("string", this.code.substr(this.index, end - this.index));
-				this.resume_on_index(end - 1);
+			if (tokenizer.batch == "" && char == "#") {
+				const end = tokenizer.get_first_word_boundary(tokenizer.index + 1);
+				tokenizer.append_batch();
+				tokenizer.append_forward_lookup_batch("token_string", tokenizer.code.substr(tokenizer.index, end - tokenizer.index));
+				tokenizer.resume_on_index(end - 1);
 				return true;
 			}
 
 			// Css class definitions.
 			else if (char == "{") {
-				this.append_batch();
-				let index = this.added_tokens - 1;
+				tokenizer.append_batch();
+				let index = tokenizer.added_tokens - 1;
 				while (true) {
-					const prev = this.get_prev_token(index, [" ", ",", "\t", ":"]);
+					const prev = tokenizer.get_prev_token(index, [" ", ",", "\t", ":"]);
 					if (prev == null || prev.data == "\n") {
 						break;
 					}
 					else if (
-						(prev.token == "string") || // for "#myid" which will otherwise be treated as hex strings.
-						(prev.token == "keyword" && prev.data.charAt(0) != "@") ||
+						(prev.token == "token_string") || // for "#myid" which will otherwise be treated as hex strings.
+						(prev.token == "token_keyword" && prev.data.charAt(0) != "@") ||
 						(prev.token === undefined && 
 							(
 								prev.data == "#" || 
 								prev.data == "." || 
 								prev.data == "*" || 
 								prev.data == "-" || 
-								this.is_alphabetical(prev.data.charAt(0))
+								tokenizer.is_alphabetical(prev.data.charAt(0))
 							)
 						)
 					) {
-						const pprev = this.tokens[prev.index - 1];
+						const pprev = tokenizer.tokens[prev.index - 1];
 						if (pprev != null && pprev.data == ":") {
-							prev.token = "keyword";
-							// pprev.token = "keyword";
-							// const ppprev = this.tokens[pprev.index - 1];
+							prev.token = "token_keyword";
+							// pprev.token = "token_keyword";
+							// const ppprev = tokenizer.tokens[pprev.index - 1];
 							// if (ppprev != null && ppprev.data == ":") {
-							// 	ppprev.token = "keyword";
+							// 	ppprev.token = "token_keyword";
 							// }
 						} else {
-							prev.token = "type_def";
+							prev.token = "token_type_def";
 						}
 					}
 					index = prev.index - 1;
@@ -344,13 +348,13 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 			}
 
 			// CSS style attribute, curly depth is higher then 1 with pattern "^\s*XXX:" or ";\s*XXX:".
-			else if (this.curly_depth > 0 && char == ":") {
-				this.append_batch();
-				let index = this.added_tokens - 1;
+			else if (tokenizer.curly_depth > 0 && char == ":") {
+				tokenizer.append_batch();
+				let index = tokenizer.added_tokens - 1;
 				let edits = [];
 				let finished = false;
 				while (true) {
-					const prev = this.get_prev_token(index, [" ", "\t"]);
+					const prev = tokenizer.get_prev_token(index, [" ", "\t"]);
 					if (prev == null) {
 						break;
 					}
@@ -366,13 +370,13 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 				}
 				if (finished) {
 					for (let i = 0; i < edits.length; i++) {
-						edits[i].token = "keyword";
+						edits[i].token = "token_keyword";
 					}
 					
 					// Set style start and end.
-					this.style_start = this.index;
-					for (let i = this.index + 1; i < this.code.length; i++) {
-						const c = this.code.charAt(i);
+					this.style_start = tokenizer.index;
+					for (let i = tokenizer.index + 1; i < tokenizer.code.length; i++) {
+						const c = tokenizer.code.charAt(i);
 						if (c == "\n") {
 							this.style_start = null;
 							break;
@@ -385,25 +389,25 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 			}
 
 			// Numerics.
-			else if (char == "%" && this.numeric_regex.test(this.batch + char)) {
-				this.batch += char;
-				this.append_batch("numeric");
+			else if (char == "%" && this.numeric_regex.test(tokenizer.batch + char)) {
+				tokenizer.batch += char;
+				tokenizer.append_batch("token_numeric");
 				return true;
 			}
-			else if (this.word_boundaries.includes(char) && this.numeric_regex.test(this.batch)) {
-				this.append_batch("numeric");
+			else if (tokenizer.word_boundaries.includes(char) && this.numeric_regex.test(tokenizer.batch)) {
+				tokenizer.append_batch("token_numeric");
 			}
 
 			// Style attribute value keywords.
 			// Basically every token that does not have an assigned token and does not contain a word boundary except for "-" between the style start and end.
 			// Must be after numerics.
-			else if (this.style_end != null && this.index >= this.style_end) {
-				this.append_batch();
-				let index = this.added_tokens - 1;
+			else if (this.style_end != null && tokenizer.index >= this.style_end) {
+				tokenizer.append_batch();
+				let index = tokenizer.added_tokens - 1;
 				let finished = false;
 				const edits = [];
 				while (true) {
-					const prev = this.get_prev_token(index, [" ", "\t"]);
+					const prev = tokenizer.get_prev_token(index, [" ", "\t"]);
 					if (prev == null || prev == "\n") {
 						break;
 					}
@@ -411,14 +415,14 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 						finished = true;
 						break;
 					}
-					else if (prev.token === undefined && !this.str_includes_word_boundary(prev.data)) {
+					else if (prev.token === undefined && !tokenizer.str_includes_word_boundary(prev.data)) {
 						edits.push(prev);
 					}
 					index = prev.index - 1;
 				}
 				if (finished) {
 					for (let i = 0; i < edits.length; i++) {
-						edits[i].token = "keyword";
+						edits[i].token = "token_keyword";
 					}
 				}
 				this.style_end = null;
@@ -429,23 +433,85 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 		}
 
 		// Set on parenth close.
-		this.on_parenth_close = ({
+		this.tokenizer.on_parenth_close = ({
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
 			if (token_before_opening_parenth != null && token_before_opening_parenth.token === undefined) {
-				token_before_opening_parenth.token = "type";
+				token_before_opening_parenth.token = "token_type";
 				return token_before_opening_parenth;
 			}
 		}
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	derived_reset() {
+	reset() {
 
 		// Start and end of css style attribute index, start begins after the ":" and the end is at the ";".
 		this.style_start = null;
 		this.style_end = null;
+	}
+
+	// Highlight.
+	highlight(code = null, return_tokens = false) {
+		this.reset();
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
+		return this.tokenizer.tokenize(return_tokens);
+	}
+
+	// Partial highlight.
+	/*	@docs: {
+		@title Partial highlight.
+		@description: Partially highlight text based on edited lines.
+		@parameter: {
+			@name: code
+			@type: string
+			@description: The new code data.
+		}
+		@parameter: {
+			@name: edits_start
+			@type: string
+			@description: The start line of the new edits.
+		}
+		@parameter: {
+			@name: edits_end
+			@type: string
+			@description: The end line of the new edits. The end line includes the line itself.
+		}
+		@parameter: {
+			@name: tokens
+			@type: array[object]
+			@description: The old tokens.
+		}
+	} */
+	partial_highlight({
+		code = null,
+		edits_start = null,
+		edits_end = null,
+		line_additions = 0,
+		tokens = [],
+	}) {
+
+		// Assign code when not assigned.
+		// So the user can also assign it to the tokenizer without cause two copies.
+		if (code !== null) {
+			this.tokenizer.code = code;
+		}
+
+		// Reset.
+		if (this.reset != undefined) {
+			this.reset();
+		}
+
+		// Partial tokenize.
+		return this.tokenizer.partial_tokenize({
+			edits_start: edits_start,
+			edits_end: edits_end,
+			line_additions: line_additions,
+			tokens: tokens,
+		})
 	}
 }
 

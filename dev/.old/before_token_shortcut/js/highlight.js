@@ -32,10 +32,10 @@ vhighlight.get_tokenizer = function(language) {
 	}
 }
 	
-// Tokenize code.
+// Highlight
 // - Returns "null" when the language is not supported.
 // - Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
-vhighlight.tokenize = function({
+vhighlight.highlight = function({
 	element = null,			// the html code element.
 	code = null,			// when the code is assigned the highlighted code will be returned.
 	language = null,		// code language, precedes element attribute "language".
@@ -43,7 +43,7 @@ vhighlight.tokenize = function({
 	animate = false,		// animate code writing.
 	delay = 25,				// animation delay in milliseconds, only used when providing parameter "element".
 	// is_func = false,	 	// enable when cpp code is inside a function.
-	build_html = false,		// with build_html as `true` this function will build the html and return the html code when parameter `code` is defined, with build_html as `false` it will return the array of tokens.
+	return_tokens = false,	// return the tokens instead of the parsed html code.
 }) {
 
 	// Get language.
@@ -69,13 +69,14 @@ vhighlight.tokenize = function({
 	
 	// When the code is assigned just highlight the code and return the highlighted code/
 	if (code != null) {
-		return tokenizer.tokenize({code: code, build_html: build_html});
+		return tokenizer.highlight(code, return_tokens);
 	}
 
 	// When the element is a <pre> just highlight it.
 	else if (element.tagName == "PRE") {
+		return_tokens = false;
 		code = element.innerText.replaceAll(">", "&gt;").replaceAll("<", "&lt;");
-		element.innerHTML = tokenizer.tokenize({code: code, build_html: true});
+		element.innerHTML = tokenizer.highlight(code);
 		return ;
 	}
 
@@ -258,7 +259,8 @@ vhighlight.tokenize = function({
 	setTimeout(() => {
 
 		// Highlight.
-		let highlighted_code = tokenizer.tokenize({code: code, build_html: true});
+		return_tokens = false;
+		let highlighted_code = tokenizer.highlight(code);
 
 		// No line numbers.
 		// So add code directly.

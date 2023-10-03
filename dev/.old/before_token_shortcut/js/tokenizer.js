@@ -111,7 +111,7 @@ vhighlight.Tokens = class Tokens extends Array {
 // - @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
 // - Parsing behaviour depends on that every word is seperated as a token, so each word boundary is a seperate token.
-// @todo highlight "@\\s+" patterns outside comments as type.
+// @todo highlight "@\\s+" patterns outside comments as token_type.
 // @todo add support for each language to get parameters, so that vdocs can use this.
 vhighlight.Tokenizer = class Tokenizer {
 	constructor({
@@ -330,7 +330,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// const now = Date.now();
 		return this.tokens.iterate_tokens_reversed((token) => {
 			if (token.index <= index) {
-				if (exclude_comments && token.token === "comment") {
+				if (exclude_comments && token.token === "token_comment") {
 					return null;
 				}
 				if (!exclude.includes(token.data)) {
@@ -609,7 +609,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			(extended.is_word_boundary === true) ||
 			(
 				this.batch.length === 1 && 
-				(token === null || token === "operator") && // token is null or is token operator in case the language class appends the token as operator without the is_word_boundary param.
+				(token === null || token === "token_operator") && // token is null or is token operator in case the language class appends the token as token_operator without the is_word_boundary param.
 				this.word_boundaries.includes(this.batch)
 			)
 		) {
@@ -635,7 +635,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Set parents.
-		else if (this.do_on_type_def_keyword !== true && token === "type_def") {
+		else if (this.do_on_type_def_keyword !== true && token === "token_type_def") {
 			this.assign_parents(obj);
 			this.add_parent(obj);
 		}
@@ -731,7 +731,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 			// Reset next token when the batch is a keyword for example in "constexpr inline X".
 			else if (this.keywords.includes(this.batch)) {
-				appended_token = this.append_token("keyword");
+				appended_token = this.append_token("token_keyword");
 				this.next_token = null;
 				this.do_on_type_def_keyword = false;
 			}
@@ -758,27 +758,27 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.type_def_keywords.includes(this.batch) && 
 					(this.prev_nw_token_data == null || this.exclude_type_def_keywords_on_prev.length === 0 || this.exclude_type_def_keywords_on_prev.includes(this.prev_nw_token_data) == false)
 				) {
-					this.next_token = "type_def"
+					this.next_token = "token_type_def"
 					this.do_on_type_def_keyword = this.on_type_def_keyword !== undefined;
 				}
 				
 				// Next tokens.
 				else if (this.type_keywords.includes(this.batch)) {
-					this.next_token = "type";
+					this.next_token = "token_type";
 				}
 				
 				// Append.
-				appended_token = this.append_token("keyword");
+				appended_token = this.append_token("token_keyword");
 			}
 			
 			// Operator.
 			else if (this.operators.includes(this.batch)) {
-				appended_token = this.append_token("operator", {is_word_boundary: true});
+				appended_token = this.append_token("token_operator", {is_word_boundary: true});
 			}
 			
 			// Numeric.
 			else if (this.allow_numerics && /^-?\d+(\.\d+)?$/.test(this.batch)) {
-				appended_token = this.append_token("numeric");
+				appended_token = this.append_token("token_numeric");
 			}
 			
 			// Just a code batch without highlighting.
@@ -1101,24 +1101,10 @@ vhighlight.Tokenizer = class Tokenizer {
 	// - The "this.callback" should return "true" to indicate the character has been appended to the batch, and "false" if not.
 	// - Each word boundary seperates a token. The callback is required to respect this, since this ignoring this behaviour may cause undefined behaviour.
 	// - When performing a forward lookup and editing this.index afterwards, dont forget to incrrement the this.line var on line breaks.
-	tokenize({
-		code = null,
-		stop_callback = undefined,
-		build_html = false,
-	}) {
+	tokenize(return_tokens = false, stop_callback = undefined) {
 
 		// Reset.
 		this.reset();
-
-		// Derived reset.
-		if (this.derived_reset !== undefined) {
-			this.derived_reset();
-		}
-
-		// Assign code when not already assigned.
-		if (code !== null) {
-			this.code = code;
-		}
 
 		// Check seperate batch append token comment codeblock for the first " * " in languages with /* */ multi line comment style
 		const append_comment_codeblock_batch = () => {
@@ -1144,27 +1130,27 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (separate) {
 					const after = this.batch.substr(i);
 					this.batch = this.batch.substr(0, i);
-					this.append_batch("comment", {is_comment: true});
+					this.append_batch("token_comment", {is_comment: true});
 					this.batch = after;
 				}
 			}
-			this.append_batch("comment_codeblock", {is_comment: true});
+			this.append_batch("token_comment_codeblock", {is_comment: true});
 		}
 
 		// Append previous batch when switching comment, string, regex, to something else.
 		const auto_append_batch_switch = (default_append = true) => {
 			if (this.is_comment_keyword) {
-				this.append_batch("comment_keyword", {is_comment: true});
+				this.append_batch("token_comment_keyword", {is_comment: true});
 			} else if (this.is_comment_codeblock) {
 				append_comment_codeblock_batch();
 			} else if (this.is_comment) {
-				this.append_batch("comment", {is_comment: true});
+				this.append_batch("token_comment", {is_comment: true});
 			} else if (this.is_str) {
-				this.append_batch("string");
+				this.append_batch("token_string");
 			} else if (this.is_regex) {
-				this.append_batch("string");
+				this.append_batch("token_string");
 			} else if (this.is_preprocessor) {
-				this.append_batch("preprocessor");
+				this.append_batch("token_preprocessor");
 			} else {
 				if (default_append) {
 					this.append_batch();
@@ -1241,13 +1227,13 @@ vhighlight.Tokenizer = class Tokenizer {
 				// Append tokens.
 				if (last_word_boundary === 0) {
 					this.batch = shebang;
-					this.append_batch("comment");
+					this.append_batch("token_comment");
 				} else {
 					++last_word_boundary;
 					this.batch = shebang.substr(0, last_word_boundary);
-					this.append_batch("comment");
+					this.append_batch("token_comment");
 					this.batch = shebang.substr(last_word_boundary); // interpreter.
-					this.append_batch("keyword");
+					this.append_batch("token_keyword");
 				}
 
 				// Set resume on index.
@@ -1352,7 +1338,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Check for special prefix chars.
 					if (auto_append_batch_switch(false) === false) {
 						if (this.special_string_prefixes.includes(this.batch)) {
-							this.append_batch("keyword");
+							this.append_batch("token_keyword");
 						} else {
 							this.append_batch();
 						}
@@ -1466,7 +1452,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				// End of comment.
 				// Should proceed with the callback since the next character needs to be parsed.
 				if (this.is_comment_keyword) {
-					this.append_batch("comment_keyword", {is_comment: true});
+					this.append_batch("token_comment_keyword", {is_comment: true});
 					this.is_comment_keyword = false;
 				}
 				else if (this.is_comment_codeblock) {
@@ -1474,7 +1460,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.is_comment_codeblock = false;
 				}
 				else if (this.is_comment) {
-					this.append_batch("comment", {is_comment: true});
+					this.append_batch("token_comment", {is_comment: true});
 					this.is_comment = false;
 					this.is_comment_keyword = false;
 					this.is_comment_codeblock = false;
@@ -1483,21 +1469,21 @@ vhighlight.Tokenizer = class Tokenizer {
 				// End of string.
 				// Should proceed with the callback since the next character needs to be parsed.
 				else if (this.is_str) {
-					this.append_batch("string");
+					this.append_batch("token_string");
 					this.is_str = false;
 				}
 				
 				// End of regex.
 				// Should proceed with the callback since the next character needs to be parsed.
 				else if (this.is_regex) {
-					this.append_batch("string");
+					this.append_batch("token_string");
 					this.is_regex = false;
 				}
 
 				// End of preprocessor.
 				// Should proceed with the callback since the next character needs to be parsed.
 				else if (this.is_preprocessor) {
-					this.append_batch("preprocessor");
+					this.append_batch("token_preprocessor");
 					this.is_preprocessor = false;
 				}
 
@@ -1525,7 +1511,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// When there is at least one char used in the decorator then parse it as a decorator.
 					if (batch.length > 1) {
 						this.batch = batch;
-						this.append_batch("type", {is_decorator: true, parameters: []});
+						this.append_batch("token_type", {is_decorator: true, parameters: []});
 						this.index += batch.length - 1;
 						return null;
 					}
@@ -1618,19 +1604,19 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Do not continue when the token before the parent is a keyword, for statements like "if ()".
 					// Since that will never be a type or type def so also do not highlight the params etc.
 					// Except for certain keywords that are allowed in some languages.
-					const is_keyword = token_before_opening_parenth.token === "keyword";
+					const is_keyword = token_before_opening_parenth.token === "token_keyword";
 					if (is_keyword && this.allowed_keywords_before_type_defs.includes(token_before_opening_parenth.data) === false) {
 						return finalize();
 					}
 
-					// When the token before the opening parenth token already is a decorator, type or type_def there is no need to call on parenth close.
+					// When the token before the opening parenth token already is a decorator, token_type or token_type_def there is no need to call on parenth close.
 					// When type def keywords are used this is possible, and with decorators ofcourse.
 					if (
 						token_before_opening_parenth != null && 
 						(
 							token_before_opening_parenth.is_decorator === true ||
-							token_before_opening_parenth.token === "type" ||
-							token_before_opening_parenth.token === "type_def"
+							token_before_opening_parenth.token === "token_type" ||
+							token_before_opening_parenth.token === "token_type_def"
 						)
 					) {
 						type_token = token_before_opening_parenth;
@@ -1645,7 +1631,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Set flags for type def tokens.
-					if (type_token != null && type_token.token === "type_def") {
+					if (type_token != null && type_token.token === "token_type_def") {
 
 						// Enable the is post type def modifier flag.
 						this.is_post_type_def_modifier = true;
@@ -1700,7 +1686,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Iterate the parenth tokens.
-					const is_type_def = type_token != null && type_token.token === "type_def";
+					const is_type_def = type_token != null && type_token.token === "token_type_def";
 					const is_decorator = type_token != null && type_token.is_decorator === true;
 
 					// let log = false;
@@ -1745,9 +1731,9 @@ vhighlight.Tokenizer = class Tokenizer {
 							}
 
 							// Assign to parameter.
-							if (token.token === "keyword") {
+							if (token.token === "token_keyword") {
 								param.modifiers.push(token.data.trim());
-							} else if (token.token === "type") {
+							} else if (token.token === "token_type") {
 								if (param.type == null) {
 									param.type = token.data.trim();
 								} else {
@@ -1760,13 +1746,13 @@ vhighlight.Tokenizer = class Tokenizer {
 									param.type += token.data.trim();
 								}
 							} else {
-								const allow_assignment = (token.token === undefined || token.token === "type_def");
+								const allow_assignment = (token.token === undefined || token.token === "token_type_def");
 
 								// On a type definition always assign to parameter.
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
 								if (is_type_def && allow_assignment) {
 									param.name = token.data.trim();
-									token.token = "parameter";
+									token.token = "token_parameter";
 								}
 
 								// When the token is a type there must be a "=" after this tokens.
@@ -1775,7 +1761,7 @@ vhighlight.Tokenizer = class Tokenizer {
 									const next = get_next_assignment_operator(i);
 									if (next !== null && allow_assignment) {
 										param.name = token.data.trim();
-										token.token = "parameter";
+										token.token = "token_parameter";
 									}
 									else if (next === null && is_decorator) {
 										if (param.value === null) {
@@ -1872,8 +1858,8 @@ vhighlight.Tokenizer = class Tokenizer {
 					// return null;
 
 					// Check if the preceding token is a type def.
-					let is_type_def = type_token != null && type_token.token === "type_def";
-					const is_type = type_token == null || type_token.token === "type";
+					let is_type_def = type_token != null && type_token.token === "token_type_def";
+					const is_type = type_token == null || type_token.token === "token_type";
 					const is_decorator = type_token != null && is_type && type_token.is_decorator === true;
 					let is_anonymous_type_def = false;
 
@@ -1892,7 +1878,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						}
 					}
 
-					// Stop when the preceding is not a type or type_def.
+					// Stop when the preceding is not a token_type or token_type_def.
 					if (!is_anonymous_type_def && !is_type_def && !is_type) {
 
 						// Delete the custom attribute.
@@ -1985,9 +1971,9 @@ vhighlight.Tokenizer = class Tokenizer {
 							}
 
 							// Assign to parameter.
-							if (token.token === "keyword") {
+							if (token.token === "token_keyword") {
 								param.modifiers.push(token.data.trim());
-							} else if (token.token === "type") {
+							} else if (token.token === "token_type") {
 								param.type = token.data.trim();
 							} else {
 
@@ -1995,7 +1981,7 @@ vhighlight.Tokenizer = class Tokenizer {
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
 								if (is_type_def && token.token === undefined) {
 									param.name = token.data.trim();
-									token.token = "parameter";
+									token.token = "token_parameter";
 								}
 
 								// When the token is a type there must be a "=" after this tokens.
@@ -2004,7 +1990,7 @@ vhighlight.Tokenizer = class Tokenizer {
 									const next = get_next_assignment_operator(i);
 									if (next !== null && token.token === undefined) {
 										param.name = token.data.trim();
-										token.token = "parameter";
+										token.token = "token_parameter";
 									} else if (next === null && is_decorator) {
 										if (param.value === null) {
 											param.value = token.data;
@@ -2081,27 +2067,22 @@ vhighlight.Tokenizer = class Tokenizer {
 		// console.log(`append_token time: ${this.append_token_time}ms.`);
 		// console.log(`get_prev_token time: ${this.get_prev_token_time}ms.`);
 
-		// Build html.
-		if (build_html) {
-			return this.build_html();
+		// Return tokens.
+		if (return_tokens) {
+			return this.tokens;
 		}
 
-		// Return tokens.
-		else  {
-			return this.tokens;
+		// Build html.
+		else {
+			return this.build_tokens();
 		}
 	}
 
 	// Partial tokenize.
+	// @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 	/*	@docs: {
 		@title Partial tokenize
 		@description: Partially tokenize text based on edited lines.
-		@warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
 		@parameter: {
 			@name: edits_start
 			@type: string
@@ -2124,27 +2105,11 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 	} */
 	partial_tokenize({
-		code = null,
 		edits_start = null,
 		edits_end = null,
 		line_additions = 0,
 		tokens = [],
-		build_html = false,
 	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.code = code;
-		}
-
-		// Reset.
-		this.reset();
-
-		// Derived reset.
-		if (this.derived_reset !== undefined) {
-			this.derived_reset();
-		}
 
 		// Args.
 		if (line_additions === undefined || isNaN(line_additions)) {
@@ -2202,7 +2167,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						}
 
 						// Found type def at zero depth.
-						else if (token.token === "type_def" && depth === 0) {
+						else if (token.token === "token_type_def" && depth === 0) {
 							found_separator = token.line;
 							return true;
 						}
@@ -2212,10 +2177,10 @@ vhighlight.Tokenizer = class Tokenizer {
 					const first_token = line_tokens[0];
 					if (
 						found_separator !== null &&
-						first_token.token !== "comment" &&
-						first_token.token !== "string" &&
+						first_token.token !== "token_comment" &&
+						first_token.token !== "token_string" &&
 						first_token.token !== "token_regex" &&
-						first_token.token !== "preprocessor"
+						first_token.token !== "token_preprocessor"
 					) {
 						scope_start = first_token.line;
 						scope_start_offset = first_token.offset;
@@ -2262,7 +2227,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 						// Any other scope seperators.
 						else if (
-							(token.token === undefined || token.token === "operator") &&
+							(token.token === undefined || token.token === "token_operator") &&
 							token.data.length === 1 &&
 							this.scope_separators.includes(token.data)
 						) {
@@ -2275,10 +2240,10 @@ vhighlight.Tokenizer = class Tokenizer {
 					const first_token = line_tokens[0];
 					if (
 						found_separator !== null &&
-						first_token.token !== "comment" &&
-						first_token.token !== "string" &&
+						first_token.token !== "token_comment" &&
+						first_token.token !== "token_string" &&
 						first_token.token !== "token_regex" &&
-						first_token.token !== "preprocessor"
+						first_token.token !== "token_preprocessor"
 					) {
 						scope_start = first_token.line;
 						scope_start_offset = first_token.offset;
@@ -2355,7 +2320,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Tokenize.
 		this.code = this.code.substr(scope_start_offset, this.code.length - scope_start_offset);
-		const insert_tokens = this.tokenize({stop_callback: stop_callback});
+		const insert_tokens = this.tokenize(true, stop_callback);
 
 		// console.log("SCOPE:", this.code);
 		// console.log("Tokenized lines:",insert_tokens.length);
@@ -2417,22 +2382,12 @@ vhighlight.Tokenizer = class Tokenizer {
 		// console.log("combined_tokens:",combined_tokens);
 		// console.log("Combine the tokens:", Date.now() - now, "ms.");
 
-		// Assign to tokens.
-		this.tokens = combined_tokens;
-
-		// Build html.
-		if (build_html) {
-			return this.build_html();
-		}
-
-		// Return tokens.
-		else  {
-			return this.tokens;
-		}
+		// Handler.
+		return combined_tokens;
 	}
 
 	// Build the html from tokens.
-	build_html({token_prefix = "token_", reformat = true}) {
+	build_tokens(reformat = true) {
 
 		// Vars.
 		let html = "";
@@ -2447,14 +2402,10 @@ vhighlight.Tokenizer = class Tokenizer {
 						html += token.data;
 					}
 				} else {
-					let class_ = "";
-					if (token.token !== undefined) {
-						class_ = `class='${token_prefix}${token.token}'`;
-					}
 					if (reformat) {
-						html += `<span ${class_}>${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`
+						html += `<span class='${token.token}'>${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`
 					} else {
-						html += `<span ${class_}>${token.data}</span>`
+						html += `<span class='${token.token}'>${token.data}</span>`
 					}
 					
 				}

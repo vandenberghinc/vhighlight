@@ -12,7 +12,7 @@ const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 const vhighlight = require("../../vhighlight.js")
 console.log("Highlighting...");
 const now = Date.now();
-const tokens = vhighlight.python.highlight(new vlib.Path("/Volumes/persistance/private/vinc/vhighlight/dev/tests/test.py").load_sync(), true);
+const tokens = vhighlight.python.tokenize({code: new vlib.Path("/Volumes/persistance/private/vinc/vhighlight/dev/tests/test.py").load_sync()});
 console.log(tokens);
 console.log("==========")
 console.log(tokens[0][2]);
