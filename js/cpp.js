@@ -228,6 +228,10 @@ vhighlight.CPP = class CPP {
 							}
 							if (word.length > 0) {
 								if (tokenizer.keywords.includes(word)) { // do not increment words on a keyword.
+									// Stop when a type def keyword was encoutered.
+									if (tokenizer.type_def_keywords.includes(word)) {
+										return false;
+									}
 									append_to_batch.push(["token_keyword", word]);
 								} else {
 									if (c != ":" || tokenizer.code.charAt(index + 1) != ":") { // do not increment on colons like "vlib::String" since they should count as one word.
@@ -428,6 +432,55 @@ vhighlight.CPP = class CPP {
 					prev.token = "token_type";
 				}
 				return true;
+			}
+
+			// Set the inherited classes when the flag is enabled.
+			else if (char === "}" && this.capture_inherit_start_token !== undefined) {
+
+				// Append current batch by word boundary separator.
+				tokenizer.append_batch();
+
+				// Vars.
+				const start_token = this.capture_inherit_start_token;
+				let success = false;
+				let inherited_types = [];
+				let inherit_privacy_type = null;
+				let post_colon = false;
+
+				// Iterate backwards till the extends token is found, capture the types found in between.
+				tokenizer.tokens.iterate_tokens(start_token.line, null, (token) => {
+					if (token.index > start_token.index) {
+						if (post_colon) {
+							if (token.token === "token_keyword") {
+								inherit_privacy_type = token.data;
+							} else if (inherit_privacy_type != null) {
+								if (token.is_whitespace) {
+									return null;
+								}
+								else if (token.is_word_boundary) {
+									inherit_privacy_type = null;
+								} else {
+									token.token = "token_type";
+									inherited_types.push({
+										type: inherit_privacy_type,
+										token: token,
+									})
+								}
+							}
+						}
+						else if (token.token === undefined && token.data === ":") {
+							post_colon = true;
+						}
+					}
+				})
+
+				// Assign the inherited types to the token.
+				if (inherited_types.length > 0) {
+					start_token.inherited = inherited_types;
+				}
+
+				// Reset the inherited class check flag.
+				this.capture_inherit_start_token = undefined;
 			}
 
 			// Not appended.
@@ -806,6 +859,7 @@ vhighlight.CPP = class CPP {
 								break;
 							}
 							token.token = "token_type_def";
+							token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
 							token_for_parse_pre_func_tokens = token;
 						}
 
@@ -852,7 +906,7 @@ vhighlight.CPP = class CPP {
 
 						// Make sure the token before the prev is not a keyword such as "if ()".
 						let prev_prev = tokenizer.get_prev_token(prev.index - 1, [" ", "\t", "\n", "*", "&"]);
-						if (prev_prev == null || prev_prev.token != "token_type") {
+						if (prev_prev == null || (prev_prev.token != "token_type")) {
 							prev.token = "token_type";
 						}
 					}
@@ -974,10 +1028,27 @@ vhighlight.CPP = class CPP {
 				})
 			}
 		}
+
+		// Set the on type def keyword callback.
+		// The parents always need to be set, but when a class is defined like "mylib.MyClass = class MyClass {}" the tokenizer will not add mylib as a parent.
+		// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
+		this.tokenizer.on_type_def_keyword = (token) => {
+			
+			// Assign parents.
+			tokenizer.assign_parents(token);
+			tokenizer.add_parent(token);
+
+			// Set the start token to capture inherited classes when the previous token is either struct or class.
+			const prev = tokenizer.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			if (prev !== null && (prev.data === "struct" || prev.data === "class")) {
+				this.capture_inherit_start_token = token;
+			}
+		}
 	}
 
 	// Reset attributes that should be reset before each tokenize.
 	reset() {
+		
 		// The last line to detect types.
 		this.last_line_type = null;
 
@@ -986,6 +1057,9 @@ vhighlight.CPP = class CPP {
 		// The user defines a function definition header inside a function but that is fine.
 		this.inside_func = false;
 		this.inside_func_closing_curly = null;
+
+		// Used to detect type def inheritance.
+		this.capture_inherit_start_token = undefined;
 	}
 
 	// Highlight.

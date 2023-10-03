@@ -291,11 +291,11 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Add a parent.
-	add_parent(name) {
+	add_parent(token) {
 		if (this.indent_language) {
-			this.parents.push([name, this.line_indent]);
+			this.parents.push([token, this.line_indent]);
 		} else {
-			this.parents.push([name, this.curly_depth]);
+			this.parents.push([token, this.curly_depth]);
 		}
 	}
 
@@ -567,46 +567,6 @@ vhighlight.Tokenizer = class Tokenizer {
 		return false;
 	}
 
-	// Append lookup token.
-	// This function must be used when appending new tokens by a forward lookup.
-	// Since every line break should be a seperate line break token for VIDE.
-	append_forward_lookup_batch(token, data, extended = {}) {
-		if (this.batch.length > 0) {
-			this.append_batch();
-		}
-		this.batch = "";
-		for (let i = 0; i < data.length; i++) {
-			const c = data.charAt(i);
-			if (c == "\n" && !this.is_escaped(i, data)) {
-				this.append_batch(token, extended);
-				this.batch = "\n";
-				this.append_batch("token_line", extended);
-				++this.line;
-			} else {
-				this.batch += c;
-			}
-		}
-		this.append_batch(token, extended);
-	}
-
-	// Resume the iteration at a certain index.
-	// So do not assign directly to this.index but use this function instead.
-	// Otherwise the line numbers may be counted incorrectly.
-	resume_on_index(index) {
-		
-		// Increment line count.
-		// Became obsolete by "append_forward_lookup_batch()".
-		// const info_obj = {index: null, prev_char: null, next_char: null};
-		// this.iterate_code(info_obj, this.index, index + 1, (char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped) => {
-		// 	if (!is_escaped && char == "\n") {
-		// 		++this.line;
-		// 	}
-		// })
-
-		// Set index.
-		this.index = index;
-	}
-
 	// Concat tokens to the end of the current tokens.
 	concat_tokens(tokens) {
 		const start_line = this.line;
@@ -677,7 +637,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Set parents.
 		else if (this.do_on_type_def_keyword !== true && token === "token_type_def") {
 			this.assign_parents(obj);
-			this.add_parent(obj.data);
+			this.add_parent(obj);
 		}
 
 		// Update offset.
@@ -739,17 +699,18 @@ vhighlight.Tokenizer = class Tokenizer {
 	//   Is null the batch will be checked against keywords, numerics etc.
 	append_batch(token = null, extended = {}) {
 		if (this.batch.length == 0) {
-			return ;
+			return null;
 		}
-		
+		let appended_token;
+
 		// Do not parse tokens.
 		if (token == false) {
-			this.append_token(null, extended);
+			appended_token = this.append_token(null, extended);
 		}
 		
 		// By assigned token.
 		else if (token != null) {
-			this.append_token(token, extended);
+			appended_token = this.append_token(token, extended);
 		}
 		
 		// By next token.
@@ -758,29 +719,29 @@ vhighlight.Tokenizer = class Tokenizer {
 
 			// Skip next token but do not reset on whitespace batch.
 			if (this.is_linebreak_whitespace_batch()) {
-				this.append_token(null, extended);
+				appended_token = this.append_token(null, extended);
 			}
 
 			// Reset next token when the batch is a word boundary for example in "struct { ... } X".
 			else if (extended.is_word_boundary === true || this.word_boundaries.includes(this.batch)) {
-				this.append_token(null, {is_word_boundary: true});
+				appended_token = this.append_token(null, {is_word_boundary: true});
 				this.next_token = null;
 				this.do_on_type_def_keyword = false;
 			}
 
 			// Reset next token when the batch is a keyword for example in "constexpr inline X".
 			else if (this.keywords.includes(this.batch)) {
-				this.append_token("token_keyword");
+				appended_token = this.append_token("token_keyword");
 				this.next_token = null;
 				this.do_on_type_def_keyword = false;
 			}
 
 			// Append as next token.
 			else {
-				const added_token = this.append_token(this.next_token, extended);
+				appended_token = this.append_token(this.next_token, extended);
 				this.next_token = null;
 				if (this.do_on_type_def_keyword === true && this.on_type_def_keyword !== undefined) {
-					this.on_type_def_keyword(added_token);
+					this.on_type_def_keyword(appended_token);
 				}
 				this.do_on_type_def_keyword = false;
 			}
@@ -807,29 +768,73 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 				
 				// Append.
-				this.append_token("token_keyword");
+				appended_token = this.append_token("token_keyword");
 			}
 			
 			// Operator.
 			else if (this.operators.includes(this.batch)) {
-				this.append_token("token_operator", {is_word_boundary: true});
+				appended_token = this.append_token("token_operator", {is_word_boundary: true});
 			}
 			
 			// Numeric.
 			else if (this.allow_numerics && /^-?\d+(\.\d+)?$/.test(this.batch)) {
-				this.append_token("token_numeric");
+				appended_token = this.append_token("token_numeric");
 			}
 			
 			// Just a code batch without highlighting.
 			else {
-				this.append_token(null, extended);
+				appended_token = this.append_token(null, extended);
 			}
 			
 		}
 		
 		// Reset batch.
 		this.batch = "";
+
+		// Return the appended token.
+		return appended_token;		
+	}
+
+	// Append lookup token.
+	// This function must be used when appending new tokens by a forward lookup.
+	// Since every line break should be a seperate line break token for VIDE.
+	append_forward_lookup_batch(token, data, extended = {}) {
+		let appended_tokens = [];
+		if (this.batch.length > 0) {
+			appended_tokens.push(this.append_batch());
+		}
+		this.batch = "";
+		for (let i = 0; i < data.length; i++) {
+			const c = data.charAt(i);
+			if (c == "\n" && !this.is_escaped(i, data)) {
+				appended_tokens.push(this.append_batch(token, extended));
+				this.batch = "\n";
+				appended_tokens.push(this.append_batch("token_line", extended));
+				++this.line;
+			} else {
+				this.batch += c;
+			}
+		}
+		appended_tokens.push(this.append_batch(token, extended));
+		return appended_tokens;
+	}
+
+	// Resume the iteration at a certain index.
+	// So do not assign directly to this.index but use this function instead.
+	// Otherwise the line numbers may be counted incorrectly.
+	resume_on_index(index) {
 		
+		// Increment line count.
+		// Became obsolete by "append_forward_lookup_batch()".
+		// const info_obj = {index: null, prev_char: null, next_char: null};
+		// this.iterate_code(info_obj, this.index, index + 1, (char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped) => {
+		// 	if (!is_escaped && char == "\n") {
+		// 		++this.line;
+		// 	}
+		// })
+
+		// Set index.
+		this.index = index;
 	}
 
 	// Iterate code function.
@@ -1159,12 +1164,13 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Iterate code.
 		let shebang_allowed = true;
 		let disable_start_of_line = false;
+		let start_of_line_last_line = null;
 		const stopped = this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
 
 			// Start of line.
 			// Set start of line flag and line indent for parent closings on indent languages.
 			// The start of line flag must still be true for the first non whitespace character.
-			if (this.start_of_line) {
+			if (disable_start_of_line === false && (this.start_of_line || start_of_line_last_line != this.line)) {
 
 				// Allow whitespace at the line start.
 				if (char === " " || char === "\t") {
@@ -1183,6 +1189,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 					// Set disable start of line flag for the next char.
 					disable_start_of_line = true;
+					start_of_line_last_line = this.line;
 				}
 			} else if (disable_start_of_line) {
 				this.start_of_line = false;
@@ -1631,7 +1638,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						this.post_type_def_modifier_type_def_token = type_token;
 
 						// Assign parents to the type token.
-						if (type_token.is_decorator !== true) {
+						if (type_token.is_decorator !== true && (this.parents.length === 0 || this.parents.last()[0] !== type_token)) {
 							this.assign_parents(type_token)	;
 						}
 

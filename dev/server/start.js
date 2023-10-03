@@ -7,13 +7,15 @@
 // Highlight.
 
 // Highlight.
-/* 
+/* */ 
 const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 const vhighlight = require("../../vhighlight.js")
 console.log("Highlighting...");
 const now = Date.now();
-const tokens = vhighlight.js.highlight(new vlib.Path("/Volumes/persistance/private/vinc/vhighlight/dev/tests/test2.js").load_sync(), true);
-console.log(tokens[6]);
+const tokens = vhighlight.python.highlight(new vlib.Path("/Volumes/persistance/private/vinc/vhighlight/dev/tests/test.py").load_sync(), true);
+console.log(tokens);
+console.log("==========")
+console.log(tokens[0][2]);
 // for (let i = Math.max(0, tokens.length - 100); i < tokens.length; i++) {
 //     console.log(tokens[i]);
 // }
@@ -23,10 +25,10 @@ console.log(tokens[6]);
 //     }
 // })
 console.log("Speed: ", Date.now() - now);
-*/
+
 // ---------------------------------------------------------
 // Imports.
-/* */ 
+/* 
 const vweb = require(`/Volumes/persistance/private/vinc/vweb/js/backend/vweb.js`);
 const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 // const vweb = require(`@vandenberghinc/vweb`);
@@ -129,4 +131,4 @@ server.endpoint({
 })
 
 // Start the server.
-server.start();
+server.start();*/ 

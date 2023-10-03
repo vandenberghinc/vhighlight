@@ -1,5 +1,2 @@
-void somebeforefunc() {}
-const String me = "you";
 
-
-void*& myfunc() template <Me, {Array<You>}> requires (is_me<You>::value || is_you<Me>::value) static inline constexpr {}
+struct Class : public Class1, public Class2, private Class3, protected Class4 {}

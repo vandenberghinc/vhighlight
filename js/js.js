@@ -119,11 +119,11 @@ vhighlight.JS = class JS {
 				if ((parent_token.token === undefined && parent_token.data === ".")) {
 					continue;
 				} else if (parent_token.token === "token_keyword") { // also allow keywords since a user may do something like "mylib.module = ...";
-					parents.push(parent_token.data);
+					parents.push(parent_token);
 				} else if (parent_token.is_word_boundary === true || parent_token.token !== undefined) {
 					break;
 				} else {
-					parents.push(parent_token.data);
+					parents.push(parent_token);
 				}
 			}
 			parents.iterate_reversed((item) => {
@@ -152,15 +152,19 @@ vhighlight.JS = class JS {
 
 				// Assign parents to the first type def token for vdocs and not to the second.
 				type_def_token.token = "token_type_def";
+				token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
 				tokenizer.assign_parents(type_def_token);
-				tokenizer.add_parent(type_def_token.data);
+				tokenizer.add_parent(type_def_token);
 			}
 
 			// Assign parents.
 			else {
 				tokenizer.assign_parents(token);
-				tokenizer.add_parent(token.data);
+				tokenizer.add_parent(token);
 			}
+
+			// Set the start token to capture inherited classes.
+			this.capture_inherit_start_token = token;
 		}
 
 		// Set on parenth close callback.
@@ -248,10 +252,60 @@ vhighlight.JS = class JS {
 				return prev;
 			}
 		}
+
+		// Set the default callback.
+		this.tokenizer.callback = (char) => {
+
+			// Set the inherited classes when the flag is enabled.
+			if (char === "}" && this.capture_inherit_start_token !== undefined) {
+
+				// Append current batch by word boundary separator.
+				tokenizer.append_batch();
+
+				// Vars.
+				const start_token = this.capture_inherit_start_token;
+				let success = false;
+				let inherited_types = [];
+
+				// Iterate backwards till the extends token is found, capture the types found in between.
+				tokenizer.tokens.iterate_tokens_reversed((token) => {
+					if (token.index <= start_token.index) {
+						return false;
+					}
+					else if (token.token === "token_keyword" && token.data === "extends") {
+						success = true;
+						return false;
+					}
+					else if (token.token === "token_type") {
+						inherited_types.push({
+							type: "public",
+							token: token,
+						});
+					}
+				})
+
+				// Assign the inherited types to the token.
+				if (success && inherited_types.length > 0) {
+					start_token.inherited = inherited_types;
+				}
+
+				// Reset the inherited class check flag.
+				this.capture_inherit_start_token = undefined;
+			}
+		}
+	}
+
+	// Reset attributes that should be reset before each tokenize.
+	reset() {
+
+		// Used to detect type def inheritance.
+		this.capture_inherit_start_token = undefined;
+
 	}
 
 	// Highlight.
 	highlight(code = null, return_tokens = false) {
+		this.reset();
 		if (code !== null) {
 			this.tokenizer.code = code;
 		}
