@@ -1105,7 +1105,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		code = null,
 		stop_callback = undefined,
 		build_html = false,
-	}) {
+	} = {}) {
 
 		// Reset.
 		this.reset();
@@ -2432,7 +2432,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Build the html from tokens.
-	build_html({token_prefix = "token_", reformat = true}) {
+	build_html({token_prefix = "token_", reformat = true} = {}) {
 
 		// Vars.
 		let html = "";

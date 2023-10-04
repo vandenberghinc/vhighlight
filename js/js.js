@@ -56,6 +56,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			"exports",
 			"get",
 			"set",
+			"undefined",
 			// "enum",
 			// "implements",
 			// "interface",
@@ -108,7 +109,6 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 
 		// Function modifiers.
 		this.function_modifiers = ["async", "static", "get", "set", "*"];
-
 	}
 
 	// Reset attributes that should be reset before each tokenize.

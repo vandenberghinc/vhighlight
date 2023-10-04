@@ -351,28 +351,28 @@ vhighlight.get_tokenizer = function(language) {
 }
 vhighlight.init_tokenizer = function(language) {
 	if (language == "cpp" || language == "c++" || language == "c") {
-        return vhighlight.CPP();
+        return new vhighlight.CPP();
     }
     else if (language == "markdown" || language == "md") {
-        return vhighlight.Markdown();
+        return new vhighlight.Markdown();
     }
     else if (language == "js" || language == "javascript") {
-        return vhighlight.JS();
+        return new vhighlight.JS();
     }
     else if (language == "json") {
-        return vhighlight.JSON();
+        return new vhighlight.JSON();
     }
     else if (language == "python") {
-        return vhighlight.Python();
+        return new vhighlight.Python();
     }
     else if (language == "css") {
-        return vhighlight.CSS();
+        return new vhighlight.CSS();
     }
     else if (language == "html") {
-        return vhighlight.HTML();
+        return new vhighlight.HTML();
     }
     else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-        return vhighlight.Bash();
+        return new vhighlight.Bash();
     } else {
         return null;
     }

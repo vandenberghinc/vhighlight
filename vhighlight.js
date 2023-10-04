@@ -350,28 +350,28 @@ vhighlight.get_tokenizer = function(language) {
 }
 vhighlight.init_tokenizer = function(language) {
 	if (language == "cpp" || language == "c++" || language == "c") {
-        return vhighlight.CPP();
+        return new vhighlight.CPP();
     }
     else if (language == "markdown" || language == "md") {
-        return vhighlight.Markdown();
+        return new vhighlight.Markdown();
     }
     else if (language == "js" || language == "javascript") {
-        return vhighlight.JS();
+        return new vhighlight.JS();
     }
     else if (language == "json") {
-        return vhighlight.JSON();
+        return new vhighlight.JSON();
     }
     else if (language == "python") {
-        return vhighlight.Python();
+        return new vhighlight.Python();
     }
     else if (language == "css") {
-        return vhighlight.CSS();
+        return new vhighlight.CSS();
     }
     else if (language == "html") {
-        return vhighlight.HTML();
+        return new vhighlight.HTML();
     }
     else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-        return vhighlight.Bash();
+        return new vhighlight.Bash();
     } else {
         return null;
     }
@@ -1511,7 +1511,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		code = null,
 		stop_callback = undefined,
 		build_html = false,
-	}) {
+	} = {}) {
 
 		// Reset.
 		this.reset();
@@ -2838,7 +2838,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Build the html from tokens.
-	build_html({token_prefix = "token_", reformat = true}) {
+	build_html({token_prefix = "token_", reformat = true} = {}) {
 
 		// Vars.
 		let html = "";
@@ -5009,6 +5009,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			"exports",
 			"get",
 			"set",
+			"undefined",
 			// "enum",
 			// "implements",
 			// "interface",
@@ -5061,7 +5062,6 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 
 		// Function modifiers.
 		this.function_modifiers = ["async", "static", "get", "set", "*"];
-
 	}
 
 	// Reset attributes that should be reset before each tokenize.
