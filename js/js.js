@@ -107,6 +107,9 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			scope_separators: scope_separators,
 		});
 
+		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
+		this.language = "JS";
+
 		// Function modifiers.
 		this.function_modifiers = ["async", "static", "get", "set", "*"];
 	}

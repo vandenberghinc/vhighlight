@@ -154,6 +154,9 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			seperate_scope_by_type_def: true,
 		});
 
+		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
+		this.language = "C++";
+
 		// ---------------------------------------------------------
 		// On default callback.
 
@@ -367,7 +370,11 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						add_word(true);
 						append_to_batch.push([false, c]);
 					}
-					else if (this.is_whitespace(c) || c == "," || c == ":" || c == "*" || c == "&" || c == "\n" || c == "(" || c == ")" || c == "{" || c == "}" || c == "[" || c == "]") {
+					else if (this.operators.includes(c)) {
+						add_word(true);
+						append_to_batch.push(["operator", c]);
+					}
+					else if (this.is_whitespace(c) || c == "," || c == ":" || c == "\n" || c == "(" || c == ")" || c == "{" || c == "}" || c == "[" || c == "]") {
 						add_word(true);
 						append_to_batch.push([false, c]);
 					}
@@ -381,9 +388,8 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 					else {
 						break;
 					}
-
 				}
-				
+
 				// Add the batches when it is a template.
 				if (is_template) {
 					for (let i = 0; i < append_to_batch.length; i++) {
@@ -499,43 +505,8 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			return false;
 		}
 
-		// Trim the an array of reversed tokens, returns the array in the correct order, so not reversed.
-		const trim_tokens = (tokens, reversed = false) => {
-			if (tokens.length === 0) { return []; }
-			for (let i = tokens.length - 1; i >= 0; i--) {
-				const token = tokens[i];
-				if (token.is_whitespace === true) {
-					--tokens.length;
-				} else {
-					break;
-				}
-			}
-			let clean = [];
-			let first = true;
-			if (reversed) {
-				tokens.iterate_reversed((token) => {
-					if (first && token.is_whitespace === true) {
-						return null; // skip whitespace at the end.
-					} else {
-						first = false;
-						clean.push(token)
-					}
-				})
-			} else {
-				tokens.iterate((token) => {
-					if (first && token.is_whitespace === true) {
-						return null; // skip whitespace at the end.
-					} else {
-						first = false;
-						clean.push(token)
-					}
-				})
-			}
-			return clean;	
-		}
-
 		// Parse the pre modifiers, requires clause, template clause and the function type on a type def token match from inside the `on_parent_close()` callback.
-		const parse_pre_func_tokens = (type_def_token) => {
+		const parse_pre_type_def_modifiers = (first_type_def_token, type_def_token) => {
 
 			// Vars.
 			let type_tokens = []; 							// function's type tokens.
@@ -547,7 +518,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			let is_template = false;						// if the previous post type token was a (inside) template.
 			let parenth_depth = 0;	 						// parenth depth when the post_type flag is true.
 			let check_reset_requires_tokens = false;		// check a reset of the requires tokens on the next token.
-			let on_lower_than_index = type_def_token.index; // only check tokens with a lower index than this index.
+			let on_lower_than_index = first_type_def_token.index; // only check tokens with a lower index than this index.
 			let lookback_requires_tokens = [];				// the lookback potential requires clause token for `check_end_of_modifiers()`.
 
 			// Check the end of modiers.
@@ -640,24 +611,25 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			}
 
 			// Iterate the previous tokens reversed from the type def token.
-			this.tokens.iterate_tokens_reversed(0, type_def_token.line + 1, (token) => {
+			this.tokens.iterate_tokens_reversed(0, first_type_def_token.line + 1, (token) => {
 				if (token.index < on_lower_than_index) {
-					
+
 					// First go back to the token before the type definition.
 					// This means also skipping tokens with `is_template === true` and colon ":" tokens since these are allowed as part of the type.
 					// Also the first keyword that appears when the func_type is undefined counts as a type.
 					if (post_type === false) {
 
-						// Whitespace.
-						if (token.is_whitespace === true) {
-							type_tokens.push(token);
-							return null; // prevent fallthrough to "Check modifiers".	
-						}
-
 						// Inside a template.
-						else if (token.is_template === true) {
+						if (token.is_template === true) {
 							type_tokens.push(token);
 							return null; // prevent fallthrough to "Check modifiers".
+						}
+
+						// Whitespace.
+						// Must be after "Inside a template" to allow whitespace in templates.
+						else if (token.is_whitespace === true) {
+							type_tokens.push(token);
+							return null; // prevent fallthrough to "Check modifiers".	
 						}
 
 						// Is a type token.
@@ -696,7 +668,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 					// Check modifiers.
 					if (post_type === true) {
-						
+
 						// Set check reset requires flag.
 						if (check_reset_requires_tokens === 1) {
 							check_reset_requires_tokens = true;
@@ -706,6 +678,9 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// Skip whitespace.
 						if (token.is_whitespace === true) {
+							if (is_template && parenth_depth === 0) {
+								templates_tokens.push(token);
+							}
 							return null;
 						}
 
@@ -781,20 +756,102 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			if (type_tokens.length === 0) {
 				console.error(`Unable to determine the function type of function "${this.line}:${type_def_token.data}()".`);
 			} else {
-				type_def_token.type = trim_tokens(type_tokens, true);	
+				type_def_token.type = this.trim_tokens(type_tokens, true);	
 			}
 
 			// Assign the template tokens.
-			templates_tokens = trim_tokens(templates_tokens, true);
+			templates_tokens = this.trim_tokens(templates_tokens, true);
 			if (templates_tokens.length > 0) {
-				type_def_token.templates = []
-				templates_tokens.iterate((token) => {
-					type_def_token.templates.push(token);
+
+				// Initialize a template object.
+				const init_template = () => {
+					template = {
+						name: null, 	// the parameter name.
+						index: null, 	// the parameter index.
+						value: [], 		// the default value tokens.
+						type: [], 		// the type tokens.
+					};
+				}
+
+				// Append a template.
+				const append_template = () => {
+					if (template !== null) {
+						template.type = this.trim_tokens(template.type);
+						if (template.name != null) {
+							template.name = template.name.trim();
+						}
+						template.value = this.trim_tokens(template.value);
+						template.index = templates.length;
+						templates.push(template);
+						template = null;
+					};
+				}
+
+				// Parse the templates into objects.
+				// Create the array with parameters and assign the token_param to the tokens.
+				let mode = 1; // 1 for type 2 for value.
+				const templates = [];
+				let template = null;
+				let template_depth = 0, curly_depth = 0, parenth_depth = 0, bracket_depth = 0;
+				let post_assignment = false;
+
+				// Iterate the templates but skip the first < and last >.
+				templates_tokens.iterate(1, templates_tokens.length - 1, (token) => {
+
+					// Set depths.
+					if ((token.token === undefined || token.token === "operator") && token.data.length === 1) {
+						if (token.data === "<") { ++template_depth; }
+						else if (token.data === ">") { --template_depth; }
+						else if (token.data === "(") { ++parenth_depth; }
+						else if (token.data === ")") { --parenth_depth; }
+						else if (token.data === "[") { ++bracket_depth; }
+						else if (token.data === "]") { --bracket_depth; }
+						else if (token.data === "{") { ++curly_depth; }
+						else if (token.data === "}") { --curly_depth; }
+					}
+
+					// Seperator.
+					if (template_depth === 0 && parenth_depth === 0 && curly_depth === 0 && bracket_depth === 0 && token.data === ",") {
+						append_template();
+						mode = 1;
+					}
+
+					// Add to type / name.
+					else if (mode === 1) {
+						if (template === null) {
+							init_template();
+						}
+
+						// Add to name.
+						if (token.token !== "keyword" && token.is_whitespace !== true) {
+							template.name = token.data;
+							mode = 2;
+							post_assignment = false;
+						}
+
+						// Add to type.
+						else {
+							template.type.push(token);
+						}
+					}
+
+					// Add to value.
+					else if (mode === 2) {
+						if (post_assignment) {
+							template.value.push(token);
+						} else if (token.token === "operator" && token.data === "=") {
+							post_assignment = true;
+						}
+					}
 				})
+				append_template();
+
+				// Assign templates.
+				type_def_token.templates = templates;
 			}
 
 			// Assign the requires tokens.
-			requires_tokens = trim_tokens(requires_tokens, true);
+			requires_tokens = this.trim_tokens(requires_tokens, true);
 			if (requires_tokens.length > 0) {
 				type_def_token.requires = []
 				requires_tokens.iterate((token) => {
@@ -843,20 +900,34 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						first_char_matches_function_modifier(lookup) // from function modifier.
 					) {
 						prev.token = "type_def";
-						let token_for_parse_pre_func_tokens = prev;
+						let token_for_parse_pre_type_def_modifiers = prev;
 
 
 						// When the prev prev token is a colon, also set the "type" assigned by double colon to "type_def".
 						// So the entire "mylib::mychapter::myfunc() {}" will be a token type def, not just "myfunc" but also "mylib" and "mychapter".
+						let newly_added_parents = [];
 						let token = prev;
 						while (true) {
-							token = this.get_prev_token(token.index - 1, [":"]);
-							if (token == null || this.str_includes_word_boundary(token.data)) {
+							token = this.get_prev_token(token.index - 1, []);
+							if (token != null && token.data === ":") {
+								newly_added_parents.push(token);
+								continue;
+							}
+							else if (token == null || this.str_includes_word_boundary(token.data)) {
 								break;
 							}
 							token.token = "type_def";
 							token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
-							token_for_parse_pre_func_tokens = token;
+							token_for_parse_pre_type_def_modifiers = token;
+							newly_added_parents.push(token);
+						}
+						if (newly_added_parents.length > 0) {
+							let old_parents = this.copy_parents();
+							newly_added_parents.iterate((parent) => {
+								this.add_parent(parent);
+							})
+							this.assign_parents(prev);
+							this.parents = old_parents;
 						}
 
 						// Set the inside func flag.
@@ -880,7 +951,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						}
 
 						// Parse the type def pre modifiers.
-						parse_pre_func_tokens(token_for_parse_pre_func_tokens)
+						parse_pre_type_def_modifiers(token_for_parse_pre_type_def_modifiers, prev)
 
 						// Return the set token.
 						return prev;
@@ -995,18 +1066,18 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			})
 			
 			// Assign the template tokens.
-			templates_tokens = trim_tokens(templates_tokens);
-			if (templates_tokens.length > 0) {
-				if (type_def_token.templates === undefined) {
-					type_def_token.templates = []
-				}
-				templates_tokens.iterate((token) => {
-					type_def_token.templates.push(token);
-				})
-			}
+			// templates_tokens = this.trim_tokens(templates_tokens);
+			// if (templates_tokens.length > 0) {
+			// 	if (type_def_token.templates === undefined) {
+			// 		type_def_token.templates = []
+			// 	}
+			// 	templates_tokens.iterate((token) => {
+			// 		type_def_token.templates.push(token);
+			// 	})
+			// }
 
 			// Assign the requires tokens.
-			requires_tokens = trim_tokens(requires_tokens);
+			requires_tokens = this.trim_tokens(requires_tokens);
 			if (requires_tokens.length > 0) {
 				if (type_def_token.requires === undefined) {
 					type_def_token.requires = []
@@ -1033,6 +1104,9 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			// Assign parents.
 			this.assign_parents(token);
 			this.add_parent(token);
+
+			// Parse the pre type def templates and requires.
+			parse_pre_type_def_modifiers(token, token);
 
 			// Set the start token to capture inherited classes when the previous token is either struct or class.
 			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);

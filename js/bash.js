@@ -71,6 +71,9 @@ vhighlight.Bash = class Bash extends vhighlight.Tokenizer {
 			],
 		});
 
+		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
+		this.language = "Bash";
+
 		// Set callback.
 		this.callback = (char, is_escaped) => {
 			

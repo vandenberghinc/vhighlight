@@ -19,6 +19,9 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			scope_separators: [],
 		});
 
+		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
+		this.language = "Markdown";
+
 		// Set callback.
 		this.callback = (char) => {
 			

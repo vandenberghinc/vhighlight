@@ -1,2 +1,1 @@
-
-struct Class : public Class1, public Class2, private Class3, protected Class4 {}
+void me(const String& you = "me", String us = "you") {}
