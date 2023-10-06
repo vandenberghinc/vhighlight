@@ -1,1 +1,1 @@
-class Me extends You {}
+this.parse_blocks.iterate((iter_block) => {});

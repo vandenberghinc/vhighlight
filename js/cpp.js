@@ -520,6 +520,8 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			let check_reset_requires_tokens = false;		// check a reset of the requires tokens on the next token.
 			let on_lower_than_index = first_type_def_token.index; // only check tokens with a lower index than this index.
 			let lookback_requires_tokens = [];				// the lookback potential requires clause token for `check_end_of_modifiers()`.
+			let template_closed = false;					// flag for when the templates are already parsed and closed.
+			let requires_closed = false;					// flag for when the requires clause is already parsed and closed.
 
 			// Check the end of modiers.
 			// However since the requires clause is not required to be in parentheses there must be a lookback ...
@@ -678,7 +680,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// Skip whitespace.
 						if (token.is_whitespace === true) {
-							if (is_template && parenth_depth === 0) {
+							if (template_closed === false && is_template && parenth_depth === 0) {
 								templates_tokens.push(token);
 							}
 							return null;
@@ -692,7 +694,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 									return false; // STOP ITERATION.
 								}
 								--parenth_depth;
-								if (parenth_depth === 0) {
+								if (requires_closed === false && parenth_depth === 0) {
 									requires_tokens.push(token);
 									check_reset_requires_tokens = 1;
 									return null;
@@ -709,30 +711,42 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						// Reset the templates when the token before the the opening template is not "template".
 						// Also when the template is not reset there must be checked for a end of modifiers 1) since it was potentially part of a requires clause without parenth or it was the actual close.
 						// Must be after "Skip whitespace".
-						if (is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
+						if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
 							lookback_requires_tokens = templates_tokens;
 							templates_tokens = [];
+							is_template = false;
+							return check_end_of_modifiers(token);
+						}
+
+						// End of template.
+						else if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && token.token === "keyword" && token.data === "template") {
 							return check_end_of_modifiers(token);
 						}
 
 						// Rest the requires tokens when the token before the opening parenth is not "requires".
 						// Must be after "Skip whitespace".
-						else if (check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
+						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
 							lookback_requires_tokens = requires_tokens;
 							requires_tokens = [];
 							check_reset_requires_tokens = false;
 							return check_end_of_modifiers(token);
 						}
 
+						// End of requires clause.
+						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && token.token === "keyword" && token.data === "requires") {
+							requires_closed = true;
+							return check_end_of_modifiers(token);
+						}
+
 						// Is inside a parenth.
 						// Must be before the "Inside templates" templates.
-						else if (is_template === false && parenth_depth !== 0) {
+						else if (requires_closed === false && is_template === false && parenth_depth !== 0) {
 							requires_tokens.push(token);
 						}
 
 						// Inside templates.
 						// But not inside a template since then it should be appended to the template tokens.
-						else if (parenth_depth === 0 && token.is_template === true) {
+						else if (template_closed === false && parenth_depth === 0 && token.is_template === true) {
 							templates_tokens.push(token);
 							is_template = true;
 						}

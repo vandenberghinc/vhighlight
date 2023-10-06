@@ -11,7 +11,7 @@
 // ---------------------------------------------------------
 // Json highlighter.
 
-vhighlight.Json = class Json extends vhighlight.Tokenizer {
+vhighlight.JSON = class JSON extends vhighlight.Tokenizer {
 	constructor() {
 
 		// Initialize the tokenizer.
@@ -39,4 +39,4 @@ vhighlight.Json = class Json extends vhighlight.Tokenizer {
 }
 
 // Initialize.
-vhighlight.json = new vhighlight.Json();
+vhighlight.json = new vhighlight.JSON();

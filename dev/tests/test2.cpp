@@ -1,1 +1,8 @@
-void me(const String& you = "me", String us = "you") {}
+/*	@docs:
+ *	@title: Array
+ */
+/*	@docs:
+ *	@name: String
+ */
+template <typename DataType>
+class Array {}

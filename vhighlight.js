@@ -620,6 +620,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Alphabet.
 		this.alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		this.uppercase_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
@@ -948,6 +949,11 @@ vhighlight.Tokenizer = class Tokenizer {
 		return this.alphabet.includes(char);
 	}
 
+	// Is an uppercase alphabetical character.
+	is_uppercase(char) {
+		return this.uppercase_alphabet.includes(char);
+	}
+
 	// Is a numeric character.
 	is_numerical(char) {
 		return this.numerics.includes(char);
@@ -1062,7 +1068,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Set inside comment, string, regex or preprocessor.
-		if (token === "token_line") {
+		if (token === "line") {
 			if (this.is_comment) {
 				obj.is_comment = true;
 			} else if (this.is_str) {
@@ -1114,7 +1120,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		++this.added_tokens;
 
 		// Set is line break.
-		if (token === "token_line") {
+		if (token === "line") {
 			obj.is_line_break = true;
 		}
 
@@ -1249,7 +1255,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			if (c == "\n" && !this.is_escaped(i, data)) {
 				appended_tokens.push(this.append_batch(token, extended));
 				this.batch = "\n";
-				appended_tokens.push(this.append_batch("token_line", extended));
+				appended_tokens.push(this.append_batch("line", extended));
 				++this.line;
 			} else {
 				this.batch += c;
@@ -1702,8 +1708,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				auto_append_batch_switch();
 				
 				// Append line token.
-				this.batch += char;
-				this.append_batch("token_line");
+				// this.batch += char;
+				// this.append_batch("line");
 
 				// Terminate preprocessor, comments, and strings when active.
 				// This must happen after appending the line break batch since `append_token()` still uses the comment string etc flags for the line token.
@@ -1722,6 +1728,11 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.is_preprocessor = false;
 					this.is_str = false; // also disable string in case of an unterminated < inside the #include preprocessor, since the flag is turned on inside the is preprocessor check.
 				}
+
+				// Append line token.
+				// Testing with after disabling the flags otherwise the newlines after a multi line comment will still count as a comment which it is not.
+				this.batch += char;
+				this.append_batch("line");
 
 				// Check if a stop callback is defined for the partial tokenize.
 				if (stop_callback !== undefined) {
@@ -2092,7 +2103,8 @@ vhighlight.Tokenizer = class Tokenizer {
 						this.post_type_def_modifier_type_def_token = type_token;
 
 						// Assign parents to the type token.
-						if (type_token.is_decorator !== true && (this.parents.length === 0 || this.parents.last()[0] !== type_token)) {
+						// But only when the callback has not already assigned parents.
+						if (type_token.parents === undefined && type_token.is_decorator !== true && (this.parents.length === 0 || this.parents.last()[0] !== type_token)) {
 							this.assign_parents(type_token)	;
 						}
 
@@ -2141,13 +2153,6 @@ vhighlight.Tokenizer = class Tokenizer {
 					const is_type_def = type_token != null && type_token.token === "type_def";
 					const is_decorator = type_token != null && type_token.is_decorator === true;
 
-					// let log = false;
-					// if (type_token != null && type_token.data === "iterate_packages") {
-					// 	console.log(type_token.data, {is_type_def:is_type_def, is_decorator:is_decorator, is_assignment_parameters:is_assignment_parameters})
-					// 	console.log(parenth_tokens)
-					// 	log = true;
-					// }
-
 					let param;
 					let is_type = true;
 					let i = parenth_tokens.length;
@@ -2187,11 +2192,15 @@ vhighlight.Tokenizer = class Tokenizer {
 								param.type.push(token);
 							} else {
 								is_type = false;
-								const allow_assignment = token.token === "type_def" || (token.token === undefined && token.data !== "{" && token.data !== "}");
+								const allow_assignment = token.token === "type_def" || (token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]");
 
 								// On a type definition always assign to parameter.
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
-								if (is_type_def && allow_assignment) {
+								// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
+								if ((is_type_def || type_token === null) && allow_assignment) {
+									if (token.is_whitespace === true || token.is_word_boundary === true) {
+										return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+									}
 									param.name = token.data.trim();
 									token.token = "parameter";
 								}
@@ -2201,6 +2210,9 @@ vhighlight.Tokenizer = class Tokenizer {
 								else if (!is_type_def) {
 									const next = get_next_assignment_operator(i);
 									if (next !== null && allow_assignment) {
+										if (token.is_whitespace === true || token.is_word_boundary === true) {
+											return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+										}
 										param.name = token.data.trim();
 										token.token = "parameter";
 									}
@@ -2624,33 +2636,42 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Build the html from tokens.
-	build_html({token_prefix = "token_", reformat = true} = {}) {
+	build_html({tokens = null, token_prefix = "token_", reformat = true, lt = "<", gt = ">"} = {}) {
 
 		// Vars.
+		if (tokens == null) {
+			tokens = this.tokens;
+		}
 		let html = "";
+
+		// Build a token's html.
+		const build_token = (token) => {
+			if (token.token === undefined) {
+				if (reformat) {
+					html += token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+				} else {
+					html += token.data;
+				}
+			} else {
+				let class_ = "";
+				if (token.token !== undefined) {
+					class_ = `class='${token_prefix}${token.token}'`;
+				}
+				if (reformat) {
+					html += `${lt}span ${class_}${gt}${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}${lt}/span${gt}`
+				} else {
+					html += `${lt}span ${class_}${gt}${token.data}${lt}/span${gt}`
+				}
+			}
+		}
 		
 		// Iterate an array with token objects.
-		this.tokens.iterate((line_tokens) => {
-			line_tokens.iterate((token) => {
-				if (token.token === undefined) {
-					if (reformat) {
-						html += token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-					} else {
-						html += token.data;
-					}
-				} else {
-					let class_ = "";
-					if (token.token !== undefined) {
-						class_ = `class='${token_prefix}${token.token}'`;
-					}
-					if (reformat) {
-						html += `<span ${class_}>${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`
-					} else {
-						html += `<span ${class_}>${token.data}</span>`
-					}
-					
-				}
-			})
+		tokens.iterate((line_tokens) => {
+			if (Array.isArray(line_tokens)) {
+				line_tokens.iterate(build_token);
+			} else {
+				build_token(line_tokens);
+			}
 		})
 		
 		// Handler.
@@ -3438,7 +3459,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 		}
 
 		// Parse the pre modifiers, requires clause, template clause and the function type on a type def token match from inside the `on_parent_close()` callback.
-		const parse_pre_type_def_modifiers = (type_def_token) => {
+		const parse_pre_type_def_modifiers = (first_type_def_token, type_def_token) => {
 
 			// Vars.
 			let type_tokens = []; 							// function's type tokens.
@@ -3450,8 +3471,10 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			let is_template = false;						// if the previous post type token was a (inside) template.
 			let parenth_depth = 0;	 						// parenth depth when the post_type flag is true.
 			let check_reset_requires_tokens = false;		// check a reset of the requires tokens on the next token.
-			let on_lower_than_index = type_def_token.index; // only check tokens with a lower index than this index.
+			let on_lower_than_index = first_type_def_token.index; // only check tokens with a lower index than this index.
 			let lookback_requires_tokens = [];				// the lookback potential requires clause token for `check_end_of_modifiers()`.
+			let template_closed = false;					// flag for when the templates are already parsed and closed.
+			let requires_closed = false;					// flag for when the requires clause is already parsed and closed.
 
 			// Check the end of modiers.
 			// However since the requires clause is not required to be in parentheses there must be a lookback ...
@@ -3543,7 +3566,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			}
 
 			// Iterate the previous tokens reversed from the type def token.
-			this.tokens.iterate_tokens_reversed(0, type_def_token.line + 1, (token) => {
+			this.tokens.iterate_tokens_reversed(0, first_type_def_token.line + 1, (token) => {
 				if (token.index < on_lower_than_index) {
 
 					// First go back to the token before the type definition.
@@ -3610,7 +3633,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// Skip whitespace.
 						if (token.is_whitespace === true) {
-							if (is_template && parenth_depth === 0) {
+							if (template_closed === false && is_template && parenth_depth === 0) {
 								templates_tokens.push(token);
 							}
 							return null;
@@ -3624,7 +3647,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 									return false; // STOP ITERATION.
 								}
 								--parenth_depth;
-								if (parenth_depth === 0) {
+								if (requires_closed === false && parenth_depth === 0) {
 									requires_tokens.push(token);
 									check_reset_requires_tokens = 1;
 									return null;
@@ -3641,30 +3664,42 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						// Reset the templates when the token before the the opening template is not "template".
 						// Also when the template is not reset there must be checked for a end of modifiers 1) since it was potentially part of a requires clause without parenth or it was the actual close.
 						// Must be after "Skip whitespace".
-						if (is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
+						if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
 							lookback_requires_tokens = templates_tokens;
 							templates_tokens = [];
+							is_template = false;
+							return check_end_of_modifiers(token);
+						}
+
+						// End of template.
+						else if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && token.token === "keyword" && token.data === "template") {
 							return check_end_of_modifiers(token);
 						}
 
 						// Rest the requires tokens when the token before the opening parenth is not "requires".
 						// Must be after "Skip whitespace".
-						else if (check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
+						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
 							lookback_requires_tokens = requires_tokens;
 							requires_tokens = [];
 							check_reset_requires_tokens = false;
 							return check_end_of_modifiers(token);
 						}
 
+						// End of requires clause.
+						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && token.token === "keyword" && token.data === "requires") {
+							requires_closed = true;
+							return check_end_of_modifiers(token);
+						}
+
 						// Is inside a parenth.
 						// Must be before the "Inside templates" templates.
-						else if (is_template === false && parenth_depth !== 0) {
+						else if (requires_closed === false && is_template === false && parenth_depth !== 0) {
 							requires_tokens.push(token);
 						}
 
 						// Inside templates.
 						// But not inside a template since then it should be appended to the template tokens.
-						else if (parenth_depth === 0 && token.is_template === true) {
+						else if (template_closed === false && parenth_depth === 0 && token.is_template === true) {
 							templates_tokens.push(token);
 							is_template = true;
 						}
@@ -3837,15 +3872,29 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// When the prev prev token is a colon, also set the "type" assigned by double colon to "type_def".
 						// So the entire "mylib::mychapter::myfunc() {}" will be a token type def, not just "myfunc" but also "mylib" and "mychapter".
+						let newly_added_parents = [];
 						let token = prev;
 						while (true) {
-							token = this.get_prev_token(token.index - 1, [":"]);
-							if (token == null || this.str_includes_word_boundary(token.data)) {
+							token = this.get_prev_token(token.index - 1, []);
+							if (token != null && token.data === ":") {
+								newly_added_parents.push(token);
+								continue;
+							}
+							else if (token == null || this.str_includes_word_boundary(token.data)) {
 								break;
 							}
 							token.token = "type_def";
 							token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
 							token_for_parse_pre_type_def_modifiers = token;
+							newly_added_parents.push(token);
+						}
+						if (newly_added_parents.length > 0) {
+							let old_parents = this.copy_parents();
+							newly_added_parents.iterate((parent) => {
+								this.add_parent(parent);
+							})
+							this.assign_parents(prev);
+							this.parents = old_parents;
 						}
 
 						// Set the inside func flag.
@@ -3869,7 +3918,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						}
 
 						// Parse the type def pre modifiers.
-						parse_pre_type_def_modifiers(token_for_parse_pre_type_def_modifiers)
+						parse_pre_type_def_modifiers(token_for_parse_pre_type_def_modifiers, prev)
 
 						// Return the set token.
 						return prev;
@@ -4024,7 +4073,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			this.add_parent(token);
 
 			// Parse the pre type def templates and requires.
-			parse_pre_type_def_modifiers(token, false);
+			parse_pre_type_def_modifiers(token, token);
 
 			// Set the start token to capture inherited classes when the previous token is either struct or class.
 			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
@@ -5111,6 +5160,11 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			// Reset the inherited class check flag.
 			this.capture_inherit_start_token = undefined;
 		}
+
+		// Set starting uppercase constants / static type calls to a type.
+		else if (char === "." && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
+			this.append_batch("type");
+		}
 	}
 }
 
@@ -5118,7 +5172,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 vhighlight.js = new vhighlight.JS();// ---------------------------------------------------------
 // Json highlighter.
 
-vhighlight.Json = class Json extends vhighlight.Tokenizer {
+vhighlight.JSON = class JSON extends vhighlight.Tokenizer {
 	constructor() {
 
 		// Initialize the tokenizer.
@@ -5146,7 +5200,7 @@ vhighlight.Json = class Json extends vhighlight.Tokenizer {
 }
 
 // Initialize.
-vhighlight.json = new vhighlight.Json();// ---------------------------------------------------------
+vhighlight.json = new vhighlight.JSON();// ---------------------------------------------------------
 // Markdown highlighter.
 
 vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
@@ -6104,7 +6158,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					prev_is_operator = is_operator;
 					prev_is_colon = token.token === undefined && token.data.length > 0 && token.data.charAt(token.data.length - 1) === ":";
 					if (
-						token.token !== "token_line" &&
+						token.is_line_break !== true &&
 						(token.data.length > 1 || (token.data != " " && token.data != "\t"))
 					) {
 						prev_nw_token = token;

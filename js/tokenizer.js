@@ -214,6 +214,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Alphabet.
 		this.alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		this.uppercase_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
@@ -542,6 +543,11 @@ vhighlight.Tokenizer = class Tokenizer {
 		return this.alphabet.includes(char);
 	}
 
+	// Is an uppercase alphabetical character.
+	is_uppercase(char) {
+		return this.uppercase_alphabet.includes(char);
+	}
+
 	// Is a numeric character.
 	is_numerical(char) {
 		return this.numerics.includes(char);
@@ -656,7 +662,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Set inside comment, string, regex or preprocessor.
-		if (token === "token_line") {
+		if (token === "line") {
 			if (this.is_comment) {
 				obj.is_comment = true;
 			} else if (this.is_str) {
@@ -708,7 +714,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		++this.added_tokens;
 
 		// Set is line break.
-		if (token === "token_line") {
+		if (token === "line") {
 			obj.is_line_break = true;
 		}
 
@@ -843,7 +849,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			if (c == "\n" && !this.is_escaped(i, data)) {
 				appended_tokens.push(this.append_batch(token, extended));
 				this.batch = "\n";
-				appended_tokens.push(this.append_batch("token_line", extended));
+				appended_tokens.push(this.append_batch("line", extended));
 				++this.line;
 			} else {
 				this.batch += c;
@@ -1296,8 +1302,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				auto_append_batch_switch();
 				
 				// Append line token.
-				this.batch += char;
-				this.append_batch("token_line");
+				// this.batch += char;
+				// this.append_batch("line");
 
 				// Terminate preprocessor, comments, and strings when active.
 				// This must happen after appending the line break batch since `append_token()` still uses the comment string etc flags for the line token.
@@ -1316,6 +1322,11 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.is_preprocessor = false;
 					this.is_str = false; // also disable string in case of an unterminated < inside the #include preprocessor, since the flag is turned on inside the is preprocessor check.
 				}
+
+				// Append line token.
+				// Testing with after disabling the flags otherwise the newlines after a multi line comment will still count as a comment which it is not.
+				this.batch += char;
+				this.append_batch("line");
 
 				// Check if a stop callback is defined for the partial tokenize.
 				if (stop_callback !== undefined) {
@@ -1736,13 +1747,6 @@ vhighlight.Tokenizer = class Tokenizer {
 					const is_type_def = type_token != null && type_token.token === "type_def";
 					const is_decorator = type_token != null && type_token.is_decorator === true;
 
-					// let log = false;
-					// if (type_token != null && type_token.data === "iterate_packages") {
-					// 	console.log(type_token.data, {is_type_def:is_type_def, is_decorator:is_decorator, is_assignment_parameters:is_assignment_parameters})
-					// 	console.log(parenth_tokens)
-					// 	log = true;
-					// }
-
 					let param;
 					let is_type = true;
 					let i = parenth_tokens.length;
@@ -1782,11 +1786,15 @@ vhighlight.Tokenizer = class Tokenizer {
 								param.type.push(token);
 							} else {
 								is_type = false;
-								const allow_assignment = token.token === "type_def" || (token.token === undefined && token.data !== "{" && token.data !== "}");
+								const allow_assignment = token.token === "type_def" || (token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]");
 
 								// On a type definition always assign to parameter.
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
-								if (is_type_def && allow_assignment) {
+								// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
+								if ((is_type_def || type_token === null) && allow_assignment) {
+									if (token.is_whitespace === true || token.is_word_boundary === true) {
+										return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+									}
 									param.name = token.data.trim();
 									token.token = "parameter";
 								}
@@ -1796,6 +1804,9 @@ vhighlight.Tokenizer = class Tokenizer {
 								else if (!is_type_def) {
 									const next = get_next_assignment_operator(i);
 									if (next !== null && allow_assignment) {
+										if (token.is_whitespace === true || token.is_word_boundary === true) {
+											return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+										}
 										param.name = token.data.trim();
 										token.token = "parameter";
 									}
@@ -2219,33 +2230,42 @@ vhighlight.Tokenizer = class Tokenizer {
 	}
 
 	// Build the html from tokens.
-	build_html({token_prefix = "token_", reformat = true} = {}) {
+	build_html({tokens = null, token_prefix = "token_", reformat = true, lt = "<", gt = ">"} = {}) {
 
 		// Vars.
+		if (tokens == null) {
+			tokens = this.tokens;
+		}
 		let html = "";
+
+		// Build a token's html.
+		const build_token = (token) => {
+			if (token.token === undefined) {
+				if (reformat) {
+					html += token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+				} else {
+					html += token.data;
+				}
+			} else {
+				let class_ = "";
+				if (token.token !== undefined) {
+					class_ = `class='${token_prefix}${token.token}'`;
+				}
+				if (reformat) {
+					html += `${lt}span ${class_}${gt}${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}${lt}/span${gt}`
+				} else {
+					html += `${lt}span ${class_}${gt}${token.data}${lt}/span${gt}`
+				}
+			}
+		}
 		
 		// Iterate an array with token objects.
-		this.tokens.iterate((line_tokens) => {
-			line_tokens.iterate((token) => {
-				if (token.token === undefined) {
-					if (reformat) {
-						html += token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-					} else {
-						html += token.data;
-					}
-				} else {
-					let class_ = "";
-					if (token.token !== undefined) {
-						class_ = `class='${token_prefix}${token.token}'`;
-					}
-					if (reformat) {
-						html += `<span ${class_}>${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</span>`
-					} else {
-						html += `<span ${class_}>${token.data}</span>`
-					}
-					
-				}
-			})
+		tokens.iterate((line_tokens) => {
+			if (Array.isArray(line_tokens)) {
+				line_tokens.iterate(build_token);
+			} else {
+				build_token(line_tokens);
+			}
 		})
 		
 		// Handler.

@@ -378,7 +378,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					prev_is_operator = is_operator;
 					prev_is_colon = token.token === undefined && token.data.length > 0 && token.data.charAt(token.data.length - 1) === ":";
 					if (
-						token.token !== "token_line" &&
+						token.is_line_break !== true &&
 						(token.data.length > 1 || (token.data != " " && token.data != "\t"))
 					) {
 						prev_nw_token = token;

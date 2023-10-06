@@ -303,6 +303,11 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			// Reset the inherited class check flag.
 			this.capture_inherit_start_token = undefined;
 		}
+
+		// Set starting uppercase constants / static type calls to a type.
+		else if (char === "." && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
+			this.append_batch("type");
+		}
 	}
 }
 

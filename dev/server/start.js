@@ -13,7 +13,7 @@ const vhighlight = require("../../vhighlight.js")
 console.log("Highlighting...");
 const now = Date.now();
 const tokens = vhighlight.cpp.tokenize({code: new vlib.Path("/Volumes/persistance/private/vinc/vhighlight/dev/tests/test2.cpp").load_sync()});
-console.log(tokens);
+// console.log(tokens);
 // for (let i = Math.max(0, tokens.length - 100); i < tokens.length; i++) {
 //     console.log(tokens[i]);
 // }
