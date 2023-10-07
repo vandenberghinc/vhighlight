@@ -66,7 +66,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			// "public",
 		],
 		type_def_keywords = [
-			"class" // @todo still have to check the parent when it is assigned like "mylib.myclass = class myclass{}" create a on type def keyword callback.
+			"class"
 		], 
 		type_keywords = [
 			"extends",
@@ -173,6 +173,9 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			this.assign_parents(token);
 			this.add_parent(token);
 		}
+
+		// Set the type array of the token.
+		token.type = [this.get_prev_token(token.index - 1, [" ", "\t", "\n"])];	
 
 		// Set the start token to capture inherited classes.
 		this.capture_inherit_start_token = token;
@@ -305,7 +308,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		}
 
 		// Set starting uppercase constants / static type calls to a type.
-		else if (char === "." && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
+		else if ((char === "." || char === "[" || char === ",") && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
 			this.append_batch("type");
 		}
 	}

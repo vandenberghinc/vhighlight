@@ -4,5 +4,5 @@
 /*	@docs:
  *	@name: String
  */
-template <typename DataType>
+template <typename DataType> requires (X === int && Y === bool)
 class Array {}

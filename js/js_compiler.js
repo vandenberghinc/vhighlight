@@ -463,11 +463,16 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			const line_break = this.line_breaks ? "" : "\n";
 
 			// Get a decorator parameter value by name (decorators must always use keyword assignment).
-			const get_param_value = (name, def = null) => {
+			const get_param_value = (name, def = null, unqoute = false) => {
 				let value = def;
 				token.parameters.iterate((param) => {
 					if (param.name === name) {
-						value = param.value;
+						if (param.value !== null && param.value.length > 0) {
+							value = "";
+							param.value.iterate((item) => {
+								value += item.data;
+							})
+						}
 						return true;
 					}
 				})
@@ -475,12 +480,16 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				while (value.length >= 2 && this.str_chars.includes(value.charAt(0)) && this.str_chars.includes(value.charAt(value.length - 1))) {
 					value = value.substr(1, value.length - 2);
 				}
+				const str_chars = ["'", '"', "`"];
+				if (unqoute && str_chars.includes(value.charAt(0)) && str_chars.includes(value.charAt(value.length - 1))) {
+					value = value.substr(1, value.length - 2);
+				}
 				return value;
 			}
 
 			// Check if the previous token is keyword class.
 			const check_prev_is_keyword_class = (type_def_token) => {
-				const class_keyword = this.tokenizer.tokenizer.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
+				const class_keyword = this.tokenizer.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
 				if (class_keyword == null || class_keyword.data !== "class") {
 					throw Error(`${path}:${token.line}:${column}: The target type definition "${type_def_token.data}" is not a class (${decorator}).`);
 				}
@@ -508,7 +517,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Get the value to which a type def was assigned to eg "mylib.myfunc = ..." to retrieve "mylib.myfunc".
 			// When there was no assignment used then `null` is returned.
 			const get_assignment_name = (from_token_index) => {
-				const assignment = this.tokenizer.tokenizer.get_prev_token(from_token_index, [" ", "\t", "\n"]);
+				const assignment = this.tokenizer.get_prev_token(from_token_index, [" ", "\t", "\n"]);
 				let assignment_name = null;
 				if (assignment != null && assignment.data === "=") {
 					assignment_name = "";
@@ -564,7 +573,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				const assignment_name = get_assignment_name(class_keyword.index - 1);
 				
 				// Args.
-				const suffix = get_param_value("suffix", "Class");
+				const suffix = get_param_value("suffix", "Class", true);
 
 				// Check if the suffix matches the end of the target type.
 				if (

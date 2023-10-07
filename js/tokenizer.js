@@ -1832,6 +1832,10 @@ vhighlight.Tokenizer = class Tokenizer {
 						if (is_assignment_parameters === true) {
 							type_token.is_assignment_parameters = true;
 						}
+						type_token.parameter_tokens = [];
+						parenth_tokens.iterate_reversed((token) => {
+							type_token.parameter_tokens.push(token);
+						})
 					}
 					
 					// ---------------------------------------------------------
@@ -2249,7 +2253,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			} else {
 				let class_ = "";
 				if (token.token !== undefined) {
-					class_ = `class='${token_prefix}${token.token}'`;
+					class_ = `class="${token_prefix}${token.token}"`;
 				}
 				if (reformat) {
 					html += `${lt}span ${class_}${gt}${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}${lt}/span${gt}`
@@ -2260,13 +2264,16 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 		
 		// Iterate an array with token objects.
-		tokens.iterate((line_tokens) => {
-			if (Array.isArray(line_tokens)) {
-				line_tokens.iterate(build_token);
+		// console.log("TOKENS:", tokens);
+		if (tokens.length > 0) {
+			if (Array.isArray(tokens[0])) {
+				tokens.iterate((line_tokens) => {
+					line_tokens.iterate(build_token);
+				});
 			} else {
-				build_token(line_tokens);
+				tokens.iterate(build_token);
 			}
-		})
+		}
 		
 		// Handler.
 		return html;

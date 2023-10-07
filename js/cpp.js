@@ -679,12 +679,13 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						}
 
 						// Skip whitespace.
-						if (token.is_whitespace === true) {
-							if (template_closed === false && is_template && parenth_depth === 0) {
-								templates_tokens.push(token);
-							}
-							return null;
-						}
+						// @edit white space should also be included in the pre modifiers for example for in vdocs.
+						// if (token.is_whitespace === true) {
+						// 	if (template_closed === false && is_template && parenth_depth === 0) {
+						// 		templates_tokens.push(token);
+						// 	}
+						// 	return null;
+						// }
 
 						// Set parenth depth.
 						// Do not set when inside templates since this would cause the templates not to be parsed.
@@ -710,8 +711,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// Reset the templates when the token before the the opening template is not "template".
 						// Also when the template is not reset there must be checked for a end of modifiers 1) since it was potentially part of a requires clause without parenth or it was the actual close.
-						// Must be after "Skip whitespace".
-						if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
+						if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && token.is_whitespace !== true && (token.token !== "keyword" || token.data !== "template")) {
 							lookback_requires_tokens = templates_tokens;
 							templates_tokens = [];
 							is_template = false;
@@ -720,12 +720,12 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// End of template.
 						else if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && token.token === "keyword" && token.data === "template") {
+							modifier_tokens.push(token);
 							return check_end_of_modifiers(token);
 						}
 
 						// Rest the requires tokens when the token before the opening parenth is not "requires".
-						// Must be after "Skip whitespace".
-						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
+						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && token.is_whitespace !== true && (token.token !== "keyword" || token.data !== "requires")) {
 							lookback_requires_tokens = requires_tokens;
 							requires_tokens = [];
 							check_reset_requires_tokens = false;
@@ -734,6 +734,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// End of requires clause.
 						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && token.token === "keyword" && token.data === "requires") {
+							modifier_tokens.push(token);
 							requires_closed = true;
 							return check_end_of_modifiers(token);
 						}
@@ -757,7 +758,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						}
 
 						// Check the end of modiers.
-						else {
+						else if (token.is_whitespace !== true && token.is_line_break !== true){
 							lookback_requires_tokens = [];
 							return check_end_of_modifiers(token);
 						}
@@ -862,6 +863,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 				// Assign templates.
 				type_def_token.templates = templates;
+				type_def_token.template_tokens = templates_tokens;
 			}
 
 			// Assign the requires tokens.

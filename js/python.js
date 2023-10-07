@@ -218,6 +218,7 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 			if (prev !== null && prev.data === "class") {
 				this.capture_inherit_start_token = token;
+				token.type = [prev];	
 			}
 
 			// Assign parents.

@@ -2238,6 +2238,10 @@ vhighlight.Tokenizer = class Tokenizer {
 						if (is_assignment_parameters === true) {
 							type_token.is_assignment_parameters = true;
 						}
+						type_token.parameter_tokens = [];
+						parenth_tokens.iterate_reversed((token) => {
+							type_token.parameter_tokens.push(token);
+						})
 					}
 					
 					// ---------------------------------------------------------
@@ -2655,7 +2659,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			} else {
 				let class_ = "";
 				if (token.token !== undefined) {
-					class_ = `class='${token_prefix}${token.token}'`;
+					class_ = `class="${token_prefix}${token.token}"`;
 				}
 				if (reformat) {
 					html += `${lt}span ${class_}${gt}${token.data.replaceAll("<", "&lt;").replaceAll(">", "&gt;")}${lt}/span${gt}`
@@ -2666,13 +2670,16 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 		
 		// Iterate an array with token objects.
-		tokens.iterate((line_tokens) => {
-			if (Array.isArray(line_tokens)) {
-				line_tokens.iterate(build_token);
+		// console.log("TOKENS:", tokens);
+		if (tokens.length > 0) {
+			if (Array.isArray(tokens[0])) {
+				tokens.iterate((line_tokens) => {
+					line_tokens.iterate(build_token);
+				});
 			} else {
-				build_token(line_tokens);
+				tokens.iterate(build_token);
 			}
-		})
+		}
 		
 		// Handler.
 		return html;
@@ -3632,12 +3639,13 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						}
 
 						// Skip whitespace.
-						if (token.is_whitespace === true) {
-							if (template_closed === false && is_template && parenth_depth === 0) {
-								templates_tokens.push(token);
-							}
-							return null;
-						}
+						// @edit white space should also be included in the pre modifiers for example for in vdocs.
+						// if (token.is_whitespace === true) {
+						// 	if (template_closed === false && is_template && parenth_depth === 0) {
+						// 		templates_tokens.push(token);
+						// 	}
+						// 	return null;
+						// }
 
 						// Set parenth depth.
 						// Do not set when inside templates since this would cause the templates not to be parsed.
@@ -3663,8 +3671,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// Reset the templates when the token before the the opening template is not "template".
 						// Also when the template is not reset there must be checked for a end of modifiers 1) since it was potentially part of a requires clause without parenth or it was the actual close.
-						// Must be after "Skip whitespace".
-						if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && (token.token !== "keyword" || token.data !== "template")) {
+						if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && token.is_whitespace !== true && (token.token !== "keyword" || token.data !== "template")) {
 							lookback_requires_tokens = templates_tokens;
 							templates_tokens = [];
 							is_template = false;
@@ -3673,12 +3680,12 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// End of template.
 						else if (template_closed === false && is_template && parenth_depth === 0 && token.is_template !== true && token.token === "keyword" && token.data === "template") {
+							modifier_tokens.push(token);
 							return check_end_of_modifiers(token);
 						}
 
 						// Rest the requires tokens when the token before the opening parenth is not "requires".
-						// Must be after "Skip whitespace".
-						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && (token.token !== "keyword" || token.data !== "requires")) {
+						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && token.is_whitespace !== true && (token.token !== "keyword" || token.data !== "requires")) {
 							lookback_requires_tokens = requires_tokens;
 							requires_tokens = [];
 							check_reset_requires_tokens = false;
@@ -3687,6 +3694,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 						// End of requires clause.
 						else if (requires_closed === false && check_reset_requires_tokens === true && is_template === false && token.token === "keyword" && token.data === "requires") {
+							modifier_tokens.push(token);
 							requires_closed = true;
 							return check_end_of_modifiers(token);
 						}
@@ -3710,7 +3718,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 						}
 
 						// Check the end of modiers.
-						else {
+						else if (token.is_whitespace !== true && token.is_line_break !== true){
 							lookback_requires_tokens = [];
 							return check_end_of_modifiers(token);
 						}
@@ -3815,6 +3823,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 
 				// Assign templates.
 				type_def_token.templates = templates;
+				type_def_token.template_tokens = templates_tokens;
 			}
 
 			// Assign the requires tokens.
@@ -4923,7 +4932,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			// "public",
 		],
 		type_def_keywords = [
-			"class" // @todo still have to check the parent when it is assigned like "mylib.myclass = class myclass{}" create a on type def keyword callback.
+			"class"
 		], 
 		type_keywords = [
 			"extends",
@@ -5030,6 +5039,9 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			this.assign_parents(token);
 			this.add_parent(token);
 		}
+
+		// Set the type array of the token.
+		token.type = [this.get_prev_token(token.index - 1, [" ", "\t", "\n"])];	
 
 		// Set the start token to capture inherited classes.
 		this.capture_inherit_start_token = token;
@@ -5162,7 +5174,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		}
 
 		// Set starting uppercase constants / static type calls to a type.
-		else if (char === "." && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
+		else if ((char === "." || char === "[" || char === ",") && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
 			this.append_batch("type");
 		}
 	}
@@ -5766,6 +5778,7 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
 			if (prev !== null && prev.data === "class") {
 				this.capture_inherit_start_token = token;
+				token.type = [prev];	
 			}
 
 			// Assign parents.
@@ -6243,11 +6256,16 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			const line_break = this.line_breaks ? "" : "\n";
 
 			// Get a decorator parameter value by name (decorators must always use keyword assignment).
-			const get_param_value = (name, def = null) => {
+			const get_param_value = (name, def = null, unqoute = false) => {
 				let value = def;
 				token.parameters.iterate((param) => {
 					if (param.name === name) {
-						value = param.value;
+						if (param.value !== null && param.value.length > 0) {
+							value = "";
+							param.value.iterate((item) => {
+								value += item.data;
+							})
+						}
 						return true;
 					}
 				})
@@ -6255,12 +6273,16 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				while (value.length >= 2 && this.str_chars.includes(value.charAt(0)) && this.str_chars.includes(value.charAt(value.length - 1))) {
 					value = value.substr(1, value.length - 2);
 				}
+				const str_chars = ["'", '"', "`"];
+				if (unqoute && str_chars.includes(value.charAt(0)) && str_chars.includes(value.charAt(value.length - 1))) {
+					value = value.substr(1, value.length - 2);
+				}
 				return value;
 			}
 
 			// Check if the previous token is keyword class.
 			const check_prev_is_keyword_class = (type_def_token) => {
-				const class_keyword = this.tokenizer.tokenizer.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
+				const class_keyword = this.tokenizer.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
 				if (class_keyword == null || class_keyword.data !== "class") {
 					throw Error(`${path}:${token.line}:${column}: The target type definition "${type_def_token.data}" is not a class (${decorator}).`);
 				}
@@ -6288,7 +6310,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Get the value to which a type def was assigned to eg "mylib.myfunc = ..." to retrieve "mylib.myfunc".
 			// When there was no assignment used then `null` is returned.
 			const get_assignment_name = (from_token_index) => {
-				const assignment = this.tokenizer.tokenizer.get_prev_token(from_token_index, [" ", "\t", "\n"]);
+				const assignment = this.tokenizer.get_prev_token(from_token_index, [" ", "\t", "\n"]);
 				let assignment_name = null;
 				if (assignment != null && assignment.data === "=") {
 					assignment_name = "";
@@ -6344,7 +6366,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				const assignment_name = get_assignment_name(class_keyword.index - 1);
 				
 				// Args.
-				const suffix = get_param_value("suffix", "Class");
+				const suffix = get_param_value("suffix", "Class", true);
 
 				// Check if the suffix matches the end of the target type.
 				if (
