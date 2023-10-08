@@ -321,56 +321,56 @@ vhighlight.tokenize = function({
 // Get the global tokenizer class or initialize a new class based on a language name.
 // - Returns `null` when the language is not supported.
 vhighlight.get_tokenizer = function(language) {
-	if (language == "cpp" || language == "c++" || language == "c") {
+	if (language === vhighlight.cpp.language || language == "cpp" || language == "c++" || language == "c") {
         return vhighlight.cpp;
     }
-    else if (language == "markdown" || language == "md") {
+    else if (language === vhighlight.md.language || language == "markdown" || language == "md") {
         return vhighlight.md;
     }
-    else if (language == "js" || language == "javascript") {
+    else if (language === vhighlight.js.language || language == "js" || language == "javascript") {
         return vhighlight.js;
     }
-    else if (language == "json") {
+    else if (language === vhighlight.json.language || language == "json") {
         return vhighlight.json;
     }
-    else if (language == "python") {
+    else if (language === vhighlight.python.language || language == "python") {
         return vhighlight.python;
     }
-    else if (language == "css") {
+    else if (language === vhighlight.css.language || language == "css") {
         return vhighlight.css;
     }
-    else if (language == "html") {
+    else if (language === vhighlight.html.language || language == "html") {
         return vhighlight.html;
     }
-    else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+    else if (language === vhighlight.bash.language || language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
         return vhighlight.bash;
     } else {
         return null;
     }
 }
 vhighlight.init_tokenizer = function(language) {
-	if (language == "cpp" || language == "c++" || language == "c") {
+	if (language === vhighlight.cpp.language || language == "cpp" || language == "c++" || language == "c") {
         return new vhighlight.CPP();
     }
-    else if (language == "markdown" || language == "md") {
+    else if (language === vhighlight.md.language || language == "markdown" || language == "md") {
         return new vhighlight.Markdown();
     }
-    else if (language == "js" || language == "javascript") {
+    else if (language === vhighlight.js.language || language == "js" || language == "javascript") {
         return new vhighlight.JS();
     }
-    else if (language == "json") {
+    else if (language === vhighlight.json.language || language == "json") {
         return new vhighlight.JSON();
     }
-    else if (language == "python") {
+    else if (language === vhighlight.python.language || language == "python") {
         return new vhighlight.Python();
     }
-    else if (language == "css") {
+    else if (language === vhighlight.css.language || language == "css") {
         return new vhighlight.CSS();
     }
-    else if (language == "html") {
+    else if (language === vhighlight.html.language || language == "html") {
         return new vhighlight.HTML();
     }
-    else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+    else if (language === vhighlight.bash.language || language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
         return new vhighlight.Bash();
     } else {
         return null;
@@ -1041,7 +1041,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// const now = Date.now();
 
 		// Create default object.
-		const obj = extended;
+		const obj = {...extended};
 		obj.data = this.batch;
 		obj.index = this.added_tokens;
 		obj.line = this.line;
@@ -1245,23 +1245,35 @@ vhighlight.Tokenizer = class Tokenizer {
 	// This function must be used when appending new tokens by a forward lookup.
 	// Since every line break should be a seperate line break token for VIDE.
 	append_forward_lookup_batch(token, data, extended = {}) {
-		let appended_tokens = [];
+		let appended_token, appended_tokens = [];
 		if (this.batch.length > 0) {
-			appended_tokens.push(this.append_batch());
+			appended_token = this.append_batch();
+			if (appended_token != null) {
+				appended_tokens.push(appended_token);
+			}
 		}
 		this.batch = "";
 		for (let i = 0; i < data.length; i++) {
 			const c = data.charAt(i);
 			if (c == "\n" && !this.is_escaped(i, data)) {
-				appended_tokens.push(this.append_batch(token, extended));
+				appended_token = this.append_batch(token, extended);
+				if (appended_token != null) {
+					appended_tokens.push(appended_token);
+				}
 				this.batch = "\n";
-				appended_tokens.push(this.append_batch("line", extended));
+				const appended_line_token = this.append_batch("line", extended);
+				if (appended_token != null) {
+					appended_tokens.push(appended_token);
+				}
 				++this.line;
 			} else {
 				this.batch += c;
 			}
 		}
-		appended_tokens.push(this.append_batch(token, extended));
+		appended_token = this.append_batch(token, extended);
+		if (appended_token != null) {
+			appended_tokens.push(appended_token);
+		}
 		return appended_tokens;
 	}
 
@@ -5216,7 +5228,9 @@ vhighlight.json = new vhighlight.JSON();// -------------------------------------
 // Markdown highlighter.
 
 vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
-	constructor() {
+	constructor({
+		insert_codeblocks = true, // allow codeblocks to be parsed or put them into a single token.
+	} = {}) {
 
 		// Initialize the tokenizer.
 		super({
@@ -5522,27 +5536,39 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				}
 				if (closing_index == null) { return false; }
 
-				// Highlight the code.
+				// Slice the code.
 				const start = this.index + 3 + language.length;
 				const code = this.code.substr(start, (closing_index - 3) - start + 1);
-				let result = null;
-				if (language != "") {
-					result = vhighlight.tokenize({
-						language: language,
-						code: code,
-						build_html: false,
-					})
+				let tokenizer = language == "" ? null : vhighlight.init_tokenizer(language)
+				console.log("CODE:",code)
+
+				// Insert codeblock tokens.
+				if (insert_codeblocks) {
+
+					// Highlight.
+					let result = null;
+					if (tokenizer != null) {
+						tokenizer.code = code;
+						result = tokenizer.tokenize()
+						console.log("RESULT:",result)
+					}
+
+					// Add tokens.
+					this.append_forward_lookup_batch("keyword", "```");
+					if (result == null) {
+						this.append_forward_lookup_batch("codeblock", language + code);
+					} else {
+						this.append_forward_lookup_batch("keyword", language);
+						this.concat_tokens(result);
+					}
+					this.append_forward_lookup_batch("keyword", "```");
 				}
 
-				// Add tokens.
-				this.append_forward_lookup_batch("keyword", "```");
-				if (result == null) {
-					this.append_forward_lookup_batch("codeblock", language + code);
-				} else {
-					this.append_forward_lookup_batch("keyword", language);
-					this.concat_tokens(result);
+				// Put the codeblock into a single token.
+				else {
+					this.batch = code;
+					this.append_batch("codeblock", {language: tokenizer == null ? null : tokenizer.language});
 				}
-				this.append_forward_lookup_batch("keyword", "```");
 
 				// Set resume index.
 				this.resume_on_index(closing_index);

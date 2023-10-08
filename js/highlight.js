@@ -322,56 +322,56 @@ vhighlight.tokenize = function({
 // Get the global tokenizer class or initialize a new class based on a language name.
 // - Returns `null` when the language is not supported.
 vhighlight.get_tokenizer = function(language) {
-	if (language == "cpp" || language == "c++" || language == "c") {
+	if (language === vhighlight.cpp.language || language == "cpp" || language == "c++" || language == "c") {
         return vhighlight.cpp;
     }
-    else if (language == "markdown" || language == "md") {
+    else if (language === vhighlight.md.language || language == "markdown" || language == "md") {
         return vhighlight.md;
     }
-    else if (language == "js" || language == "javascript") {
+    else if (language === vhighlight.js.language || language == "js" || language == "javascript") {
         return vhighlight.js;
     }
-    else if (language == "json") {
+    else if (language === vhighlight.json.language || language == "json") {
         return vhighlight.json;
     }
-    else if (language == "python") {
+    else if (language === vhighlight.python.language || language == "python") {
         return vhighlight.python;
     }
-    else if (language == "css") {
+    else if (language === vhighlight.css.language || language == "css") {
         return vhighlight.css;
     }
-    else if (language == "html") {
+    else if (language === vhighlight.html.language || language == "html") {
         return vhighlight.html;
     }
-    else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+    else if (language === vhighlight.bash.language || language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
         return vhighlight.bash;
     } else {
         return null;
     }
 }
 vhighlight.init_tokenizer = function(language) {
-	if (language == "cpp" || language == "c++" || language == "c") {
+	if (language === vhighlight.cpp.language || language == "cpp" || language == "c++" || language == "c") {
         return new vhighlight.CPP();
     }
-    else if (language == "markdown" || language == "md") {
+    else if (language === vhighlight.md.language || language == "markdown" || language == "md") {
         return new vhighlight.Markdown();
     }
-    else if (language == "js" || language == "javascript") {
+    else if (language === vhighlight.js.language || language == "js" || language == "javascript") {
         return new vhighlight.JS();
     }
-    else if (language == "json") {
+    else if (language === vhighlight.json.language || language == "json") {
         return new vhighlight.JSON();
     }
-    else if (language == "python") {
+    else if (language === vhighlight.python.language || language == "python") {
         return new vhighlight.Python();
     }
-    else if (language == "css") {
+    else if (language === vhighlight.css.language || language == "css") {
         return new vhighlight.CSS();
     }
-    else if (language == "html") {
+    else if (language === vhighlight.html.language || language == "html") {
         return new vhighlight.HTML();
     }
-    else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
+    else if (language === vhighlight.bash.language || language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
         return new vhighlight.Bash();
     } else {
         return null;

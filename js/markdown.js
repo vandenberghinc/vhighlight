@@ -7,12 +7,14 @@
 // Markdown highlighter.
 
 vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
-	constructor() {
+	constructor({
+		insert_codeblocks = true, // allow codeblocks to be parsed or put them into a single token.
+	} = {}) {
 
 		// Initialize the tokenizer.
 		super({
-			multi_line_comment_start: "<!--",
-			multi_line_comment_end: "-->",
+			// multi_line_comment_start: "<!--",
+			// multi_line_comment_end: "-->",
 			allow_strings: false,
 			allow_numerics: false,
 			// Attributes for partial tokenizing.
@@ -100,21 +102,21 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				}
 			}
 
-			// Bold or italic text.
+			// Bold text.
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
 				(
 					(char == "*" && this.next_char == "*") ||
 					(char == "_" && this.next_char == "_")
 				) &&
-				!this.is_whitespace(this.index + 2)
+				!this.is_whitespace(this.code.charAt(this.index + 2))
 			) {
 
 				// Find closing char.
 				let closing_index = null;
 				for (let i = this.index + 2; i < this.code.length; i++) {
 					const c = this.code.charAt(i);
-					if (c == char) {
+					if (c == char && !this.is_escaped(i)) {
 						closing_index = i;
 						break;
 					}
@@ -134,7 +136,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				return true;
 			}
 
-			// Bold or italic text.
+			// Italic text.
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
 				(char == "*" || char == "_") &&
@@ -145,7 +147,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				let closing_index = null;
 				for (let i = this.index + 1; i < this.code.length; i++) {
 					const c = this.code.charAt(i);
-					if (c == char) {
+					if (c == char && !this.is_escaped(i)) {
 						closing_index = i;
 						break;
 					}
@@ -219,7 +221,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			}
 
 			// Link or image.
-			else if (char == "[") {
+			else if (char == "[" && !is_escaped) {
 
 				// Append batch by word boundary.
 				this.append_batch();
@@ -313,27 +315,38 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				}
 				if (closing_index == null) { return false; }
 
-				// Highlight the code.
+				// Slice the code.
 				const start = this.index + 3 + language.length;
 				const code = this.code.substr(start, (closing_index - 3) - start + 1);
-				let result = null;
-				if (language != "") {
-					result = vhighlight.tokenize({
-						language: language,
-						code: code,
-						build_html: false,
-					})
+				let tokenizer = language == "" ? null : vhighlight.init_tokenizer(language)
+
+				// Insert codeblock tokens.
+				if (insert_codeblocks) {
+
+					// Highlight.
+					let result = null;
+					if (tokenizer != null) {
+						tokenizer.code = code;
+						result = tokenizer.tokenize()
+						console.log("RESULT:",result)
+					}
+
+					// Add tokens.
+					this.append_forward_lookup_batch("keyword", "```");
+					if (result == null) {
+						this.append_forward_lookup_batch("codeblock", language + code);
+					} else {
+						this.append_forward_lookup_batch("keyword", language);
+						this.concat_tokens(result);
+					}
+					this.append_forward_lookup_batch("keyword", "```");
 				}
 
-				// Add tokens.
-				this.append_forward_lookup_batch("keyword", "```");
-				if (result == null) {
-					this.append_forward_lookup_batch("codeblock", language + code);
-				} else {
-					this.append_forward_lookup_batch("keyword", language);
-					this.concat_tokens(result);
+				// Put the codeblock into a single token.
+				else {
+					this.batch = code;
+					this.append_batch("codeblock", {language: tokenizer == null ? null : tokenizer.language});
 				}
-				this.append_forward_lookup_batch("keyword", "```");
 
 				// Set resume index.
 				this.resume_on_index(closing_index);

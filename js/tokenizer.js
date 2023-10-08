@@ -114,6 +114,13 @@ vhighlight.Tokens = class Tokens extends Array {
 // @todo highlight "@\\s+" patterns outside comments as type.
 // @todo add support for each language to get parameters, so that vdocs can use this.
 vhighlight.Tokenizer = class Tokenizer {
+
+	// Static variables.
+	static alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	static uppercase_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	static numerics = "0123456789";
+
+	// Constructor.
 	constructor({
 		// Attributes for tokenizing.
 		keywords = [], 
@@ -211,11 +218,6 @@ vhighlight.Tokenizer = class Tokenizer {
 		    '\u201d', // Right double quotation mark
 		    '\u201c', // Left double quotation mark
 		];
-
-		// Alphabet.
-		this.alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-		this.uppercase_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
 		this.excluded_word_boundary_joinings = [
@@ -540,17 +542,17 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Is an alphabetical character.
 	is_alphabetical(char) {
-		return this.alphabet.includes(char);
+		return Tokenizer.alphabet.includes(char);
 	}
 
 	// Is an uppercase alphabetical character.
 	is_uppercase(char) {
-		return this.uppercase_alphabet.includes(char);
+		return Tokenizer.uppercase_alphabet.includes(char);
 	}
 
 	// Is a numeric character.
 	is_numerical(char) {
-		return this.numerics.includes(char);
+		return Tokenizer.numerics.includes(char);
 	}
 
 	// Check if an a character is escaped by index.
@@ -635,7 +637,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// const now = Date.now();
 
 		// Create default object.
-		const obj = extended;
+		const obj = {...extended};
 		obj.data = this.batch;
 		obj.index = this.added_tokens;
 		obj.line = this.line;
@@ -839,23 +841,35 @@ vhighlight.Tokenizer = class Tokenizer {
 	// This function must be used when appending new tokens by a forward lookup.
 	// Since every line break should be a seperate line break token for VIDE.
 	append_forward_lookup_batch(token, data, extended = {}) {
-		let appended_tokens = [];
+		let appended_token, appended_tokens = [];
 		if (this.batch.length > 0) {
-			appended_tokens.push(this.append_batch());
+			appended_token = this.append_batch();
+			if (appended_token != null) {
+				appended_tokens.push(appended_token);
+			}
 		}
 		this.batch = "";
 		for (let i = 0; i < data.length; i++) {
 			const c = data.charAt(i);
 			if (c == "\n" && !this.is_escaped(i, data)) {
-				appended_tokens.push(this.append_batch(token, extended));
+				appended_token = this.append_batch(token, extended);
+				if (appended_token != null) {
+					appended_tokens.push(appended_token);
+				}
 				this.batch = "\n";
-				appended_tokens.push(this.append_batch("line", extended));
+				const appended_line_token = this.append_batch("line", extended);
+				if (appended_token != null) {
+					appended_tokens.push(appended_token);
+				}
 				++this.line;
 			} else {
 				this.batch += c;
 			}
 		}
-		appended_tokens.push(this.append_batch(token, extended));
+		appended_token = this.append_batch(token, extended);
+		if (appended_token != null) {
+			appended_tokens.push(appended_token);
+		}
 		return appended_tokens;
 	}
 
