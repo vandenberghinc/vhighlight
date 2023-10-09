@@ -477,6 +477,7 @@ vhighlight.Tokens = class Tokens extends Array {
 	    }
 	    for (let i = start; i < end; i++) {    
 	    	const tokens = this[i];
+	    	if (tokens === undefined) { return null; }
 	    	for (let i = 0; i < tokens.length; i++) {
 	    		const res = handler(tokens[i]);
 		        if (res != null) {
@@ -520,6 +521,13 @@ vhighlight.Tokens = class Tokens extends Array {
 // @todo highlight "@\\s+" patterns outside comments as type.
 // @todo add support for each language to get parameters, so that vdocs can use this.
 vhighlight.Tokenizer = class Tokenizer {
+
+	// Static variables.
+	static alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	static uppercase_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	static numerics = "0123456789";
+
+	// Constructor.
 	constructor({
 		// Attributes for tokenizing.
 		keywords = [], 
@@ -617,11 +625,6 @@ vhighlight.Tokenizer = class Tokenizer {
 		    '\u201d', // Right double quotation mark
 		    '\u201c', // Left double quotation mark
 		];
-
-		// Alphabet.
-		this.alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-		this.uppercase_alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-		this.numerics = "0123456789";
 
 		// Word boundaries that will not be joined to the previous word boundary token.
 		this.excluded_word_boundary_joinings = [
@@ -946,17 +949,25 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Is an alphabetical character.
 	is_alphabetical(char) {
-		return this.alphabet.includes(char);
+		return Tokenizer.alphabet.includes(char);
 	}
 
 	// Is an uppercase alphabetical character.
 	is_uppercase(char) {
-		return this.uppercase_alphabet.includes(char);
+		return Tokenizer.uppercase_alphabet.includes(char);
+	}
+	is_full_uppercase(str) {
+		for (let i = 0; i < str.length; i++) {
+			if (Tokenizer.uppercase_alphabet.includes(str.charAt(i)) === false) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	// Is a numeric character.
 	is_numerical(char) {
-		return this.numerics.includes(char);
+		return Tokenizer.numerics.includes(char);
 	}
 
 	// Check if an a character is escaped by index.
@@ -2152,6 +2163,9 @@ vhighlight.Tokenizer = class Tokenizer {
 						let next_i = parenth_index - 1, next;
 						while ((next = parenth_tokens[next_i]) != null) {
 							if (next.data.length === 1 && next.data === "=") {
+								if (parenth_tokens[next_i + 1] != null && parenth_tokens[next_i + 1].token === "operator") {
+									return null;
+								}
 								return next;
 							} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
 								return null;
@@ -5185,9 +5199,20 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			this.capture_inherit_start_token = undefined;
 		}
 
-		// Set starting uppercase constants / static type calls to a type.
-		else if ((char === "." || char === "[" || char === ",") && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
-			this.append_batch("type");
+		// Check word boundary and uppercase constants.
+		// Must be last.
+		else if (this.word_boundaries.includes(char)) {
+
+			// Check uppercase constant.
+			if (this.batch.length > 0 && this.is_full_uppercase(this.batch)) {
+				this.append_batch("type");
+			}
+
+			// Append word boundary.
+			this.append_batch();
+			this.batch += char;
+			this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
+			return true;
 		}
 	}
 }
@@ -5234,8 +5259,8 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 
 		// Initialize the tokenizer.
 		super({
-			multi_line_comment_start: "<!--",
-			multi_line_comment_end: "-->",
+			// multi_line_comment_start: "<!--",
+			// multi_line_comment_end: "-->",
 			allow_strings: false,
 			allow_numerics: false,
 			// Attributes for partial tokenizing.
@@ -5323,21 +5348,21 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				}
 			}
 
-			// Bold or italic text.
+			// Bold text.
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
 				(
 					(char == "*" && this.next_char == "*") ||
 					(char == "_" && this.next_char == "_")
 				) &&
-				!this.is_whitespace(this.index + 2)
+				!this.is_whitespace(this.code.charAt(this.index + 2))
 			) {
 
 				// Find closing char.
 				let closing_index = null;
 				for (let i = this.index + 2; i < this.code.length; i++) {
 					const c = this.code.charAt(i);
-					if (c == char) {
+					if (c == char && !this.is_escaped(i)) {
 						closing_index = i;
 						break;
 					}
@@ -5357,7 +5382,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				return true;
 			}
 
-			// Bold or italic text.
+			// Italic text.
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
 				(char == "*" || char == "_") &&
@@ -5368,7 +5393,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				let closing_index = null;
 				for (let i = this.index + 1; i < this.code.length; i++) {
 					const c = this.code.charAt(i);
-					if (c == char) {
+					if (c == char && !this.is_escaped(i)) {
 						closing_index = i;
 						break;
 					}
@@ -5442,7 +5467,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			}
 
 			// Link or image.
-			else if (char == "[") {
+			else if (char == "[" && !is_escaped) {
 
 				// Append batch by word boundary.
 				this.append_batch();
@@ -5540,7 +5565,6 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				const start = this.index + 3 + language.length;
 				const code = this.code.substr(start, (closing_index - 3) - start + 1);
 				let tokenizer = language == "" ? null : vhighlight.init_tokenizer(language)
-				console.log("CODE:",code)
 
 				// Insert codeblock tokens.
 				if (insert_codeblocks) {

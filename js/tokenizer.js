@@ -71,6 +71,7 @@ vhighlight.Tokens = class Tokens extends Array {
 	    }
 	    for (let i = start; i < end; i++) {    
 	    	const tokens = this[i];
+	    	if (tokens === undefined) { return null; }
 	    	for (let i = 0; i < tokens.length; i++) {
 	    		const res = handler(tokens[i]);
 		        if (res != null) {
@@ -548,6 +549,14 @@ vhighlight.Tokenizer = class Tokenizer {
 	// Is an uppercase alphabetical character.
 	is_uppercase(char) {
 		return Tokenizer.uppercase_alphabet.includes(char);
+	}
+	is_full_uppercase(str) {
+		for (let i = 0; i < str.length; i++) {
+			if (Tokenizer.uppercase_alphabet.includes(str.charAt(i)) === false) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	// Is a numeric character.
@@ -1748,6 +1757,9 @@ vhighlight.Tokenizer = class Tokenizer {
 						let next_i = parenth_index - 1, next;
 						while ((next = parenth_tokens[next_i]) != null) {
 							if (next.data.length === 1 && next.data === "=") {
+								if (parenth_tokens[next_i + 1] != null && parenth_tokens[next_i + 1].token === "operator") {
+									return null;
+								}
 								return next;
 							} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
 								return null;

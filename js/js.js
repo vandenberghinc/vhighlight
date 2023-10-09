@@ -307,9 +307,20 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			this.capture_inherit_start_token = undefined;
 		}
 
-		// Set starting uppercase constants / static type calls to a type.
-		else if ((char === "." || char === "[" || char === ",") && this.batch.length > 0 && this.is_uppercase(this.batch.charAt(0))) {
-			this.append_batch("type");
+		// Check word boundary and uppercase constants.
+		// Must be last.
+		else if (this.word_boundaries.includes(char)) {
+
+			// Check uppercase constant.
+			if (this.batch.length > 0 && this.is_full_uppercase(this.batch)) {
+				this.append_batch("type");
+			}
+
+			// Append word boundary.
+			this.append_batch();
+			this.batch += char;
+			this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
+			return true;
 		}
 	}
 }
