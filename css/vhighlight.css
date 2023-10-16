@@ -19,7 +19,8 @@
 	color: #818C97;
 }
 .token_comment_keyword {
-	color: #EE8378;
+	color: #818C97;
+	font-weight: bold;
 }
 .token_comment_codeblock {
 	color: #818C97;

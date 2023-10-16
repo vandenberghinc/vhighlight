@@ -79,7 +79,7 @@ vhighlight.tokenize = function({
 	}
 
 	// When the element is a <code> more options become available.
-	
+
 	// Stop when no language is defined.
 	if (language == "" || language == null) {
 		return ;
@@ -148,6 +148,12 @@ vhighlight.tokenize = function({
 		code = code_pre.textContent;
 	}
 
+	// Get the tokens.
+	let tokens = tokenizer.tokenize({code: code});
+
+	// Build the html.
+	let highlighted_code = tokenizer.build_html(tokens);
+
 	// Functions.
 	function show_loader() {
 		element.style.justifyContent = "center";
@@ -168,8 +174,10 @@ vhighlight.tokenize = function({
 		code_pre.style.display = "block";
 	}
 	function animate_writing(highlighted_code) {
-		code_pre.innerHTML = "";
 		
+		// Reset content.
+		code_pre.innerHTML = "";
+
 		// Add char.
 		function add_char(index) {
 			if (index < highlighted_code.length) {
@@ -248,6 +256,11 @@ vhighlight.tokenize = function({
 		// Start animation.
 		add_char(0);
 	}
+
+	// Set the min height otherwise the height expands while scrolling while the writing is animated then this can created unwanted behviour when scrolling up.
+	const computed = window.getComputedStyle(element);
+	element.style.minHeight = `${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`;
+	console.log(`${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`);
 	
 	// Show loader.
 	show_loader();
@@ -255,9 +268,6 @@ vhighlight.tokenize = function({
 	// Delay the syntax highlighting process.
 	// Otherwise the loader does not show and the unhighlted code is shown instead.
 	setTimeout(() => {
-
-		// Highlight.
-		let highlighted_code = tokenizer.tokenize({code: code, build_html: true});
 
 		// No line numbers.
 		// So add code directly.
@@ -291,15 +301,10 @@ vhighlight.tokenize = function({
         pre.style.whiteSpace = 'pre';
         pre.style.overflow = 'visible';
         pre.style.lineHeight = element.style.lineHeight;
-        document.body.appendChild(pre);
-        const pre_height = pre.clientHeight;
-        const line_height = parseFloat(element.style.lineHeight);
-        document.body.removeChild(pre);
-        const lines = Math.floor(pre_height / line_height);
 
 		// Set line numbers.
         line_numbers_div.innerHTML = "";
-		for (var i = 0; i < lines; i++) {
+		for (var i = 0; i < tokens.length; i++) {
 			let span = document.createElement("span");
 			span.className = "token_line_number";
 			span.textContent = (i + 1) + "\n";
@@ -992,14 +997,12 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Concat tokens to the end of the current tokens.
 	concat_tokens(tokens) {
-		const start_line = this.line;
-		const start_offset = this.offset;
 		tokens.iterate_tokens((token) => {
-			token.line += start_line;
+			token.line = this.line;
 			if (token.is_line_break) {
 				++this.line;
 			}
-			token.offset += start_offset;
+			token.offset = this.offset;
 			this.offset += token.data.length;
 			token.index = this.added_tokens;
 			++this.added_tokens;
@@ -1265,7 +1268,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 		this.batch = "";
 		for (let i = 0; i < data.length; i++) {
-			const c = data.charAt(i);
+			let c = data.charAt(i);
 			if (c == "\n" && !this.is_escaped(i, data)) {
 				appended_token = this.append_batch(token, extended);
 				if (appended_token != null) {
@@ -1574,6 +1577,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		code = null,
 		stop_callback = undefined,
 		build_html = false,
+		is_insert_tokens = false,
 	} = {}) {
 
 		// Reset.
@@ -2306,6 +2310,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// But only when no stop callback has been defined.
 		const last_line = this.tokens[this.tokens.length - 1];
 		if (
+			is_insert_tokens === false &&
 			stop_callback == null &&
 			(last_line === undefined || (last_line.length > 0 && last_line[last_line.length - 1].is_line_break))
 		) {
@@ -4863,14 +4868,14 @@ vhighlight.HTML = class HTML extends vhighlight.Tokenizer {
 
 					// Parse css.
 					else if (tag_name === "style") {
-						const tokens = vhighlight.css.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start)})
+						const tokens = vhighlight.css.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start), is_insert_tokens: true})
 						this.concat_tokens(tokens);
 						this.resume_on_index(close_tag_start_index - 1);
 					}
 
 					// Parse javascript.
 					else if (tag_name === "script" && (attr_type == null || attr_type === "text/javascript" || attr_type === "application/javascript")) {
-						const tokens = vhighlight.js.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start)})
+						const tokens = vhighlight.js.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start), is_insert_tokens: true})
 						this.concat_tokens(tokens);
 						this.resume_on_index(close_tag_start_index - 1);
 					}
@@ -5551,7 +5556,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					if (c == "`" && this.code.charAt(i + 1) == '`' && this.code.charAt(i + 2) == "`") {
 						closing_index = i + 2;
 						break;
-					} else if (do_language && language.length > 0 && (is_whitespace || c == "\n")) {
+					} else if (do_language && (is_whitespace || c == "\n")) {
 						do_language = false;
 					} else if (do_language && language.length == 0 && !is_whitespace && !this.is_alphabetical(c)) {
 						do_language = false;
@@ -5573,8 +5578,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					let result = null;
 					if (tokenizer != null) {
 						tokenizer.code = code;
-						result = tokenizer.tokenize()
-						console.log("RESULT:",result)
+						result = tokenizer.tokenize({is_insert_tokens: true})
 					}
 
 					// Add tokens.
@@ -6229,8 +6233,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				})
 			})
 	
-			// Add last newline.
-			if (this.line_breaks === true && code.charAt(code.length - 1) !== "\n") {
+			// The code must end with a newline otherwise at least firefox may throw an error when the file ends with a }.
+			if (code.charAt(code.length - 1) !== "\n") {
 				code += "\n";
 			}
 

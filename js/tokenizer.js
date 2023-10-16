@@ -586,14 +586,12 @@ vhighlight.Tokenizer = class Tokenizer {
 
 	// Concat tokens to the end of the current tokens.
 	concat_tokens(tokens) {
-		const start_line = this.line;
-		const start_offset = this.offset;
 		tokens.iterate_tokens((token) => {
-			token.line += start_line;
+			token.line = this.line;
 			if (token.is_line_break) {
 				++this.line;
 			}
-			token.offset += start_offset;
+			token.offset = this.offset;
 			this.offset += token.data.length;
 			token.index = this.added_tokens;
 			++this.added_tokens;
@@ -859,7 +857,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 		this.batch = "";
 		for (let i = 0; i < data.length; i++) {
-			const c = data.charAt(i);
+			let c = data.charAt(i);
 			if (c == "\n" && !this.is_escaped(i, data)) {
 				appended_token = this.append_batch(token, extended);
 				if (appended_token != null) {
@@ -1168,6 +1166,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		code = null,
 		stop_callback = undefined,
 		build_html = false,
+		is_insert_tokens = false,
 	} = {}) {
 
 		// Reset.
@@ -1900,6 +1899,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// But only when no stop callback has been defined.
 		const last_line = this.tokens[this.tokens.length - 1];
 		if (
+			is_insert_tokens === false &&
 			stop_callback == null &&
 			(last_line === undefined || (last_line.length > 0 && last_line[last_line.length - 1].is_line_break))
 		) {

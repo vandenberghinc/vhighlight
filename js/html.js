@@ -285,14 +285,14 @@ vhighlight.HTML = class HTML extends vhighlight.Tokenizer {
 
 					// Parse css.
 					else if (tag_name === "style") {
-						const tokens = vhighlight.css.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start)})
+						const tokens = vhighlight.css.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start), is_insert_tokens: true})
 						this.concat_tokens(tokens);
 						this.resume_on_index(close_tag_start_index - 1);
 					}
 
 					// Parse javascript.
 					else if (tag_name === "script" && (attr_type == null || attr_type === "text/javascript" || attr_type === "application/javascript")) {
-						const tokens = vhighlight.js.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start)})
+						const tokens = vhighlight.js.tokenize({code: this.code.substr(content_start, close_tag_start_index - content_start), is_insert_tokens: true})
 						this.concat_tokens(tokens);
 						this.resume_on_index(close_tag_start_index - 1);
 					}

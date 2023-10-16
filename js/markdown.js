@@ -305,7 +305,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					if (c == "`" && this.code.charAt(i + 1) == '`' && this.code.charAt(i + 2) == "`") {
 						closing_index = i + 2;
 						break;
-					} else if (do_language && language.length > 0 && (is_whitespace || c == "\n")) {
+					} else if (do_language && (is_whitespace || c == "\n")) {
 						do_language = false;
 					} else if (do_language && language.length == 0 && !is_whitespace && !this.is_alphabetical(c)) {
 						do_language = false;
@@ -327,8 +327,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					let result = null;
 					if (tokenizer != null) {
 						tokenizer.code = code;
-						result = tokenizer.tokenize()
-						console.log("RESULT:",result)
+						result = tokenizer.tokenize({is_insert_tokens: true})
 					}
 
 					// Add tokens.

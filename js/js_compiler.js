@@ -386,8 +386,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				})
 			})
 	
-			// Add last newline.
-			if (this.line_breaks === true && code.charAt(code.length - 1) !== "\n") {
+			// The code must end with a newline otherwise at least firefox may throw an error when the file ends with a }.
+			if (code.charAt(code.length - 1) !== "\n") {
 				code += "\n";
 			}
 

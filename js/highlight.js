@@ -80,7 +80,7 @@ vhighlight.tokenize = function({
 	}
 
 	// When the element is a <code> more options become available.
-	
+
 	// Stop when no language is defined.
 	if (language == "" || language == null) {
 		return ;
@@ -149,6 +149,12 @@ vhighlight.tokenize = function({
 		code = code_pre.textContent;
 	}
 
+	// Get the tokens.
+	let tokens = tokenizer.tokenize({code: code});
+
+	// Build the html.
+	let highlighted_code = tokenizer.build_html(tokens);
+
 	// Functions.
 	function show_loader() {
 		element.style.justifyContent = "center";
@@ -169,8 +175,10 @@ vhighlight.tokenize = function({
 		code_pre.style.display = "block";
 	}
 	function animate_writing(highlighted_code) {
-		code_pre.innerHTML = "";
 		
+		// Reset content.
+		code_pre.innerHTML = "";
+
 		// Add char.
 		function add_char(index) {
 			if (index < highlighted_code.length) {
@@ -249,6 +257,11 @@ vhighlight.tokenize = function({
 		// Start animation.
 		add_char(0);
 	}
+
+	// Set the min height otherwise the height expands while scrolling while the writing is animated then this can created unwanted behviour when scrolling up.
+	const computed = window.getComputedStyle(element);
+	element.style.minHeight = `${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`;
+	console.log(`${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`);
 	
 	// Show loader.
 	show_loader();
@@ -256,9 +269,6 @@ vhighlight.tokenize = function({
 	// Delay the syntax highlighting process.
 	// Otherwise the loader does not show and the unhighlted code is shown instead.
 	setTimeout(() => {
-
-		// Highlight.
-		let highlighted_code = tokenizer.tokenize({code: code, build_html: true});
 
 		// No line numbers.
 		// So add code directly.
@@ -292,15 +302,10 @@ vhighlight.tokenize = function({
         pre.style.whiteSpace = 'pre';
         pre.style.overflow = 'visible';
         pre.style.lineHeight = element.style.lineHeight;
-        document.body.appendChild(pre);
-        const pre_height = pre.clientHeight;
-        const line_height = parseFloat(element.style.lineHeight);
-        document.body.removeChild(pre);
-        const lines = Math.floor(pre_height / line_height);
 
 		// Set line numbers.
         line_numbers_div.innerHTML = "";
-		for (var i = 0; i < lines; i++) {
+		for (var i = 0; i < tokens.length; i++) {
 			let span = document.createElement("span");
 			span.className = "token_line_number";
 			span.textContent = (i + 1) + "\n";
