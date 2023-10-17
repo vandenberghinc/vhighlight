@@ -261,7 +261,6 @@ vhighlight.tokenize = function({
 	// Set the min height otherwise the height expands while scrolling while the writing is animated then this can created unwanted behviour when scrolling up.
 	const computed = window.getComputedStyle(element);
 	element.style.minHeight = `${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`;
-	console.log(`${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`);
 	
 	// Show loader.
 	show_loader();

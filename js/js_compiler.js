@@ -329,17 +329,43 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					}
 
 					// ---------------------------------------------------------
-					// Convert numeric tokens followed by a "%" to a string.
+					// Convert numeric tokens followed by a "%", "px", "em", "#" to a string.
 
 					if (token.token === "numeric") {
-						if (next_nw_token != null && next_nw_token.is_word_boundary) {
-							if (next_nw_token.data.length === 1 && next_nw_token.data === "%") {
-								code += `"${token.data}%"`;
-								resume_on = next_nw_token.index + 1;
+						if (next_token != null) {
+							if (
+								next_token.data.length === 1 && 
+								(
+									next_token.data === "%" ||
+									next_token.data === "#" ||
+									next_token.data === "px" ||
+									next_token.data === "em"
+								)
+							) {
+								code += `"${token.data}${next_token.data}"`;
+								resume_on = next_token.index + 1;
 								add_to_code = false;
-							} else if (next_nw_token.data.length > 1 && next_nw_token.data.charAt(0) === "%") {
-								code += `"${token.data}%"`;
-								next_nw_token.data = next_nw_token.data.substr(1);
+							}
+							else if (
+								next_token.data.length === 2 && 
+								(
+									next_token.data === "px" ||
+									next_token.data === "em"
+								)
+							) {
+								code += `"${token.data}${next_token.data.substr(0, 2)}"`;
+								next_token.data = next_token.data.substr(2);
+								add_to_code = false;
+							}
+							else if (
+								next_token.data.length > 1 && 
+								(
+									next_token.data.charAt(0) === "%" ||
+									next_token.data.charAt(0) === "#"
+								)
+							) {
+								code += `"${token.data}${next_token.data.charAt(0)}"`;
+								next_token.data = next_token.data.substr(1);
 								add_to_code = false;
 							}
 						}
@@ -598,9 +624,9 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			}
 
 			// ---------------------------------------------------------
-			// Constructor wrapper.
+			// Register the elemtent as a custom html element.
 
-			else if (decorator === "@vweb_register") {
+			else if (decorator === "@register_element") {
 
 				// Check if the previous token is "class".
 				const class_keyword = check_prev_is_keyword_class(type_def_token);
