@@ -1258,7 +1258,11 @@ vhighlight.Tokenizer = class Tokenizer {
 	// This function must be used when appending new tokens by a forward lookup.
 	// Since every line break should be a seperate line break token for VIDE.
 	append_forward_lookup_batch(token, data, extended = {}) {
+
+		// Vars.
 		let appended_token, appended_tokens = [];
+
+		// Add current batch.
 		if (this.batch.length > 0) {
 			appended_token = this.append_batch();
 			if (appended_token != null) {
@@ -1266,6 +1270,11 @@ vhighlight.Tokenizer = class Tokenizer {
 			}
 		}
 		this.batch = "";
+
+		// Reset the next token attribute since this will not be reset by the current append batch behaviour.
+		this.next_token = null;
+
+		// Seperate the line tokens.
 		for (let i = 0; i < data.length; i++) {
 			let c = data.charAt(i);
 			if (c == "\n" && !this.is_escaped(i, data)) {
@@ -1283,10 +1292,14 @@ vhighlight.Tokenizer = class Tokenizer {
 				this.batch += c;
 			}
 		}
+
+		// Last batch.
 		appended_token = this.append_batch(token, extended);
 		if (appended_token != null) {
 			appended_tokens.push(appended_token);
 		}
+
+		// Handler.
 		return appended_tokens;
 	}
 
@@ -1334,30 +1347,10 @@ vhighlight.Tokenizer = class Tokenizer {
 		let multi_line_comment_check_close_from_index = null;	// the start index of the multi line comment because when a user does something like /*// my comment */ the comment would originally immediately terminate because of the /*/.
 
 		// Iterate.
-		// let last_p = 0, last_rounded_p = "0.00", max_i = 0;
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
 			//
 			// DO NOT ASSIGN ANY "this" ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
 			//
-
-			// if (info_obj === this) {
-			// 	const p = info_obj.index / end;
-			// 	if (info_obj.index > max_i) {
-			// 		max_i = info_obj.index;
-			// 	} else if (max_i < info_obj.index) {
-			// 		console.error("Last p was higher.");
-			// 		process.exit(1);
-			// 	}
-			// 	if (last_p > p) {
-			// 		console.error("Last p was higher.");
-			// 		process.exit(1);
-			// 	}
-			// 	if (last_rounded_p !== p.toFixed(2)) {
-			// 		last_rounded_p = p.toFixed(2);
-			// 		console.log(last_rounded_p);
-			// 	}
-			// 	// console.log(p);
-			// }
 
 			// Get char.
 			const char = this.code.charAt(info_obj.index);
@@ -1534,8 +1527,6 @@ vhighlight.Tokenizer = class Tokenizer {
 						this.operators.includes(prev)
 					)
 				) {
-					// console.log("=====================");
-					// console.log("REGEX START\n" + this.code.substr(this.index - 25, 50));
 					is_regex = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -1547,7 +1538,6 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (is_regex) {
 				if (char == '/' && !is_escaped) {
 					is_regex = false;
-					// console.log("REGEX END\n" + this.code.substr(this.index - 25, 50));
 				}
 				const res = callback(char, false, is_comment, is_multi_line_comment, true, is_escaped, is_preprocessor); // always use true for is_regex to make sure the closing / is still treated as a regex.
 				if (res != null) { return res; }
@@ -2083,6 +2073,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// ---------------------------------------------------------
 					// Parse the paramaters.
 
+
 					// The target type token to which the parameters will be assigned to.
 					let type_token;
 
@@ -2520,7 +2511,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					) {
 						scope_start = first_token.line;
 						scope_start_offset = first_token.offset;
-						console.log(scope_start);
+						// console.log(scope_start);
 						return true;
 					}
 				})
@@ -3256,7 +3247,6 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 				}
 
 				// Add the batches when it is a type.
-				// length - 1 since 
 				if (is_type) {
 					for (let i = 0; i <= last_append_index; i++) {
 						this.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
@@ -3879,7 +3869,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
-
+			
 			// Get the closing parentheses.
 			const closing = this.index;
 			if (after_parenth_index != null) {
@@ -3894,7 +3884,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 				const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
 				if (
 					(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
-					(prev.token == "type" && prev_prev_is_colon === true) // when the previous token is type by a double colon.
+					(prev.token == "type") // when the previous token is a type.
 				) {
 
 					// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.

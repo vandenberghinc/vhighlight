@@ -266,7 +266,6 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 				}
 
 				// Add the batches when it is a type.
-				// length - 1 since 
 				if (is_type) {
 					for (let i = 0; i <= last_append_index; i++) {
 						this.append_forward_lookup_batch(append_to_batch[i][0], append_to_batch[i][1]);
@@ -889,7 +888,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 			token_before_opening_parenth = token_before_opening_parenth,
 			after_parenth_index = after_parenth_index,
 		}) => {
-
+			
 			// Get the closing parentheses.
 			const closing = this.index;
 			if (after_parenth_index != null) {
@@ -904,7 +903,7 @@ vhighlight.CPP = class CPP extends vhighlight.Tokenizer {
 				const prev_prev_is_colon = prev_prev != null && prev_prev.data == ":";
 				if (
 					(prev.token === undefined && prev.data != "]") || // when no token is specified and exclude lambda funcs.
-					(prev.token == "type" && prev_prev_is_colon === true) // when the previous token is type by a double colon.
+					(prev.token == "type") // when the previous token is a type.
 				) {
 
 					// When the first character after the closing parentheses is a "{", the previous non word boundary token is a type def.
