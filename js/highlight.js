@@ -8,30 +8,160 @@
 
 const vhighlight = {};
 
-// Get the general tokenizer object by language.
-// Returns `null` when the language is not supported.
+// All languages.
+vhighlight.languages = function() {
+	if (this._languages === undefined) {
+		this._languages = [
+			vhighlight.cpp.language,
+			vhighlight.md.language,
+			vhighlight.js.language,
+			vhighlight.json.language,
+			vhighlight.python.language,
+			vhighlight.css.language,
+			vhighlight.html.language,
+			vhighlight.bash.language,
+		]
+	}
+	return this._languages;
+};
+
+// Get the global tokenizer class or initialize a new class based on a language name.
+// - Returns `null` when the language is not supported.
 vhighlight.get_tokenizer = function(language) {
-	if (language == "cpp" || language == "c++" || language == "c") {
-		return vhighlight.cpp;
-	} else if (language == "markdown" || language == "md") {
-		return vhighlight.md;
-	} else if (language == "js" || language == "javascript") {
-		return vhighlight.js;
-	} else if (language == "json") {
-		return vhighlight.json;
-	} else if (language == "python") {
-		return vhighlight.python;
-	} else if (language == "css") {
-		return vhighlight.css;
-	} else if (language == "html") {
-		return vhighlight.html;
-	} else if (language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-		return vhighlight.bash;
-	} else {
-		return null;
+	switch (language.toLowerCase()) {
+		
+		// C.
+		case "cpp":
+		case "c++":
+		case "c":
+			return vhighlight.cpp;
+		
+		// Markdown.
+		case "markdown":
+		case "md":
+			return vhighlight.md;
+		
+		// JS.
+		case "js":
+		case "javascript":
+		case "nodejs":
+			return vhighlight.js;
+		
+		// JSON.
+		case "json":
+			return vhighlight.json;
+		
+		// Python.
+		case "python":
+		case "py":
+			return vhighlight.python;
+		
+		// CSS.
+		case "css":
+			return vhighlight.css;
+		
+		// HTML.
+		case "html":
+			return vhighlight.html;
+		
+		// Bash.
+		case "bash":
+		case "sh":
+		case "zsh":
+		case "shell":
+		case "curl":
+			return vhighlight.bash;
+
+		// Unsupported.
+		default:
+			return null;
 	}
 }
-	
+vhighlight.init_tokenizer = function(language) {
+	switch (language.toLowerCase()) {
+		
+		// C.
+		case "cpp":
+		case "c++":
+		case "c":
+			return new vhighlight.CPP();
+		
+		// Markdown.
+		case "markdown":
+		case "md":
+			return new vhighlight.Markdown();
+		
+		// JS.
+		case "js":
+		case "javascript":
+		case "nodejs":
+			return new vhighlight.JS();
+		
+		// JSON.
+		case "json":
+			return new vhighlight.JSON();
+		
+		// Python.
+		case "python":
+		case "py":
+			return new vhighlight.Python();
+		
+		// CSS.
+		case "css":
+			return new vhighlight.CSS();
+		
+		// HTML.
+		case "html":
+			return new vhighlight.HTML();
+		
+		// Bash.
+		case "bash":
+		case "sh":
+		case "zsh":
+		case "shell":
+		case "curl":
+			return new vhighlight.Bash();
+
+		// Unsupported.
+		default:
+			return null;
+	}
+}
+
+// Get the supported language from a path extension.
+vhighlight.language_extensions = {
+	"cpp": [".c", ".cp", ".cpp", ".h", ".hp", ".hpp"],
+    "js": [".js"], 
+    "md": [".md"],
+    "python": [".py"],
+    "css": [".css"],
+    "json": [".json", ".vide", ".vpackage", ".vweb"],
+    "shell": [".sh", ".zsh"],
+    "html": [".html"],
+};
+vhighlight.get_tokenizer_by_extension = function(extension) {
+	if (extension == null || extension.length === 0) { return null; }
+	if (extension.charAt(0) != ".") {
+		extension = `.${extension}`;
+	}
+	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
+        if (vhighlight.language_extensions[lang].includes(extension)) {
+            return vhighlight.get_tokenizer(lang);
+        }
+    })
+}
+vhighlight.init_tokenizer_by_extension = function(extension) {
+	if (extension == null || extension.length === 0) { return null; }
+	if (extension.charAt(0) != ".") {
+		extension = `.${extension}`;
+	}
+	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
+        if (vhighlight.language_extensions[lang].includes(extension)) {
+            return vhighlight.init_tokenizer(lang);
+        }
+    })
+}
+
 // Tokenize code.
 // - Returns "null" when the language is not supported.
 // - Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
@@ -321,97 +451,4 @@ vhighlight.tokenize = function({
 		
 		
 	}, 50);
-}
-
-// Get the global tokenizer class or initialize a new class based on a language name.
-// - Returns `null` when the language is not supported.
-vhighlight.get_tokenizer = function(language) {
-	if (language === vhighlight.cpp.language || language == "cpp" || language == "c++" || language == "c") {
-        return vhighlight.cpp;
-    }
-    else if (language === vhighlight.md.language || language == "markdown" || language == "md") {
-        return vhighlight.md;
-    }
-    else if (language === vhighlight.js.language || language == "js" || language == "javascript") {
-        return vhighlight.js;
-    }
-    else if (language === vhighlight.json.language || language == "json") {
-        return vhighlight.json;
-    }
-    else if (language === vhighlight.python.language || language == "python") {
-        return vhighlight.python;
-    }
-    else if (language === vhighlight.css.language || language == "css") {
-        return vhighlight.css;
-    }
-    else if (language === vhighlight.html.language || language == "html") {
-        return vhighlight.html;
-    }
-    else if (language === vhighlight.bash.language || language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-        return vhighlight.bash;
-    } else {
-        return null;
-    }
-}
-vhighlight.init_tokenizer = function(language) {
-	if (language === vhighlight.cpp.language || language == "cpp" || language == "c++" || language == "c") {
-        return new vhighlight.CPP();
-    }
-    else if (language === vhighlight.md.language || language == "markdown" || language == "md") {
-        return new vhighlight.Markdown();
-    }
-    else if (language === vhighlight.js.language || language == "js" || language == "javascript") {
-        return new vhighlight.JS();
-    }
-    else if (language === vhighlight.json.language || language == "json") {
-        return new vhighlight.JSON();
-    }
-    else if (language === vhighlight.python.language || language == "python") {
-        return new vhighlight.Python();
-    }
-    else if (language === vhighlight.css.language || language == "css") {
-        return new vhighlight.CSS();
-    }
-    else if (language === vhighlight.html.language || language == "html") {
-        return new vhighlight.HTML();
-    }
-    else if (language === vhighlight.bash.language || language == "bash" || language == "sh" || language == "zsh" || language == "shell") {
-        return new vhighlight.Bash();
-    } else {
-        return null;
-    }
-}
-
-// Get the supported language from a path extension.
-vhighlight.language_extensions = {
-	"cpp": [".c", ".cp", ".cpp", ".h", ".hp", ".hpp"],
-    "js": [".js"], 
-    "md": [".md"],
-    "python": [".py"],
-    "css": [".css"],
-    "json": [".json", ".vide", ".vpackage", ".vweb"],
-    "shell": [".sh", ".zsh"],
-    "html": [".html"],
-};
-vhighlight.get_tokenizer_by_extension = function(extension) {
-	if (extension == null || extension.length === 0) { return null; }
-	if (extension.charAt(0) != ".") {
-		extension = `.${extension}`;
-	}
-	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
-        if (vhighlight.language_extensions[lang].includes(extension)) {
-            return vhighlight.get_tokenizer(lang);
-        }
-    })
-}
-vhighlight.init_tokenizer_by_extension = function(extension) {
-	if (extension == null || extension.length === 0) { return null; }
-	if (extension.charAt(0) != ".") {
-		extension = `.${extension}`;
-	}
-	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
-        if (vhighlight.language_extensions[lang].includes(extension)) {
-            return vhighlight.init_tokenizer(lang);
-        }
-    })
 }
