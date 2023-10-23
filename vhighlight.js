@@ -2107,6 +2107,16 @@ vhighlight.Tokenizer = class Tokenizer {
 						return finalize();
 					}
 
+					// Get the token offset of the last } when it are assignment parameters.
+					let closing_assignment_parameter_curly_offset = -1;
+					if (is_assignment_parameters) {
+						closing_assignment_parameter_curly_offset = parenth_tokens.iterate((token) => {
+							if (token.data.length === 1 && token.data === "}") {
+								return token.offset;
+							}
+						})
+					}
+
 					// ---------------------------------------------------------
 					// Parse the paramaters.
 
@@ -2184,7 +2194,9 @@ vhighlight.Tokenizer = class Tokenizer {
 							param.type = this.trim_tokens(param.type);
 							param.value = this.trim_tokens(param.value);
 							param.index = params.length;
-							params.push(param);
+							if (param.name != null) {
+								params.push(param);
+							}
 						};
 					}
 
@@ -2273,7 +2285,7 @@ vhighlight.Tokenizer = class Tokenizer {
 										param.name = token.data.trim();
 										token.token = "parameter";
 									}
-									else if (next === null && is_decorator) {
+									else if (next === null && is_decorator && closing_assignment_parameter_curly_offset !== token.offset) {
 										param.value.push(token);
 									}
 								}
@@ -2281,7 +2293,11 @@ vhighlight.Tokenizer = class Tokenizer {
 						}
 
 						// When value.
-						else if (mode === 2 && (is_type_def || is_decorator)) {
+						else if (
+							mode === 2 && 
+							(is_type_def || is_decorator) && 
+							closing_assignment_parameter_curly_offset !== token.offset
+						) {
 							param.value.push(token);
 						}
 					})
