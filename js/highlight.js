@@ -70,6 +70,7 @@ vhighlight.get_tokenizer = function(language) {
 		case "zsh":
 		case "shell":
 		case "curl":
+		case "cli":
 			return vhighlight.bash;
 
 		// Unsupported.
@@ -120,6 +121,7 @@ vhighlight.init_tokenizer = function(language) {
 		case "zsh":
 		case "shell":
 		case "curl":
+		case "cli":
 			return new vhighlight.Bash();
 
 		// Unsupported.
