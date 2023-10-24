@@ -312,7 +312,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		else if (this.word_boundaries.includes(char)) {
 
 			// Check uppercase constant.
-			if (this.batch.length > 0 && this.is_full_uppercase(this.batch)) {
+			if (this.batch.length > 0 && char !== ":" && this.is_full_uppercase(this.batch)) {
 				this.append_batch("type");
 			}
 
