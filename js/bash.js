@@ -60,7 +60,7 @@ vhighlight.Bash = class Bash extends vhighlight.Tokenizer {
 				'-eq', '-ne', '-lt', '-le', '-gt', '-ge', 	// comparison operators.
 				'-e', '-f', '-d', '-s', '-r', '-w', '-x', 	// file test operators.
 				'&', '|', '^', '~', '<<', '>>',				// bitwise operators.
-				'$',
+				// '$', // dont add $ since it will be catched by the callback.
 			],
 			single_line_comment_start: "#",
 
@@ -69,10 +69,10 @@ vhighlight.Bash = class Bash extends vhighlight.Tokenizer {
 				"{", 
 				"}", 
 			],
-		});
 
-		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
-		this.language = "Bash";
+			// Language, must never be changed it is used by dependents, such as vdocs.
+			language: "Bash",
+		});
 
 		// Set callback.
 		this.callback = (char, is_escaped) => {
@@ -88,36 +88,49 @@ vhighlight.Bash = class Bash extends vhighlight.Tokenizer {
 			}
 
 			// Special operators preceded by a "-" such as "-eq".
-			if (char == "-") {
-				let batch = null;
-				if (this.operators.includes(char + this.next_char)) {
-					batch = char + this.next_char;
-				} else if (this.operators.includes(char + this.next_char + this.code.charAt(this.index + 2))) {
-					batch = char + this.next_char + this.code.charAt(this.index + 2);
-				}
-				if (batch != null) {
-					this.append_batch();
-					this.append_forward_lookup_batch("operator", batch);
-					this.resume_on_index(this.index + batch.length - 1);
-					return true;
-				}
+			// if (char == "-") {
+			// 	let batch = null;
+			// 	if (this.operators.includes(char + this.next_char)) {
+			// 		batch = char + this.next_char;
+			// 	} else if (this.operators.includes(char + this.next_char + this.code.charAt(this.index + 2))) {
+			// 		batch = char + this.next_char + this.code.charAt(this.index + 2);
+			// 	}
+			// 	if (batch != null) {
+			// 		this.append_batch();
+			// 		this.append_forward_lookup_batch("operator", batch);
+			// 		this.resume_on_index(this.index + batch.length - 1);
+			// 		return true;
+			// 	}
+			// }
+
+			// Arguments starting with a "-" or "--".
+			if (char == "-" && this.prev_char !== "-") {
+
+				// Get the next whitespace.
+				const next_whitespace = this.get_first_whitespace(this.index, true, this.code.length);
+
+				// Get the full argument.
+				const arg = this.code.substr(this.index, next_whitespace - this.index);
+
+				// Append arg.
+				this.append_batch();
+				this.append_forward_lookup_batch("parameter", arg);
+				this.resume_on_index(this.index + arg.length - 1);
+				return true;
 			}
 
 			// Special keywords preceded by a "$" such as "$1".
-			else if (char == "$") {
+			else if (char == "$" && (this.is_numerical(this.next_char) || this.next_char === "@" || this.next_char === "#" || this.next_char === "?")) {
 				let batch = "$";
 				let index = this.index + 1;
 				while (true) {
 					const c = this.code.charAt(index);
-					if (this.is_numerical(c)) {
+					if (c === "@" || c === "#" || c === "?" || this.is_numerical(c)) {
 						batch += c;
 					} else {
 						break;
 					}
 					++index;
-				}
-				if (batch.length == 1 && (this.next_char == "#" || this.next_char == "@" || this.next_char == "?")) {
-					batch += this.next_char
 				}
 				if (batch.length > 1) {
 					this.append_batch();
@@ -128,8 +141,21 @@ vhighlight.Bash = class Bash extends vhighlight.Tokenizer {
 			}
 
 			// Function / command call.
-			else if (start_of_line && this.is_alphabetical(char)) {
+			else if (start_of_line && char === "$" && (this.next_char === " " || this.next_char === "\t" || this.next_char === "\n")) {
 
+				// Append.
+				this.append_batch();
+				this.batch += char;
+				this.append_batch("keyword");
+
+				// Reset the current line when the char is only $ so the next item will also be highlighted as the first command.
+				this.current_line = null;
+
+				// Catched.
+				return true;
+			}
+			else if (start_of_line && (this.is_alphabetical(char))) {
+				
 				// Do a forward lookup for a "AAA A" pattern, two consecutive words with only whitespace in between.
 				let finished = false;
 				let passed_whitespace = false;

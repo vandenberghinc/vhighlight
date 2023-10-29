@@ -31,10 +31,10 @@ vhighlight.JSON = class JSON extends vhighlight.Tokenizer {
 				"}", 
 				",",
 			],
-		});
 
-		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
-		this.language = "JSON";
+			// Language, must never be changed it is used by dependents, such as vdocs.
+			language: "JSON",
+		});
 	}
 }
 

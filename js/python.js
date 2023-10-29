@@ -64,16 +64,16 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 				"b",
 			],
 			single_line_comment_start: "#",
-			indent_language: true,
+			is_indent_language: true,
 
 			// Attributes for partial tokenizing.
 			scope_separators: [
 				":", 
 			],
-		});
 
-		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
-		this.language = "Python";
+			// Language, must never be changed it is used by dependents, such as vdocs.
+			language: "Python",
+		});
 
 		// Set callback.
 		this.callback = (char) => {

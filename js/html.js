@@ -40,10 +40,10 @@ vhighlight.HTML = class HTML extends vhighlight.Tokenizer {
 				"<script>", "</script>",
 				"<head>", "</head>",
 			],
-		});
 
-		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
-		this.language = "HTML";
+			// Language, must never be changed it is used by dependents, such as vdocs.
+			language: "HTML",
+		});
 
 		// Params.
 		this.allow_entities = allow_entities;

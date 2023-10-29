@@ -105,10 +105,10 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			allowed_keywords_before_type_defs: allowed_keywords_before_type_defs,
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,
-		});
 
-		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
-		this.language = "JS";
+			// Language, must never be changed it is used by dependents, such as vdocs.
+			language: "JS",
+		});
 
 		// Function modifiers.
 		this.function_modifiers = ["async", "static", "get", "set", "*"];
@@ -121,86 +121,78 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		this.capture_inherit_start_token = undefined;
 	}
 
-	// Add the parent tokens  from a type def assignment like "mylib.mymodule.MyClass" to the this.
-	// The parameter token must be the type def token so "MyClass" in the example.
-	add_parent_tokens(type_def_token) {
-		let parents = [];
-		let parent_token = this.get_prev_token(type_def_token.index - 1, [" ", "\t", "\n"]);
-		while ((parent_token = this.get_prev_token(parent_token.index - 1, [])) != null) {
-			if ((parent_token.token === undefined && parent_token.data === ".")) {
-				continue;
-			} else if (parent_token.token === "keyword") { // also allow keywords since a user may do something like "mylib.module = ...";
-				parents.push(parent_token);
-			} else if (parent_token.is_word_boundary === true || parent_token.token !== undefined) {
-				break;
-			} else {
-				parents.push(parent_token);
-			}
-		}
-		parents.iterate_reversed((item) => {
-			this.add_parent(item);
-		})
-	}
-
 	// Set the on type def keyword callback.
-	// The parents always need to be set, but when a class is defined like "mylib.MyClass = class MyClass {}" the tokenizer will not add mylib as a parent.
 	// Do not forget to set and update the parents since the tokenizer will not do this automatically when this callback is defined.
 	on_type_def_keyword(token) {
 
-		// Get the assignment token.
+		// Parse the parents from assignment definition, so parse `vweb` and `utils` in `vweb.utils.myclass = class MyClass`.
 		const assignment = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "class"]);
 		if (assignment != null && assignment.data === "=") {
 
-			//
-			// No need to copy the old parents and restore them later since the items will still be accessed under this parent+name.
-			//
+			// Get the previous token before the assignment.
+			// Also assign the token to a type def but indicate it is a duplicate type def of the original.
+			const before_assignment = this.get_prev_token(assignment.index - 1, [" ", "\t", "\n"]);
+			before_assignment.token = "type_def";
+			before_assignment.is_duplicate = true; // indicate it is a duplicate, vdocs also depends on this.
+			
+			// Parse parents, exclude dots.
+			let parents = [];
+			let parent = before_assignment;
+			while (true) {
+				parent = this.get_prev_token(parent.index - 1, []);
+				if (parent == null) {
+					break;
+				}
+				else if (parent.data === ".") {
+					continue;
+				}
+				else if (this.str_includes_word_boundary(parent.data)) { // must be after dot check since dot is a word boundary ofc.
+					break;
+				}
+				parents.push(parent);
+			}
+			
+			// Add the parents to the tokenizer so that when the user does something like `vweb.utils.myclass = class myclass{}` the functions from the class will also have the parent.
+			token.parents = [];
+			parents.iterate_reversed((parent) => {
+				token.parents.push(parent);
+				this.add_parent(parent);
+			})
 
-			// Get the token before the assignment, aka the other type def token.
-			let type_def_token = this.get_prev_token(assignment.index - 1, [" ", "\t", "\n"]);
-
-			// Get the parent values but start from the token before the "type_def_token" since that is the name of the type def and not the parent.
-			this.add_parent_tokens(type_def_token);
-
-			// Assign parents to the first type def token for vdocs and not to the second.
-			type_def_token.token = "type_def";
-			token.is_duplicate = true; // assign is duplicate and not the original token type def for vdocs.
-			this.assign_parents(type_def_token);
-			this.add_parent(type_def_token);
+			// Add the current token also as a parent since it can have child functions.
+			this.add_parent(token);
 		}
 
-		// Assign parents.
+		// Assign parents existing parents and add the current token as a parent.
 		else {
 			this.assign_parents(token);
 			this.add_parent(token);
 		}
 
-		// Set the type array of the token.
+		// Set the type array of the token, basically always "class" etc.
 		token.type = [this.get_prev_token(token.index - 1, [" ", "\t", "\n"])];	
 
 		// Set the start token to capture inherited classes.
 		this.capture_inherit_start_token = token;
 	}
+	
 
 	// Set on parenth close callback.
 	on_parenth_close({
-		token_before_opening_parenth = token_before_opening_parenth,
-		after_parenth_index = after_parenth_index,
+		token_before_opening_parenth,
+		after_parenth_index,
 	}) {
 
 		// Get the function modifiers.
-		// If any keyword is encoutered that is not a tag or "function" then terminate.
 		let type_def_modifiers = [];
-		// let prev_token_is_function_keyword = false;
-		let iter_prev = token_before_opening_parenth;
-		while (iter_prev.token === "keyword" || (iter_prev.token === "operator" && iter_prev.data === "*")) {
-			if (this.function_modifiers.includes(iter_prev.data)) {
-				type_def_modifiers.push(iter_prev.data);
-			} else if (iter_prev.data === "function") {
-				// prev_token_is_function_keyword = true;
+		let prev_modifier = this.get_prev_token(token_before_opening_parenth.index - 1, [" ", "\t", "\n"]);
+		while (prev_modifier != null && (prev_modifier.token === "keyword" || (prev_modifier.token === "operator" && prev_modifier.data === "*"))) {
+			if (this.function_modifiers.includes(prev_modifier.data)) {
+				type_def_modifiers.push(prev_modifier);
 			}
-			iter_prev = this.get_prev_token(iter_prev.index - 1, [" ", "\t", "\n"]);
-			if (iter_prev == null) {
-				return null;
+			prev_modifier = this.get_prev_token(prev_modifier.index - 1, [" ", "\t", "\n"]);
+			if (prev_modifier == null) {
+				break;
 			}
 		}
 
@@ -220,29 +212,22 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		}
 		const after_parenth = this.code.charAt(after_parenth_index);
 
-		// Valid characters for a function declaration.
-		// Either a "{" after the closing parentheses.
-		// Or a "=>" after the closing parentheses.
+		// Check if the function is an anonymous function like `() => {};`
 		const is_anonymous_func = after_parenth === "=" && this.code.charAt(after_parenth_index + 1) === ">";
+
+		// Valid characters for a function declaration.
+		// Either a "{" after the closing parentheses or a "=>" after the closing parentheses.
 		if (after_parenth === "{" || is_anonymous_func) {
 
-			// Get the previous token, skip whitespace and ":" and function modifiers, but not the "=".
-			let token = this.get_prev_token(prev.index, [" ", "\t", "\n", ":", "function", ...this.function_modifiers]);
-			if (token === null) {
-				return null;
-			}
+			// Get the previous token.
+			let token = prev;
+			token = this.get_prev_token(token.index, [" ", "\t", "\n", ":", "function", ...this.function_modifiers]);
 
-			// Check if the type def is assigned to a variable.
-			let old_parents;
+			// When the token is assigned.
+			let is_assignment_definition = false;
 			if (token.data === "=") {
-
-				// When the new parents are assigned using the "=" operator then the old parents need to be restored after assigning the parents to the token.
-				// Otherwise it will have the wrong parents when a user does something like "mylib.myfunc = function() { ...; mylib.myotherfunc = function() {}; }"
-				old_parents = this.copy_parents();
-
-				// Get the parent values but start from the token before the var "token" since that is the name of the type def and not the parent.
-				token = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);	
-				this.add_parent_tokens(token);
+				token = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);				
+				is_assignment_definition = true;
 			}
 
 			// Check token.
@@ -250,13 +235,39 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 				return null;
 			}
 
-			// Set token.
+			// Assign type def.
 			token.token = "type_def";
 			token.pre_modifiers = type_def_modifiers;
-			this.assign_parents(token);
-			if (old_parents !== undefined) {
-				this.parents = old_parents;
+
+			// Parse the parents from assignment definition, so parse `vweb` and `utils` in `vweb.utils.func = () => {}`.
+			if (is_assignment_definition) {
+
+				// Parse parents, exclude dots.
+				let parents = [];
+				let parent = token;
+				while (true) {
+					parent = this.get_prev_token(parent.index - 1, []);
+					if (parent == null) {
+						break;
+					}
+					else if (parent.data === ".") {
+						continue;
+					}
+					else if (this.str_includes_word_boundary(parent.data)) { // must be after dot check since dot is a word boundary ofc.
+						break;
+					}
+					parents.push(parent);
+				}
+				
+				// Add the parents to the tokenizer so that when the user does something like `vweb.utils.myclass = class myclass{}` the functions from the class will also have the parent.
+				token.parents = [];
+				parents.iterate_reversed((parent) => {
+					token.parents.push(parent);
+					this.add_parent(parent);
+				})
 			}
+
+			// Return the token.
 			return token;
 		}
 

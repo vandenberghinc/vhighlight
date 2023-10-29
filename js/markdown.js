@@ -17,15 +17,16 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			// multi_line_comment_end: "-->",
 			allow_strings: false,
 			allow_numerics: false,
+			
 			// Attributes for partial tokenizing.
 			scope_separators: [],
+
+			// Language, must never be changed it is used by dependents, such as vdocs.
+			language: "Markdown",
 		});
 
-		// Assign language, not used in the tokenizer but can be used by other libs, such as vdocs.
-		this.language = "Markdown";
-
 		// Set callback.
-		this.callback = (char) => {
+		this.callback = (char, a, b, c, d, is_escaped) => {
 			
 			// Start of line excluding whitespace.
 			let start_of_line = false;
@@ -87,6 +88,10 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 						word += c;
 					}
 
+				}
+				if (word.length > 0) {
+					add.push(["bold", word]);
+					word = "";
 				}
 
 				// Append.

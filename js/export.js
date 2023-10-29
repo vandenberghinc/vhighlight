@@ -13,6 +13,9 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
         "js": `${__dirname}/vhighlight.js`,
     }
 
+    // Set version.
+    vhighlight.version = require("./.version.js");
+
     // Export the library.
 	module.exports = vhighlight;
 }

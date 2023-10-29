@@ -1,19 +1,10 @@
-/*
- * Author: Daan van den Bergh
- * Copyright: © 2022 - 2023 Daan van den Bergh.
- */
-
- // ---------------------------------------------------------
-// Highlight.
-
-// Highlight.
-/* */ 
+/* CODE TEST. */
 const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 const vhighlight = require("../../vhighlight.js")
 console.log("Highlighting...");
 const now = Date.now();
-const tokens = vhighlight.cpp.tokenize({code: new vlib.Path("dev/tests/test2.cpp").load_sync()});
-console.log(tokens);
+const tokens = vhighlight.cpp.tokenize({code: new vlib.Path("dev/tests/test.x").load_sync()});
+// console.log(tokens);
 // for (let i = Math.max(0, tokens.length - 100); i < tokens.length; i++) {
 //     console.log(tokens[i]);
 // }
@@ -22,11 +13,23 @@ console.log(tokens);
 //         console.log(token.data, token.parents);
 //     }
 // })
+tokens.iterate_tokens((token) => {
+    if (token.token === "type_def") {
+        console.log(token.data, token.parents);
+    }
+    // if (token.token === "preprocessor") {
+    //     console.log(token.data);
+    // }
+})
+
 console.log("Speed: ", Date.now() - now);
+
+
+/* UI TEST 
 
 // ---------------------------------------------------------
 // Imports.
-/* 
+
 const vweb = require(`/Volumes/persistance/private/vinc/vweb/js/backend/vweb.js`);
 const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 // const vweb = require(`@vandenberghinc/vweb`);
@@ -40,7 +43,7 @@ const source = new vlib.Path(__dirname).base(2);
 
 // Initialize the server.
 const server = new vweb.Server({
-	port: 8000,
+	port: 10000,
 	ip: "127.0.0.1",
 	statics: [
 		source.join("js/"),
@@ -109,19 +112,19 @@ server.endpoint({
                     .border_radius(0)
                     .frame("100%", "100%")
                     .overflow("scroll");
-                const {status, data} = await vweb.utils.request({
+                const data = await vweb.utils.request({
                     method: "GET",
                     url: "/load_file",
                     json: false,
-                    params: {
+                    data: {
                         // path: "dev/tests/test.html",
                         // path: "/Volumes/persistance/private/vinc/vlib/js/include/cli/cli.js",
                         // path: "/Users/administrator/persistance/private/vinc/vlib/js/include/cli/cli.js",
                         // path: "/Volumes/persistance/private/vinc/vide/node_modules/typescript/lib/tsserver.js",
-                        path: "/Volumes/persistance/private/vinc/vhighlight/dev/tests/test2.js",
+                        path: "/Volumes/persistance/private/vinc/vhighlight/dev/tests/test.x",
                     },
                 })
-                pre.innerHTML = vhighlight.js.highlight(data);
+                pre.innerHTML = vhighlight.cpp.tokenize({code: data, build_html: true});
     			return View(pre);
     		})
     	}
@@ -129,4 +132,5 @@ server.endpoint({
 })
 
 // Start the server.
-server.start();*/ 
+server.start();
+*/

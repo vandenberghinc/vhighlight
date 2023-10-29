@@ -78,42 +78,42 @@ vhighlight.get_tokenizer = function(language) {
 			return null;
 	}
 }
-vhighlight.init_tokenizer = function(language) {
+vhighlight.init_tokenizer = function(language, args = {}) {
 	switch (language.toLowerCase()) {
 		
 		// C.
 		case "cpp":
 		case "c++":
 		case "c":
-			return new vhighlight.CPP();
+			return new vhighlight.CPP(args);
 		
 		// Markdown.
 		case "markdown":
 		case "md":
-			return new vhighlight.Markdown();
+			return new vhighlight.Markdown(args);
 		
 		// JS.
 		case "js":
 		case "javascript":
 		case "nodejs":
-			return new vhighlight.JS();
+			return new vhighlight.JS(args);
 		
 		// JSON.
 		case "json":
-			return new vhighlight.JSON();
+			return new vhighlight.JSON(args);
 		
 		// Python.
 		case "python":
 		case "py":
-			return new vhighlight.Python();
+			return new vhighlight.Python(args);
 		
 		// CSS.
 		case "css":
-			return new vhighlight.CSS();
+			return new vhighlight.CSS(args);
 		
 		// HTML.
 		case "html":
-			return new vhighlight.HTML();
+			return new vhighlight.HTML(args);
 		
 		// Bash.
 		case "bash":
@@ -122,7 +122,7 @@ vhighlight.init_tokenizer = function(language) {
 		case "shell":
 		case "curl":
 		case "cli":
-			return new vhighlight.Bash();
+			return new vhighlight.Bash(args);
 
 		// Unsupported.
 		default:
@@ -152,14 +152,14 @@ vhighlight.get_tokenizer_by_extension = function(extension) {
         }
     })
 }
-vhighlight.init_tokenizer_by_extension = function(extension) {
+vhighlight.init_tokenizer_by_extension = function(extension, args = {}) {
 	if (extension == null || extension.length === 0) { return null; }
 	if (extension.charAt(0) != ".") {
 		extension = `.${extension}`;
 	}
 	return Object.keys(vhighlight.language_extensions).iterate((lang) => {
         if (vhighlight.language_extensions[lang].includes(extension)) {
-            return vhighlight.init_tokenizer(lang);
+            return vhighlight.init_tokenizer(lang, args);
         }
     })
 }
@@ -176,6 +176,7 @@ vhighlight.tokenize = function({
 	delay = 25,				// animation delay in milliseconds, only used when providing parameter "element".
 	// is_func = false,	 	// enable when cpp code is inside a function.
 	build_html = false,		// with build_html as `true` this function will build the html and return the html code when parameter `code` is defined, with build_html as `false` it will return the array of tokens.
+	tokenizer_args = {},	// special args of the language's tokenizer constructor.
 }) {
 
 	// Get language.
@@ -194,7 +195,7 @@ vhighlight.tokenize = function({
 	}
 
 	// Get tokenizer.
-	const tokenizer = vhighlight.get_tokenizer(language);
+	const tokenizer = vhighlight.init_tokenizer(language, tokenizer_args);
 	if (tokenizer == null) {
 		return null;
 	}
