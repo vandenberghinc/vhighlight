@@ -80,9 +80,11 @@ code {
 }
 
 /* Hide the unsyntaxed code of a code object by default. Since parsing may take some time. */
+/*
 code:nth-child(1) {
 	display: none;
 }
+*/
 
 /* Set tab size of pre. */
 pre {

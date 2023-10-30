@@ -3,8 +3,8 @@ const vlib = require(`/Volumes/persistance/private/vinc/vlib/js/vlib.js`);
 const vhighlight = require("../../vhighlight.js")
 console.log("Highlighting...");
 const now = Date.now();
-const tokens = vhighlight.cpp.tokenize({code: new vlib.Path("dev/tests/test.x").load_sync()});
-// console.log(tokens);
+const tokens = vhighlight.md.tokenize({code: new vlib.Path("dev/tests/test.x").load_sync()});
+console.log(tokens[0]);
 // for (let i = Math.max(0, tokens.length - 100); i < tokens.length; i++) {
 //     console.log(tokens[i]);
 // }
@@ -13,14 +13,14 @@ const tokens = vhighlight.cpp.tokenize({code: new vlib.Path("dev/tests/test.x").
 //         console.log(token.data, token.parents);
 //     }
 // })
-tokens.iterate_tokens((token) => {
-    if (token.token === "type_def") {
-        console.log(token.data, token.parents);
-    }
-    // if (token.token === "preprocessor") {
-    //     console.log(token.data);
-    // }
-})
+// tokens.iterate_tokens((token) => {
+//     if (token.token === "type_def") {
+//         console.log(token.data, token.parents);
+//     }
+//     // if (token.token === "preprocessor") {
+//     //     console.log(token.data);
+//     // }
+// })
 
 console.log("Speed: ", Date.now() - now);
 

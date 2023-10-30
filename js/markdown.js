@@ -53,6 +53,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					if (c == "\n") {
 						if (word.length > 0) {
 							add.push(["bold", word]);
+							word = "";
 						}
 						last_index = i - 1;
 						break;

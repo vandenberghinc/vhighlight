@@ -167,6 +167,7 @@ vhighlight.init_tokenizer_by_extension = function(extension, args = {}) {
 // Tokenize code.
 // - Returns "null" when the language is not supported.
 // - Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
+/*
 vhighlight.tokenize = function({
 	element = null,			// the html code element.
 	code = null,			// when the code is assigned the highlighted code will be returned.
@@ -218,9 +219,20 @@ vhighlight.tokenize = function({
 	if (language == "" || language == null) {
 		return ;
 	}
+
+	// Get the tokens.
+	if (element.children.length <= 1) {
+		code = element.textContent;
+	} else {
+		code = element.children[2].textContent;
+	}
+	const tokens = tokenizer.tokenize({code: code});
+
+	// Build the html.
+	const highlighted_code = tokenizer.build_html(tokens);
 	
 	// Create children.
-	let loader;
+	// let loader;
 	let line_numbers_div;
 	let line_numbers_divider;
 	let code_pre;
@@ -233,26 +245,28 @@ vhighlight.tokenize = function({
 			element.style.fontFamily = "'Menlo', 'Consolas', monospace";
 		}
 		
-		// Get code.
-		code = element.textContent;
+		// Reset html.
 		element.innerHTML = "";
 		
 		// Loader.
-		loader = document.createElement("div");
-		loader.style.display = "flex";
-		loader.className = "vhighlight_loader";
-		for (let i = 0; i < 4; i++) {
-			let child = document.createElement("div");
-			child.style.border = "4px solid " + element.style.color;
-			child.style.borderColor = element.style.color + " transparent transparent transparent";
-			loader.appendChild(child);
-		}
-		element.appendChild(loader);
+		// loader = document.createElement("div");
+		// loader.style.display = "flex";
+		// loader.className = "vhighlight_loader";
+		// for (let i = 0; i < 4; i++) {
+		// 	let child = document.createElement("div");
+		// 	child.style.border = "4px solid " + element.style.color;
+		// 	child.style.borderColor = element.style.color + " transparent transparent transparent";
+		// 	loader.appendChild(child);
+		// }
+		// element.appendChild(loader);
 		
 		// Line numbers.
 		line_numbers_div = document.createElement("pre");
 		line_numbers_div.style.padding = '0px';
 		line_numbers_div.style.margin = '0px';
+		if (line_numbers === false) {
+			line_numbers_div.style.display = "none";
+		}
 		element.appendChild(line_numbers_div);
 		
 		// Line numbers divider.
@@ -262,6 +276,9 @@ vhighlight.tokenize = function({
 		line_numbers_divider.style.width = "0.5px";
 		line_numbers_divider.style.padding = '0px';
 		line_numbers_divider.style.margin = "0px 10px 0px 10px";
+		if (line_numbers === false) {
+			line_numbers_divider.style.display = "none";
+		}
 		element.appendChild(line_numbers_divider);
 		
 		// Code.
@@ -270,43 +287,61 @@ vhighlight.tokenize = function({
 		code_pre.style.margin = "0px";
 		code_pre.style.whiteSpace = "pre";
 		code_pre.style.overflowX = "auto";
+		code_pre.style.flex = "1 1 0";
 		element.appendChild(code_pre);
 	}
 	
 	// Get elements.
 	else {
-		loader = element.children[0];
-		line_numbers_div = element.children[1];
-		line_numbers_divider = element.children[2];
-		code_pre = element.children[3];
-		code = code_pre.textContent;
+		// loader = element.children[0];
+		line_numbers_div = element.children[0];
+		line_numbers_divider = element.children[1];
+		code_pre = element.children[2];
 	}
-
-	// Get the tokens.
-	let tokens = tokenizer.tokenize({code: code});
-
-	// Build the html.
-	let highlighted_code = tokenizer.build_html(tokens);
 
 	// Functions.
-	function show_loader() {
-		element.style.justifyContent = "center";
-		element.style.alignItems = "center";
-		loader.style.display = "flex";
-		line_numbers_div.style.display = "none";
-		line_numbers_divider.style.display = "none";
-		code_pre.style.display = "none";
-	}
-	function hide_loader() {
-		element.style.justifyContent = "start";
-		element.style.alignItems = "stretch";
-		loader.style.display = "none";
-		if (line_numbers) {
-			line_numbers_div.style.display = "block";
-			line_numbers_divider.style.display = "block";
-		}
-		code_pre.style.display = "block";
-	}
+	// const old_width = element.style.width;
+	// const old_height = element.style.width;
+	// function show_loader() {
+
+	// 	// Keep same frame as before.
+	// 	// Otherwise the frame might shrink when only the loader is shown.
+	// 	const rect = element.getBoundingClientRect();
+	// 	element.style.width = rect.width;
+	// 	element.style.height = rect.height;
+
+	// 	// Center element.
+	// 	element.style.justifyContent = "center";
+	// 	element.style.alignItems = "center";
+
+	// 	// Show loader.
+	// 	loader.style.display = "flex";
+
+	// 	// Hide content.
+	// 	line_numbers_div.style.display = "none";
+	// 	line_numbers_divider.style.display = "none";
+	// 	code_pre.style.display = "none";
+	// }
+	// function hide_loader() {
+
+	// 	// Restore old frame.
+	// 	element.style.width = old_width;
+	// 	element.style.height = old_height;
+
+	// 	// Hide loader.
+	// 	loader.style.display = "none";
+
+	// 	// Leading alignment.
+	// 	element.style.justifyContent = "start";
+	// 	element.style.alignItems = "stretch";
+
+	// 	// Show content.
+	// 	// if (line_numbers) {
+	// 	// 	line_numbers_div.style.display = "block";
+	// 	// 	line_numbers_divider.style.display = "block";
+	// 	// }
+	// 	code_pre.style.display = "block";
+	// }
 	function animate_writing(highlighted_code) {
 		
 		// Reset content.
@@ -396,62 +431,69 @@ vhighlight.tokenize = function({
 	element.style.minHeight = `${parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom) + parseFloat(computed.lineHeight) * tokens.length}px`;
 	
 	// Show loader.
-	show_loader();
+	// show_loader();
 
 	// Delay the syntax highlighting process.
 	// Otherwise the loader does not show and the unhighlted code is shown instead.
-	setTimeout(() => {
+	// setTimeout(() => {
 
-		// No line numbers.
-		// So add code directly.
-		if (line_numbers == false) {
-			hide_loader();
-			if (animate == true) {
-				animate_writing(highlighted_code);
-			} else {
-				code_pre.innerHTML = highlighted_code;
-			}
-			return ;
-		}
-		
-		// Set style for line numbers.
-		element.style.justifyContent = "start";
-		element.style.alignItems = 'stretch';
-		if (element.style.height === 'undefined' || element.style.height == "100%") {
-			element.style.height = 'auto';
-		}
-		if (element.style.tabSize === 'undefined') {
-			element.style.tabSize = '4';
-		}
-		if (element.style.lineHeight == "") {
-			element.style.lineHeight = '16px'; // must be assigned for the show codelines optoin.
-		}
+	// Create the animate writing function on the element.
+	element.animate_writing = () => {
+		code_pre.innerHTML = "";
+		animate_writing(highlighted_code)
+	};
 
-		// Get linecount.
-		// Cant be done with split() since that also counts the wrapped lined.
-        const pre = document.createElement('pre');
-        pre.textContent = code;
-        pre.style.whiteSpace = 'pre';
-        pre.style.overflow = 'visible';
-        pre.style.lineHeight = element.style.lineHeight;
-
-		// Set line numbers.
-        line_numbers_div.innerHTML = "";
-		for (var i = 0; i < tokens.length; i++) {
-			let span = document.createElement("span");
-			span.className = "token_line_number";
-			span.textContent = (i + 1) + "\n";
-			line_numbers_div.appendChild(span);
-		}
-
-		// Set code.
-		hide_loader();
+	// No line numbers.
+	// So add code directly.
+	if (line_numbers == false) {
+		// hide_loader();
 		if (animate == true) {
 			animate_writing(highlighted_code);
 		} else {
 			code_pre.innerHTML = highlighted_code;
 		}
+		return ;
+	}
+	
+	// Set style for line numbers.
+	element.style.justifyContent = "start";
+	element.style.alignItems = 'stretch';
+	if (element.style.height === 'undefined' || element.style.height == "100%") {
+		element.style.height = 'auto';
+	}
+	if (element.style.tabSize === 'undefined') {
+		element.style.tabSize = '4';
+	}
+	if (element.style.lineHeight == "") {
+		element.style.lineHeight = '16px'; // must be assigned for the show codelines optoin.
+	}
+
+	// Get linecount.
+	// Cant be done with split() since that also counts the wrapped lined.
+    const pre = document.createElement('pre');
+    pre.textContent = code;
+    pre.style.whiteSpace = 'pre';
+    pre.style.overflow = 'visible';
+    pre.style.lineHeight = element.style.lineHeight;
+
+	// Set line numbers.
+    line_numbers_div.innerHTML = "";
+	for (var i = 0; i < tokens.length; i++) {
+		let span = document.createElement("span");
+		span.className = "token_line_number";
+		span.textContent = (i + 1) + "\n";
+		line_numbers_div.appendChild(span);
+	}
+
+	// Set code.
+	// hide_loader();
+	if (animate == true) {
+		animate_writing(highlighted_code);
+	} else {
+		code_pre.innerHTML = highlighted_code;
+	}
 		
 		
-	}, 50);
+	// }, 50);
 }
+*/
