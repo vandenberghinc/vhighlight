@@ -568,7 +568,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			}
 
 			// Find the resume token.
-			const resume = this.get_closing_token(token.line, token.index + 1, "(", ")", false);
+			let resume = this.get_closing_token(token.line, token.index + 1, "(", ")", false);
 			if (resume.close_token == null) {
 				resume_on = token.index + 1;
 			} else {
@@ -576,9 +576,19 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			}
 
 			// Find the closing "}" token.
-			const {open_token, close_token} = this.get_closing_token(token.line, resume_on - 1, "{", "}");
+			let {open_token, close_token} = this.get_closing_token(token.line, resume_on - 1, "{", "}");
 			if (open_token === null || close_token === null) {
 				throw Error(`${path}:${token.line}:${column}: Unable to find the scope's open and close tokens (${decorator}).`);
+			} else {
+				let prev = this.tokenizer.get_prev_token(open_token.index - 1, [" ", "\t", "\n"]);
+				if (prev != null && prev.data === "(") {  // when a function call using assignment operators is used to return a derived class.
+					const res = this.get_closing_token(token.line, close_token.index + 1, "{", "}");
+					open_token = res.open_token;
+					close_token = res.close_token;
+					if (open_token === null || close_token === null) {
+						throw Error(`${path}:${token.line}:${column}: Unable to find the scope's open and close tokens (${decorator}).`);
+					}
+				}
 			}
 
 			// Find the next type def token.

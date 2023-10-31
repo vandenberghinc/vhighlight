@@ -166,6 +166,7 @@ vhighlight.init_tokenizer_by_extension = function(extension, args = {}) {
 // Tokenize code.
 // - Returns "null" when the language is not supported.
 // - Make sure to replace < with &lt; and > with &gt; before assigning the code to the <code> element.
+/*
 vhighlight.tokenize = function({
 	element = null,			// the html code element.
 	code = null,			// when the code is assigned the highlighted code will be returned.
@@ -493,7 +494,8 @@ vhighlight.tokenize = function({
 		
 		
 	// }, 50);
-}// Iterate.
+}
+*/// Iterate.
 if (Array.prototype.iterate === undefined) {
 	Array.prototype.iterate = function(start, end, handler) {
 	    if (typeof start === "function") {
@@ -5800,12 +5802,10 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				let word = "";
 				for (let i = this.index; i < this.code.length; i++) {
 					const c = this.code.charAt(i);
-					console.log({c})
 
 					// Stop at linebreak.
 					if (c == "\n") {
 						if (word.length > 0) {
-							console.log({id:1, word})
 							add.push(["bold", word]);
 							word = "";
 						}
@@ -5816,7 +5816,6 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					// Add whitespace seperately to not break "at_start".
 					else if (c == " " || c == "\t") {
 						if (word.length > 0) {
-							console.log({id:2, word})
 							add.push(["bold", word]);
 							word = "";
 						}
@@ -5832,7 +5831,6 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 					else if (this.word_boundaries.includes(c)) {
 						at_start = false;
 						if (word.length > 0) {
-							console.log({id:3, word})
 							add.push(["bold", word]);
 							word = "";
 						}
@@ -5853,7 +5851,6 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 
 				// Append.
 				if (add.length > 0) {
-					console.log("ADD:", add)
 					if (last_index == null) {
 						last_index = this.code.length;
 					}
@@ -6927,7 +6924,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			}
 
 			// Find the resume token.
-			const resume = this.get_closing_token(token.line, token.index + 1, "(", ")", false);
+			let resume = this.get_closing_token(token.line, token.index + 1, "(", ")", false);
 			if (resume.close_token == null) {
 				resume_on = token.index + 1;
 			} else {
@@ -6935,9 +6932,19 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			}
 
 			// Find the closing "}" token.
-			const {open_token, close_token} = this.get_closing_token(token.line, resume_on - 1, "{", "}");
+			let {open_token, close_token} = this.get_closing_token(token.line, resume_on - 1, "{", "}");
 			if (open_token === null || close_token === null) {
 				throw Error(`${path}:${token.line}:${column}: Unable to find the scope's open and close tokens (${decorator}).`);
+			} else {
+				let prev = this.tokenizer.get_prev_token(open_token.index - 1, [" ", "\t", "\n"]);
+				if (prev != null && prev.data === "(") {  // when a function call using assignment operators is used to return a derived class.
+					const res = this.get_closing_token(token.line, close_token.index + 1, "{", "}");
+					open_token = res.open_token;
+					close_token = res.close_token;
+					if (open_token === null || close_token === null) {
+						throw Error(`${path}:${token.line}:${column}: Unable to find the scope's open and close tokens (${decorator}).`);
+					}
+				}
 			}
 
 			// Find the next type def token.
