@@ -81,6 +81,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		multi_line_comment_end = "*/",
 		allow_slash_regexes = true,
 		allow_decorators = true,
+		allow_preprocessors = false, // for the js compiler.
 		allowed_keywords_before_type_defs = ["function", "async", "static", "get", "set", "*"], // also include function otherwise on_parent_close wont fire.
 		excluded_word_boundary_joinings = [], // for js compiler.
 
@@ -102,6 +103,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			multi_line_comment_end: multi_line_comment_end,
 			allow_slash_regexes: allow_slash_regexes,
 			allow_decorators: allow_decorators,
+			allow_preprocessors: allow_preprocessors,
 			allowed_keywords_before_type_defs: allowed_keywords_before_type_defs,
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,

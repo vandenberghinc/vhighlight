@@ -1202,14 +1202,19 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Set inside comment, string, regex or preprocessor.
-		if (token === "line") {
+		// This should always be set for line breaks, but also for strings when preprocessor are enabled since they can be inside preprocessor and still be a string token.
+		// Use if statements since a token can be both a preprocesesor and a string etc.
+		if (token === "line" || (this.allow_preprocessors && token === "string")) {
 			if (this.is_comment) {
 				obj.is_comment = true;
-			} else if (this.is_str) {
+			}
+			if (this.is_str) {
 				obj.is_str = true;
-			} else if (this.is_regex) {
+			}
+			if (this.is_regex) {
 				obj.is_regex = true;
-			} else if (this.is_preprocessor) {
+			}
+			if (this.is_preprocessor) {
 				obj.is_preprocessor = true;
 			}
 		}
@@ -1382,7 +1387,10 @@ vhighlight.Tokenizer = class Tokenizer {
 			}
 			
 			// Operator.
-			else if (this.operators.includes(this.batch)) {
+			else if (
+				this.operators.includes(this.batch) &&
+				(this.language !== "Bash" || this.batch !== "/" || (this.is_alphabetical(this.next_char) === false && this.is_alphabetical(this.prev_char) === false)) // skip operators where the next char is alphabetical for example the slashes in "/path/to/"
+			) {
 				appended_token = this.append_token("operator", {is_word_boundary: true});
 			}
 			
@@ -1496,6 +1504,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		let is_preprocessor = false; 							// only used for languages that have preprocessor statements such as cpp.
 		let prev_non_whitespace_char = null; 					// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
 		let multi_line_comment_check_close_from_index = null;	// the start index of the multi line comment because when a user does something like /*// my comment */ the comment would originally immediately terminate because of the /*/.
+		let inside_template_string_code = null;					// is inside the ${} code of a js template string, the value will be assigned to the opening string char.
+		let inside_template_curly_depth = 0;
 
 		// Iterate.
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
@@ -1576,9 +1586,39 @@ vhighlight.Tokenizer = class Tokenizer {
 
 			// Inside strings.
 			else if (string_char != null) {
+
+				// Close string by js ${} template string.
+				if (this.language === "JS" && char === "$" && info_obj.next_char === "{") {
+					inside_template_string_code = string_char;
+					inside_template_curly_depth = 0;
+					string_char = null;
+					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+					if (res != null) { return res; }
+					continue;
+				}
+
+				// Inside string.
 				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
+			}
+
+			// The end of js ${} code inside a template string.
+			if (inside_template_string_code !== null) {
+				if (string_char == null && char === "{") {
+					++inside_template_curly_depth;
+				} else if (string_char == null && char === "}") {
+					--inside_template_curly_depth;
+
+					// Re-open the string.
+					if (inside_template_curly_depth === 0) {
+						string_char = inside_template_string_code;
+						inside_template_string_code = null;
+						const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+						if (res != null) { return res; }
+						continue;			
+					}
+				}
 			}
 			
 			// Open comments.
@@ -2344,7 +2384,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						let next_i = parenth_index - 1, next;
 						while ((next = parenth_tokens[next_i]) != null) {
 							if (next.data.length === 1 && next.data === "=") {
-								if (parenth_tokens[next_i + 1] != null && parenth_tokens[next_i + 1].token === "operator") {
+								if (parenth_tokens[next_i - 1] != null && parenth_tokens[next_i - 1].token === "operator") {
 									return null;
 								}
 								return next;
@@ -5470,6 +5510,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 		multi_line_comment_end = "*/",
 		allow_slash_regexes = true,
 		allow_decorators = true,
+		allow_preprocessors = false, // for the js compiler.
 		allowed_keywords_before_type_defs = ["function", "async", "static", "get", "set", "*"], // also include function otherwise on_parent_close wont fire.
 		excluded_word_boundary_joinings = [], // for js compiler.
 
@@ -5491,6 +5532,7 @@ vhighlight.JS = class JS extends vhighlight.Tokenizer {
 			multi_line_comment_end: multi_line_comment_end,
 			allow_slash_regexes: allow_slash_regexes,
 			allow_decorators: allow_decorators,
+			allow_preprocessors: allow_preprocessors,
 			allowed_keywords_before_type_defs: allowed_keywords_before_type_defs,
 			excluded_word_boundary_joinings: excluded_word_boundary_joinings,
 			scope_separators: scope_separators,
@@ -6435,6 +6477,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Attributes.
 			this.str_chars = ["\"", "'", "`;"]
 			this.tokenizer = new vhighlight.JS({
+				allow_preprocessors: true,
 				excluded_word_boundary_joinings: [" ", "\t"],
 			});
 		}
@@ -6464,13 +6507,17 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			includes = [],
 			excludes = [],
 		}) {
+
+			// Reset preprocessor definitions.
+			this.preprocessor_defs = {};
+			this.serialized_preprocessor_defs = {};
 			
 			// Vars.
 			let code = "";
 
 			// Include path wrapper.
 			const include_path = (path) => {
-				
+
 				// Skip excluded.
 				if (excludes.includes(path)) {
 					return null;
@@ -6558,6 +6605,53 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 						return token;
 					}
 				})
+			}
+
+			// Serialize a code variable value in string into a variable format.
+			const serialize_str_variable = (value) => {
+
+				// Serialize strings.
+				if (
+					(value.charAt(0) == "\"" && value.charAt(value.length - 1) == "\"") ||
+					(value.charAt(0) == "'" && value.charAt(value.length - 1) == "'") ||
+					(value.charAt(0) == "`" && value.charAt(value.length - 1) == "`")
+				) {
+					value = value.substr(1, value.length - 2);
+				}
+
+				// Serialize objects.
+				else if (
+					(value.charAt(0) == "[" && value.charAt(value.length - 1) == "]") ||
+					(value.charAt(0) == "{" && value.charAt(value.length - 1) == "}")
+				) {
+					value = JSON.parse(value);
+				}
+
+				// Serialize boolean.
+				else if (value === "true") {
+					value = true;
+				}
+				else if (value === "false") {
+					value = false;
+				}
+
+				// Serialize null.
+				else if (value === "null") {
+					value = null;
+				}
+
+				// Serialize undefined.
+				else if (value === "undefined") {
+					value = undefined;
+				}
+				
+				// Serialize numbers.
+				else if (/^-?\d+(\.\d+)?$/.test(value)) {
+					value = parseFloat(value);
+				}
+
+				// Response.
+				return value;
 			}
 
 			// ---------------------------------------------------------
@@ -6726,6 +6820,185 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							}
 						}
 					}
+
+					// ---------------------------------------------------------
+					// Handle preprocessors.
+
+					if (token.token === "preprocessor") {
+
+						// Fetch the complete preprocessor statement, in case it is multi line.
+						let preprocessor_data = token.data;
+						let lookup = 1;
+						while (true) {
+							const next = get_next_token(lookup);
+							if (next != null && (next.token === "preprocessor" || next.is_preprocessor === true)) {
+								++lookup;
+								if (token.is_line_break === true) {
+									preprocessor_data += " ";
+								} else {
+									preprocessor_data += next.data;
+								}
+							} else {
+								break;
+							}
+						}
+						resume_on = token_index + lookup;
+						preprocessor_data = preprocessor_data.trim();
+						add_to_code = false;
+
+						// Definition (#define).
+						if (preprocessor_data.eq_first("#define")) {
+							const splitted = preprocessor_data.split(" ");
+							if (splitted.length >= 3) {
+
+								// Add to raw preprocessor defs.
+								let value = splitted.slice(2).join(" ");
+								this.preprocessor_defs[splitted[1]] = value;
+
+								// Add to serialized preprocessor defs.
+								this.serialized_preprocessor_defs[splitted[1]] = serialize_str_variable(value);
+							}
+						}
+
+						// If statements (#if, #elif #else #endif).
+						else if (preprocessor_data.eq_first("#if")) {
+
+							// Find all the "if" "elif" "else" statements.
+							const statement_tokens = [[]];
+							const statement_conditions = [preprocessor_data];
+							const statement_conditions_tokens = [[]];
+							let statement_lookup = lookup;
+							let statement = null;
+							let statement_index = 0;
+							let end_token = null;
+							let is_non_statement_preprocessor = false;
+							while (true) {
+								const next = get_next_token(statement_lookup);
+
+								// New statement.
+								if (next.token === "preprocessor" || next.is_preprocessor === true) {
+									if (statement == null) {
+										if (
+											next.data.eq_first("#if") === false && 
+											next.data.eq_first("#elif") === false && 
+											next.data.eq_first("#else") === false && 
+											next.data.eq_first("#endif") === false
+										) {
+											is_non_statement_preprocessor = true;
+											statement_tokens[statement_index].push(next)
+										}
+									}
+									if (is_non_statement_preprocessor !== true) {
+										if (statement === null) {
+											statement = "";
+										}
+										if (next.token === "line") {
+											statement += " ";
+										} else {
+											statement += next.data;
+										}
+										statement_conditions_tokens.push(next);
+										if (statement.eq_first("#endif")) {
+											end_token = next.index;
+											break;
+										}
+									}
+								}
+
+								// Inside statement.
+								else {
+									is_non_statement_preprocessor = false;
+
+									// Add previous statement.
+									if (statement !== null) {
+										statement_conditions.push(statement);
+										statement_tokens.push([])
+										++statement_index;
+										statement = null;
+									}
+
+									// Add token to statement.
+									statement_tokens[statement_index].push(next)
+								}
+								++statement_lookup;
+							}
+
+							// Evaluate which statement is true.
+							let evaluated_index = null;
+							for (let i = 0; i < statement_conditions.length; i++) {
+								let result;
+								let statement = statement_conditions[i];
+
+								// Remove the #elif etc text.
+								const start = statement.indexOf(" ");
+								if (start === -1) {
+									result = statement === "#else";
+								}
+								statement = statement.substr(start + 1).trim()
+
+								// Custom function "path_exists()"
+								if (statement.eq_first("path_exists(")) {
+									let path = statement.substr(12).trim();
+									if (path.charAt(path.length - 1) === ")") {
+										path = path.substr(0, path.length - 1);
+									}
+									path = serialize_str_variable(path);
+									try {
+										result = libfs.existsSync(path)
+									} catch (error) {
+										result = false;
+									}
+								}
+
+								// Evaluate code.
+								else if (result !== true) {
+									const evaluate = new Function(...Object.keys(this.serialized_preprocessor_defs), `return ${statement};`);
+									try {
+										result = evaluate(...Object.values(this.serialized_preprocessor_defs));
+									} catch (error) {
+										throw Error(`Encountered an error while evaluating statement "${statement}": ${error}`);
+									}
+								}
+
+								// Handle result.
+								if (result) {
+									evaluated_index = i;
+									break;
+								}
+							}
+
+							// Reset the token data of the non evaluated tokens.
+							if (evaluated_index !== null) {
+								for (let i = 0; i < statement_conditions.length; i++) {
+									if (i !== evaluated_index) {
+										statement_tokens[i].iterate((token) => {
+											token.data = "";
+											token.token = undefined;
+										})
+									}
+								}
+								statement_conditions_tokens.iterate((token) => {
+									token.data = "";
+									token.token = undefined;
+								});
+							}
+						}
+
+						// Not found, throw error.
+						else {
+							throw Error(`Unknown preprocessor statement "${token.data}"`)
+						}
+					}
+
+					// Check if the token is a preprocessor definition.
+					else if (this.preprocessor_defs !== undefined && this.preprocessor_defs[token.data] != null) {
+						const value = this.preprocessor_defs[token.data];
+						if (typeof value === "string") { // avoid default functions.
+							code += value;
+							add_to_code = false;
+						}
+					}
+
 
 					// ---------------------------------------------------------
 					// Add to code.

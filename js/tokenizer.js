@@ -710,14 +710,19 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Set inside comment, string, regex or preprocessor.
-		if (token === "line") {
+		// This should always be set for line breaks, but also for strings when preprocessor are enabled since they can be inside preprocessor and still be a string token.
+		// Use if statements since a token can be both a preprocesesor and a string etc.
+		if (token === "line" || (this.allow_preprocessors && token === "string")) {
 			if (this.is_comment) {
 				obj.is_comment = true;
-			} else if (this.is_str) {
+			}
+			if (this.is_str) {
 				obj.is_str = true;
-			} else if (this.is_regex) {
+			}
+			if (this.is_regex) {
 				obj.is_regex = true;
-			} else if (this.is_preprocessor) {
+			}
+			if (this.is_preprocessor) {
 				obj.is_preprocessor = true;
 			}
 		}
@@ -890,7 +895,10 @@ vhighlight.Tokenizer = class Tokenizer {
 			}
 			
 			// Operator.
-			else if (this.operators.includes(this.batch)) {
+			else if (
+				this.operators.includes(this.batch) &&
+				(this.language !== "Bash" || this.batch !== "/" || (this.is_alphabetical(this.next_char) === false && this.is_alphabetical(this.prev_char) === false)) // skip operators where the next char is alphabetical for example the slashes in "/path/to/"
+			) {
 				appended_token = this.append_token("operator", {is_word_boundary: true});
 			}
 			
@@ -1004,6 +1012,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		let is_preprocessor = false; 							// only used for languages that have preprocessor statements such as cpp.
 		let prev_non_whitespace_char = null; 					// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
 		let multi_line_comment_check_close_from_index = null;	// the start index of the multi line comment because when a user does something like /*// my comment */ the comment would originally immediately terminate because of the /*/.
+		let inside_template_string_code = null;					// is inside the ${} code of a js template string, the value will be assigned to the opening string char.
+		let inside_template_curly_depth = 0;
 
 		// Iterate.
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
@@ -1084,9 +1094,39 @@ vhighlight.Tokenizer = class Tokenizer {
 
 			// Inside strings.
 			else if (string_char != null) {
+
+				// Close string by js ${} template string.
+				if (this.language === "JS" && char === "$" && info_obj.next_char === "{") {
+					inside_template_string_code = string_char;
+					inside_template_curly_depth = 0;
+					string_char = null;
+					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+					if (res != null) { return res; }
+					continue;
+				}
+
+				// Inside string.
 				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
+			}
+
+			// The end of js ${} code inside a template string.
+			if (inside_template_string_code !== null) {
+				if (string_char == null && char === "{") {
+					++inside_template_curly_depth;
+				} else if (string_char == null && char === "}") {
+					--inside_template_curly_depth;
+
+					// Re-open the string.
+					if (inside_template_curly_depth === 0) {
+						string_char = inside_template_string_code;
+						inside_template_string_code = null;
+						const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+						if (res != null) { return res; }
+						continue;			
+					}
+				}
 			}
 			
 			// Open comments.
@@ -1852,7 +1892,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						let next_i = parenth_index - 1, next;
 						while ((next = parenth_tokens[next_i]) != null) {
 							if (next.data.length === 1 && next.data === "=") {
-								if (parenth_tokens[next_i + 1] != null && parenth_tokens[next_i + 1].token === "operator") {
+								if (parenth_tokens[next_i - 1] != null && parenth_tokens[next_i - 1].token === "operator") {
 									return null;
 								}
 								return next;

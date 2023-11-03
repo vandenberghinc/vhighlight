@@ -79,6 +79,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Attributes.
 			this.str_chars = ["\"", "'", "`;"]
 			this.tokenizer = new vhighlight.JS({
+				allow_preprocessors: true,
 				excluded_word_boundary_joinings: [" ", "\t"],
 			});
 		}
@@ -108,13 +109,17 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			includes = [],
 			excludes = [],
 		}) {
+
+			// Reset preprocessor definitions.
+			this.preprocessor_defs = {};
+			this.serialized_preprocessor_defs = {};
 			
 			// Vars.
 			let code = "";
 
 			// Include path wrapper.
 			const include_path = (path) => {
-				
+
 				// Skip excluded.
 				if (excludes.includes(path)) {
 					return null;
@@ -202,6 +207,53 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 						return token;
 					}
 				})
+			}
+
+			// Serialize a code variable value in string into a variable format.
+			const serialize_str_variable = (value) => {
+
+				// Serialize strings.
+				if (
+					(value.charAt(0) == "\"" && value.charAt(value.length - 1) == "\"") ||
+					(value.charAt(0) == "'" && value.charAt(value.length - 1) == "'") ||
+					(value.charAt(0) == "`" && value.charAt(value.length - 1) == "`")
+				) {
+					value = value.substr(1, value.length - 2);
+				}
+
+				// Serialize objects.
+				else if (
+					(value.charAt(0) == "[" && value.charAt(value.length - 1) == "]") ||
+					(value.charAt(0) == "{" && value.charAt(value.length - 1) == "}")
+				) {
+					value = JSON.parse(value);
+				}
+
+				// Serialize boolean.
+				else if (value === "true") {
+					value = true;
+				}
+				else if (value === "false") {
+					value = false;
+				}
+
+				// Serialize null.
+				else if (value === "null") {
+					value = null;
+				}
+
+				// Serialize undefined.
+				else if (value === "undefined") {
+					value = undefined;
+				}
+				
+				// Serialize numbers.
+				else if (/^-?\d+(\.\d+)?$/.test(value)) {
+					value = parseFloat(value);
+				}
+
+				// Response.
+				return value;
 			}
 
 			// ---------------------------------------------------------
@@ -370,6 +422,185 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							}
 						}
 					}
+
+					// ---------------------------------------------------------
+					// Handle preprocessors.
+
+					if (token.token === "preprocessor") {
+
+						// Fetch the complete preprocessor statement, in case it is multi line.
+						let preprocessor_data = token.data;
+						let lookup = 1;
+						while (true) {
+							const next = get_next_token(lookup);
+							if (next != null && (next.token === "preprocessor" || next.is_preprocessor === true)) {
+								++lookup;
+								if (token.is_line_break === true) {
+									preprocessor_data += " ";
+								} else {
+									preprocessor_data += next.data;
+								}
+							} else {
+								break;
+							}
+						}
+						resume_on = token_index + lookup;
+						preprocessor_data = preprocessor_data.trim();
+						add_to_code = false;
+
+						// Definition (#define).
+						if (preprocessor_data.eq_first("#define")) {
+							const splitted = preprocessor_data.split(" ");
+							if (splitted.length >= 3) {
+
+								// Add to raw preprocessor defs.
+								let value = splitted.slice(2).join(" ");
+								this.preprocessor_defs[splitted[1]] = value;
+
+								// Add to serialized preprocessor defs.
+								this.serialized_preprocessor_defs[splitted[1]] = serialize_str_variable(value);
+							}
+						}
+
+						// If statements (#if, #elif #else #endif).
+						else if (preprocessor_data.eq_first("#if")) {
+
+							// Find all the "if" "elif" "else" statements.
+							const statement_tokens = [[]];
+							const statement_conditions = [preprocessor_data];
+							const statement_conditions_tokens = [[]];
+							let statement_lookup = lookup;
+							let statement = null;
+							let statement_index = 0;
+							let end_token = null;
+							let is_non_statement_preprocessor = false;
+							while (true) {
+								const next = get_next_token(statement_lookup);
+
+								// New statement.
+								if (next.token === "preprocessor" || next.is_preprocessor === true) {
+									if (statement == null) {
+										if (
+											next.data.eq_first("#if") === false && 
+											next.data.eq_first("#elif") === false && 
+											next.data.eq_first("#else") === false && 
+											next.data.eq_first("#endif") === false
+										) {
+											is_non_statement_preprocessor = true;
+											statement_tokens[statement_index].push(next)
+										}
+									}
+									if (is_non_statement_preprocessor !== true) {
+										if (statement === null) {
+											statement = "";
+										}
+										if (next.token === "line") {
+											statement += " ";
+										} else {
+											statement += next.data;
+										}
+										statement_conditions_tokens.push(next);
+										if (statement.eq_first("#endif")) {
+											end_token = next.index;
+											break;
+										}
+									}
+								}
+
+								// Inside statement.
+								else {
+									is_non_statement_preprocessor = false;
+
+									// Add previous statement.
+									if (statement !== null) {
+										statement_conditions.push(statement);
+										statement_tokens.push([])
+										++statement_index;
+										statement = null;
+									}
+
+									// Add token to statement.
+									statement_tokens[statement_index].push(next)
+								}
+								++statement_lookup;
+							}
+
+							// Evaluate which statement is true.
+							let evaluated_index = null;
+							for (let i = 0; i < statement_conditions.length; i++) {
+								let result;
+								let statement = statement_conditions[i];
+
+								// Remove the #elif etc text.
+								const start = statement.indexOf(" ");
+								if (start === -1) {
+									result = statement === "#else";
+								}
+								statement = statement.substr(start + 1).trim()
+
+								// Custom function "path_exists()"
+								if (statement.eq_first("path_exists(")) {
+									let path = statement.substr(12).trim();
+									if (path.charAt(path.length - 1) === ")") {
+										path = path.substr(0, path.length - 1);
+									}
+									path = serialize_str_variable(path);
+									try {
+										result = libfs.existsSync(path)
+									} catch (error) {
+										result = false;
+									}
+								}
+
+								// Evaluate code.
+								else if (result !== true) {
+									const evaluate = new Function(...Object.keys(this.serialized_preprocessor_defs), `return ${statement};`);
+									try {
+										result = evaluate(...Object.values(this.serialized_preprocessor_defs));
+									} catch (error) {
+										throw Error(`Encountered an error while evaluating statement "${statement}": ${error}`);
+									}
+								}
+
+								// Handle result.
+								if (result) {
+									evaluated_index = i;
+									break;
+								}
+							}
+
+							// Reset the token data of the non evaluated tokens.
+							if (evaluated_index !== null) {
+								for (let i = 0; i < statement_conditions.length; i++) {
+									if (i !== evaluated_index) {
+										statement_tokens[i].iterate((token) => {
+											token.data = "";
+											token.token = undefined;
+										})
+									}
+								}
+								statement_conditions_tokens.iterate((token) => {
+									token.data = "";
+									token.token = undefined;
+								});
+							}
+						}
+
+						// Not found, throw error.
+						else {
+							throw Error(`Unknown preprocessor statement "${token.data}"`)
+						}
+					}
+
+					// Check if the token is a preprocessor definition.
+					else if (this.preprocessor_defs !== undefined && this.preprocessor_defs[token.data] != null) {
+						const value = this.preprocessor_defs[token.data];
+						if (typeof value === "string") { // avoid default functions.
+							code += value;
+							add_to_code = false;
+						}
+					}
+
 
 					// ---------------------------------------------------------
 					// Add to code.
