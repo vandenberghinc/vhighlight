@@ -1991,7 +1991,8 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Check for end of @ keywords.
-					else if (this.is_comment_keyword && this.word_boundaries.includes(char)) {
+					// Some word boundaries are allowed inside comment keywords, such as "-", "_", "/". This is required for Libris and it also makes sense.
+					else if (this.is_comment_keyword && (char !== "-" && char !== "_" && char !== "/" && this.word_boundaries.includes(char))) {
 						auto_append_batch_switch();
 						this.is_comment_keyword = false;	
 						this.batch += char;
