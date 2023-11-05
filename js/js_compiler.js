@@ -310,6 +310,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					if (
 						token.is_line_break && 
 						(token.is_comment !== true && token.is_str !== true && token.is_regex !== true && token.is_preprocessor !== true) && // always allow line breaks inside comments, strings, regex and preprocessors.
+						(prev_token == null || (prev_token.is_comment !== true && prev_token.is_str !== true && prev_token.is_regex !== true && prev_token.is_preprocessor !== true)) && // always allow line breaks after comments, strings, regex and preprocessors.
 						(
 							this.line_breaks === false ||
 							(this.double_line_breaks === false && added_tokens == 0)
@@ -378,6 +379,60 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							code = code.substr(0, close_index);
 							token.data = token.data.substr(1);
 						}
+					}
+
+					// ---------------------------------------------------------
+					// Allow multi line ``` X ``` strings, where the indent of each line will be cleaned, therefore multi line strings can be defined at any indent level.
+					// However, all backticks must be escaped inside this multi line backtick string.
+
+					if (token.token === "string" && token.data.eq_first("```")) {
+
+						// Find the indent of the defintion line.
+						let remove_indent = "", indent = "";
+						this.tokens.iterate_tokens_reversed(0, token.line + 1, (token) => {
+							if (token.index <= token_index) {
+								if (token.is_line_break) {
+									remove_indent = indent;
+									return true;
+								} else if (token.is_whitespace) {
+									indent += token.data;
+								} else {
+									indent = "";
+								}
+							}
+						})
+
+						// Iterate the tokens forwards to add the code and remove the correct amount of indentation.
+						let prev = null;
+						this.tokens.iterate_tokens(token.line, null, (token) => {
+							if (token.index === token_index) {
+								code += "`";
+								code += token.data.substr(3);
+							}
+							else if (token.index >= token_index) {
+
+								// Remove whitespace.
+								if (remove_indent.length > 0 && prev.is_line_break === true && token.data.eq_first(remove_indent)) {
+									token.data = token.data.substr(remove_indent.length);
+								}
+
+								// Check closing.
+								if (
+									token.token === "string" && token.data.eq_last("```")
+								) {
+									code += token.data.substr(0, token.data.length - 3);
+									code += "`";
+									resume_on = token.index + 1;
+									return true; // do not add three ```, one has already been added.
+								}
+
+								// Add to code
+								code += token.data;
+
+							}
+							prev = token;
+						});
+						add_to_code = false;
 					}
 
 					// ---------------------------------------------------------
