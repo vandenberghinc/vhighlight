@@ -6487,26 +6487,33 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 		/*	@docs: {
 			@title Bundle.
 			@description: Bundle and parse javascript files into a single file.
-			@parameter: {
+			@parameter:
 				@name: export_path
 				@type: string
 				@description: The bundled export path.
-			}
-			@parameter: {
+			@parameter:
 				@name: include
 				@type: array[string]
 				@description: The array with file paths, when a path is a directory the entire directory will be included.
-			}
-			@parameter: {
+			@parameter:
 				@name: exclude
 				@type: array[string]
 				@description: The file paths that will be excluded.
-			}
-		} */
+			@parameter:
+				@name: compile_min
+				@type: boolean
+				@description: Also compile path's that end with `min.js`.
+			@parameter:
+				@name: log
+				@type: boolean
+				@description: Log an exported to string.
+		*/
 		bundle({
 			export_path = null,
 			includes = [],
 			excludes = [],
+			compile_min = false,
+			log = false,
 		}) {
 
 			// Reset preprocessor definitions.
@@ -6516,7 +6523,8 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 			// Vars.
 			let code = "";
 
-			// Include path wrapper.
+			// Gather all paths.
+			const paths = [];
 			const include_path = (path) => {
 
 				// Skip excluded.
@@ -6538,18 +6546,40 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				}
 
 				// When the path is a file.
-				else {
-					code += this.compile(path);
+				else if (paths.includes(path) === false) {
+					paths.push(path);
 				}
 			}
-
-			// Iterate includes.
 			for (let i = 0; i < includes.length; i++) {
 				include_path(includes[i]);
 			}
 
+			// Compile all paths.
+			// const now = Date.now();
+			// const times = [];
+			for (let i = 0; i < paths.length; i++) {
+				const path = paths[i];
+				if (compile_min === false && path.length > 7 && path.substr(path.length - 7) === ".min.js") {
+					code += libfs.readFileSync(path);
+				} else {
+					// const l_now = Date.now();
+					code += this.compile(path);
+					// times.push([path, Date.now() - l_now]);
+				}
+			}
+			// console.log(">>> Performance:", Date.now() - now + "ms.");
+			// times.sort((a, b) => b[1] - a[1]);
+			// for (let i = 0; i < Math.min(times.length, 10); i++) {
+			// 	console.log(times[i][0] + ":", times[i][1] + "ms.")
+			// }
+
 			// Export.
 			libfs.writeFileSync(export_path, code);
+
+			// Log.
+			if (log) {
+				console.log(`Bundled into "${export_path}".`);
+			}
 		}
 
 		// Compile a single file.
@@ -6784,7 +6814,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 					// Allow multi line ``` X ``` strings, where the indent of each line will be cleaned, therefore multi line strings can be defined at any indent level.
 					// However, all backticks must be escaped inside this multi line backtick string.
 
-					if (token.token === "string" && token.data.eq_first("```")) {
+					if (token.token === "string" && token.data.startsWith("```")) {
 
 						// Find the indent of the defintion line.
 						let remove_indent = "", indent = "";
@@ -6811,7 +6841,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 							else if (token.index >= token_index) {
 
 								// Remove whitespace.
-								if (remove_indent.length > 0 && prev.is_line_break === true && token.data.eq_first(remove_indent)) {
+								if (remove_indent.length > 0 && prev.is_line_break === true && token.data.startsWith(remove_indent)) {
 									token.data = token.data.substr(remove_indent.length);
 								}
 
@@ -6903,7 +6933,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 						add_to_code = false;
 
 						// Definition (#define).
-						if (preprocessor_data.eq_first("#define")) {
+						if (preprocessor_data.startsWith("#define")) {
 							const splitted = preprocessor_data.split(" ");
 							if (splitted.length >= 3) {
 
@@ -6917,7 +6947,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 						}
 
 						// If statements (#if, #elif #else #endif).
-						else if (preprocessor_data.eq_first("#if")) {
+						else if (preprocessor_data.startsWith("#if")) {
 
 							// Find all the "if" "elif" "else" statements.
 							const statement_tokens = [[]];
@@ -6935,10 +6965,10 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 								if (next.token === "preprocessor" || next.is_preprocessor === true) {
 									if (statement == null) {
 										if (
-											next.data.eq_first("#if") === false && 
-											next.data.eq_first("#elif") === false && 
-											next.data.eq_first("#else") === false && 
-											next.data.eq_first("#endif") === false
+											next.data.startsWith("#if") === false && 
+											next.data.startsWith("#elif") === false && 
+											next.data.startsWith("#else") === false && 
+											next.data.startsWith("#endif") === false
 										) {
 											is_non_statement_preprocessor = true;
 											statement_tokens[statement_index].push(next)
@@ -6954,7 +6984,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 											statement += next.data;
 										}
 										statement_conditions_tokens.push(next);
-										if (statement.eq_first("#endif")) {
+										if (statement.startsWith("#endif")) {
 											end_token = next.index;
 											break;
 										}
@@ -6993,7 +7023,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 								statement = statement.substr(start + 1).trim()
 
 								// Custom function "path_exists()"
-								if (statement.eq_first("path_exists(")) {
+								if (statement.startsWith("path_exists(")) {
 									let path = statement.substr(12).trim();
 									if (path.charAt(path.length - 1) === ")") {
 										path = path.substr(0, path.length - 1);
@@ -7294,14 +7324,23 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 				const assignment_name = get_assignment_name(class_keyword.index - 1);
 				
 				// Args.
-				const suffix = get_param_value("suffix", "Class", true);
+				let suffix = get_param_value("suffix", "Class", true);
 
 				// Check if the suffix matches the end of the target type.
 				if (
 					type_def_token.data.length < suffix.length || 
 					type_def_token.data.substr(type_def_token.data.length - suffix.length) != suffix
 				) {
-					throw Error(`${path}:${token.line}:${column}: The target type definition "${type_def_token.data}" does not contain suffix "${suffix}" (${decorator}).`);
+
+					// When the suffix is the default "Class" then also check for "Element".
+					const old_suffix = suffix;
+					suffix = "Element";
+					if (
+						type_def_token.data.length < suffix.length || 
+						type_def_token.data.substr(type_def_token.data.length - suffix.length) != suffix
+					) {
+						throw Error(`${path}:${token.line}:${column}: The target type definition "${type_def_token.data}" does not contain suffix "${old_suffix}" (${decorator}).`);
+					}
 				}
 
 				// Create data.
