@@ -18,23 +18,27 @@ const libfs = require("fs")
 
 const source = libpath.dirname(__dirname);
 const includes = [
-	libpath.join(source, "js/highlight.js"),
-	libpath.join(source, "js/tokenizer.js"),
-	libpath.join(source, "js/bash.js"),
-	libpath.join(source, "js/cpp.js"),
-	libpath.join(source, "js/css.js"),
-	libpath.join(source, "js/html.js"),
-	libpath.join(source, "js/js.js"),
-	libpath.join(source, "js/json.js"),
-	libpath.join(source, "js/markdown.js"),
-	libpath.join(source, "js/python.js"),
-	libpath.join(source, "js/js_compiler.js"),
-	libpath.join(source, "js/export.js"),
+	`${__dirname}/../js/highlight.js`,
+	`${__dirname}/../js/tokenizer.js`,
+	`${__dirname}/../js/bash.js`,
+	`${__dirname}/../js/cpp.js`,
+	`${__dirname}/../js/css.js`,
+	`${__dirname}/../js/html.js`,
+	`${__dirname}/../js/js.js`,
+	`${__dirname}/../js/js_compiler.js`,
+	`${__dirname}/../js/json.js`,
+	`${__dirname}/../js/markdown.js`,
+	`${__dirname}/../js/python.js`,
+	`${__dirname}/../js/yaml.js`,
+	`${__dirname}/../js/lmx.js`,
+	`${__dirname}/../js/export.js`,
 ];
-const export_path = libpath.join(source, "vhighlight.js")
+const export_path = `${__dirname}/../vhighlight.js`;
 
 // ---------------------------------------------------------
 // Bundle.
+
+const version = JSON.parse(libfs.readFileSync(`${__dirname}/../package.json`)).version;
 
 let data = `/*
  * Author: Daan van den Bergh
@@ -43,6 +47,9 @@ let data = `/*
 `;
 for (let i = 0; i < includes.length; i++) {
 	let file_data = libfs.readFileSync(includes[i]).toString();
+	if (includes[i] === `${__dirname}/../js/export.js`) {
+		file_data = file_data.replaceAll("__VERSION__", `"${version}"`)
+	}
 	file_data = file_data.replaceAll(`/*
  * Author: Daan van den Bergh
  * Copyright: © 2023 Daan van den Bergh.
@@ -57,4 +64,37 @@ for (let i = 0; i < includes.length; i++) {
  	data += file_data;
 }
 libfs.writeFileSync(export_path, data);
-console.log(`Bundled into "${export_path}".`)
+if (process.env.VHIGHLIGHT_COMPILE_LIGHT === "true") {
+	console.log(`Bundled into "${export_path}".`)
+}
+
+// ---------------------------------------------------------
+/* Bundle using bundled library. */
+
+if (!process.argv.includes("--light") && !process.argv.includes("--basic") && process.env.VHIGHLIGHT_COMPILE_LIGHT !== "true") {
+
+	// Import.
+	let vhighlight;
+	if (libfs.existsSync("/Volumes/persistance")) {
+	    vhighlight = require("/Volumes/persistance/private/dev/vinc/vhighlight/vhighlight.js");
+	    require("/Volumes/persistance/private/dev/vinc/vlib/js/vlib.js");
+	} else {
+	    vhighlight = require("/Users/administrator/persistance/private/dev/vinc/vhighlight/vhighlight.js");
+	    require("/Users/administrator/persistance/private/dev/vinc/vlib/js/vlib.js");
+	}
+
+	// Initialize compiler.
+	const compiler = new vhighlight.JSCompiler();
+
+	// Bundle vweb.
+	compiler.bundle({
+	    export_path: export_path,
+	    includes: [export_path],
+	    log: false,
+	});
+	console.log(`\u001b[34m>>>\u001b[0m Compiled vhighlight.js${version ? "@" + version : ""} [${(libfs.statSync(export_path).size / 1024).toFixed(2)}KB].`);
+
+	// Log.
+	// console.log(`Bundled into "${export_path}".`);
+
+}

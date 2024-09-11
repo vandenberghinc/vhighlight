@@ -1,0 +1,1 @@
+function send({status = 200, headers = {}, data = null, compress = false} = {})

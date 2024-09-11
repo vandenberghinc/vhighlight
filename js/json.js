@@ -32,7 +32,7 @@ vhighlight.JSON = class JSON extends vhighlight.Tokenizer {
 				",",
 			],
 
-			// Language, must never be changed it is used by dependents, such as vdocs.
+			// Language, must never be changed it is used by dependents, such as Libris.
 			language: "JSON",
 		});
 	}

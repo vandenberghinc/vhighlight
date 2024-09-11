@@ -1,0 +1,19 @@
+<GlobalJS>
+    export function MyElement(params, children) {
+        return VStack(
+            HStack(
+                Image("/path/to/source.png")
+                    .frame(10, 10)
+                    .margin_right(10),
+                Text("Hello World!")
+            )
+            .center_vertical(),
+            ...children,
+        )
+        .attrs(params);
+    }
+</GlobalJS>
+
+<MyElement style='color: red'>
+    Hello Universe!
+<MyElement/>

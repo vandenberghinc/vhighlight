@@ -14,7 +14,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
     }
 
     // Set version.
-    vhighlight.version = require("./.version.js");
+    vhighlight.version = __VERSION__;
 
     // Export the library.
 	module.exports = vhighlight;

@@ -64,14 +64,11 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 				"b",
 			],
 			single_line_comment_start: "#",
+			multi_line_comment_start: ['"""', "'''"], // becuase of the array in this param the param `multi_line_comment_end` does not need to be defined.
+			multi_line_comment_only_at_start: true,
 			is_indent_language: true,
 
-			// Attributes for partial tokenizing.
-			scope_separators: [
-				":", 
-			],
-
-			// Language, must never be changed it is used by dependents, such as vdocs.
+			// Language, must never be changed it is used by dependents, such as Libris.
 			language: "Python",
 		});
 
@@ -209,13 +206,13 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 		this.on_type_def_keyword = (token) => {
 
 			// Get the assignment token.
-			const async_token = this.get_prev_token(token.index - 1, [" ", "\t", "\n", "def"]);
+			const async_token = this.get_prev_token_by_token(token, [" ", "\t", "\n", "def"]);
 			if (async_token != null && async_token.token === "keyword" && async_token.data === "async") {
 				token.pre_modifiers = [async_token];
 			}
 
 			// Set the start token to capture inherited classes when the previous token is either struct or class.
-			const prev = this.get_prev_token(token.index - 1, [" ", "\t", "\n"]);
+			const prev = this.get_prev_token_by_token(token, [" ", "\t", "\n"]);
 			if (prev !== null && prev.data === "class") {
 				this.capture_inherit_start_token = token;
 				token.type = [prev];	
@@ -232,6 +229,11 @@ vhighlight.Python = class Python extends vhighlight.Tokenizer {
 
 		// Used to detect type def inheritance.
 		this.capture_inherit_start_token = undefined;
+	}
+
+	// Derived retrieve state.
+	derived_retrieve_state(data) {
+		data.capture_inherit_start_token = this.capture_inherit_start_token;
 	}
 }
 

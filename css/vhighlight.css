@@ -66,15 +66,15 @@
 .token_bold { /* for markdown */
 	font-weight: bold;
 }
+.token_codeline { /* for markdown */
+	background: #FFFFFF25;
+}
 .token_codeblock { /* for markdown */
 	width: 100%;
 	background: #FFFFFF25;
 }
-.token_line_number {
-	color: #818C97;
-}
-.token_line_number_divider {
-	background: #818C97;
+.token_template {
+	font-style: italic;
 }
 
 /* Use display block otherwise the code may not show up. */

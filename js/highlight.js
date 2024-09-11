@@ -7,6 +7,7 @@
 // Module vhighlight.
 
 const vhighlight = {};
+vhighlight.internal = {};
 
 // All languages.
 vhighlight.languages = function() {
@@ -20,6 +21,8 @@ vhighlight.languages = function() {
 			vhighlight.css.language,
 			vhighlight.html.language,
 			vhighlight.bash.language,
+			vhighlight.yaml.language,
+			vhighlight.lmx.language,
 		]
 	}
 	return this._languages;
@@ -73,6 +76,14 @@ vhighlight.get_tokenizer = function(language) {
 		case "cli":
 			return vhighlight.bash;
 
+		// YAML.
+		case "yaml":
+			return vhighlight.yaml;
+
+		// LMX.
+		case "lmx":
+			return vhighlight.lmx;
+
 		// Unsupported.
 		default:
 			return null;
@@ -124,6 +135,14 @@ vhighlight.init_tokenizer = function(language, args = {}) {
 		case "cli":
 			return new vhighlight.Bash(args);
 
+		// YAML.
+		case "yaml":
+			return new vhighlight.YAML(args);
+
+		// LMX.
+		case "lmx":
+			return new vhighlight.LMX(args);
+
 		// Unsupported.
 		default:
 			return null;
@@ -140,6 +159,8 @@ vhighlight.language_extensions = {
     "json": [".json", ".vide", ".vpackage", ".vweb"],
     "shell": [".sh", ".zsh"],
     "html": [".html"],
+    "yaml": [".yaml"],
+    "lmx": [".lmx"],
 };
 vhighlight.get_tokenizer_by_extension = function(extension) {
 	if (extension == null || extension.length === 0) { return null; }

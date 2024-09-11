@@ -49,6 +49,57 @@ if (Array.prototype.iterate_reversed === undefined) {
 	};
 }
 
+// Last.
+if (Array.prototype.last === undefined) {
+	Array.prototype.last = function() {
+	    return this[this.length - 1];
+	};
+}
+
+// Nested curly/bracket/parenth depth.
+vhighlight.NestedDepth = class NestedDepth {
+	constructor(curly, bracket, parenth) {
+		this.curly = curly;
+		this.bracket = bracket;
+		this.parenth = parenth;
+	}
+	assign(curly, bracket, parenth) {
+		this.curly = curly;
+		this.bracket = bracket;
+		this.parenth = parenth;
+	}
+	eq(other) {
+		return this.curly === other.curly && this.bracket === other.bracket && this.parenth === other.parenth;
+	}
+	gt(other) {
+		return this.curly < other.curly && this.bracket < other.bracket && this.parenth < other.parenth;
+	}
+	gte(other) {
+		return this.curly <= other.curly && this.bracket <= other.bracket && this.parenth <= other.parenth;
+	}
+	lt(other) {
+		return this.curly > other.curly && this.bracket > other.bracket && this.parenth > other.parenth;
+	}
+	lte(other) {
+		return this.curly >= other.curly && this.bracket >= other.bracket && this.parenth >= other.parenth;
+	}
+	eq_values(curly, bracket, parenth) {
+		return this.curly === curly && this.bracket === bracket && this.parenth === parenth;
+	}
+	process_token(token) {
+		if (token.token == null) {
+			switch (token.data) {
+				case "{": ++this.curly; break;
+				case "}": --this.curly; break;
+				case "[": ++this.bracket; break;
+				case "]": --this.bracket; break;
+				case "(": ++this.parenth; break;
+				case ")": --this.parenth; break;
+			}
+		}
+	}
+}
+
 // The tokens class.
 vhighlight.Tokens = class Tokens extends Array {
 
@@ -108,6 +159,95 @@ vhighlight.Tokens = class Tokens extends Array {
 
 }
 
+// Copy of `vlib.internal.obj_eq` function.
+vhighlight.internal.obj_eq = function(x, y) {
+    if (typeof x !== typeof y) { return false; }
+    else if (x instanceof vhighlight.TokenizerState) {
+    	if (!(y instanceof vhighlight.TokenizerState)) {
+    		return false;
+    	}
+		return x.equals(y);
+	}
+    else if (x instanceof String) {
+        return x.toString() === y.toString();
+    }
+    else if (Array.isArray(x)) {
+        if (!Array.isArray(y) || x.length !== y.length) { return false; }
+        for (let i = 0; i < x.length; i++) {
+            if (!vhighlight.internal.obj_eq(x[i], y[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    else if (x != null && typeof x === "object") {
+        const x_keys = Object.keys(x);
+        const y_keys = Object.keys(y);
+        if (x_keys.length !== y_keys.length) {
+            return false;
+        }
+        for (const key of x_keys) {
+            // if (!y.hasOwnProperty(key)) {
+            if (!vhighlight.internal.obj_eq(x[key], y[key])) {
+                return false
+            }
+            // }
+        }
+        return true;
+    }
+    else {
+        return x === y;
+    }
+}
+
+// Copy of `vweb.utils.deep_copy` function.
+vhighlight.internal.deep_copy = function(obj) {
+	if (obj instanceof vhighlight.TokenizerState) {
+		return obj.clone();
+	}
+    else if (Array.isArray(obj)) {
+        const copy = [];
+        obj.iterate((item) => {
+            copy.append(vhighlight.internal.deep_copy(item));
+        })
+        return copy;
+    }
+    else if (obj !== null && obj instanceof String) {
+        return new String(obj.toString());
+    }
+    else if (obj !== null && typeof obj === "object") {
+        const copy = {};
+        const keys = Object.keys(obj);
+        const values = Object.values(obj);
+        for (let i = 0; i < keys.length; i++) {
+            copy[keys[i]] = vhighlight.internal.deep_copy(values[i]);
+        }
+        return copy;
+    }
+    else {
+        return obj;
+    }
+}
+
+// State class for line by line highlighting style also used in the monaco editor.
+vhighlight.TokenizerState = class TokenizerState {
+
+	// Constructor.
+	constructor(data = {}) {
+		this.data = data;
+	}
+
+	// Equals other state.
+	equals(other) {
+		return vhighlight.internal.obj_eq(this.data, other.data);
+	}
+
+	// Clone state.
+	clone() {
+		return new TokenizerState(vhighlight.internal.deep_copy(this.data));
+	}
+}
+
 // The tokenizer class.
 // - @warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
 // - Do not forget to assign attribute "code" after initializing the Tokenizer, used to avoid double copy of the code string.
@@ -134,7 +274,9 @@ vhighlight.Tokenizer = class Tokenizer {
 		single_line_comment_start = false,
 		multi_line_comment_start = false,
 		multi_line_comment_end = false,
+		multi_line_comment_only_at_start = false,
 		allow_strings = true,
+		allow_strings_double_quote = true,
 		allow_numerics = true,
 		allow_preprocessors = false,
 		allow_slash_regexes = false,
@@ -155,6 +297,9 @@ vhighlight.Tokenizer = class Tokenizer {
 		],
 		seperate_scope_by_type_def = false,
 
+		// Compiler options.
+		compiler = false,
+
 		// Language.
 		language = null,
 	}) {
@@ -169,8 +314,11 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.special_string_prefixes = special_string_prefixes;							// special characters preceding a string to indicate a special string, such as the "f" in python for "f'{}'".
 		this.single_line_comment_start = single_line_comment_start;						// the language's single line comment start characters, use "false" when the language does not support this.
 		this.multi_line_comment_start = multi_line_comment_start;						// the language's multi line comment start characters, use "false" when the language does not support this.
+		this.multi_line_comment_start_is_array = Array.isArray(this.multi_line_comment_start);
 		this.multi_line_comment_end = multi_line_comment_end;							// the language's multi line comment end characters, use "false" when the language does not support this.
+		this.multi_line_comment_only_at_start = multi_line_comment_only_at_start;		// should be enabled if the multi line comments can only be defined at the start of the line (such as in python).
 		this.allow_strings = allow_strings;												// if the language supports strings.
+		this.allow_strings_double_quote = allow_strings_double_quote;					// allow strings by double qoute.
 		this.allow_numerics = allow_numerics;											// if the language supports numerics.
 		this.allow_preprocessors = allow_preprocessors;									// if the language has "#..." based preprocessor statements.
 		this.allow_slash_regexes = allow_slash_regexes;									// if the language has "/.../" based regex statements.
@@ -183,6 +331,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.is_type_language = is_type_language;										// is a type language for instance true for cpp and false for js.
 		this.scope_separators = scope_separators;										// scope separators for partial tokenize.
 		this.seperate_scope_by_type_def = seperate_scope_by_type_def;					// only seperate a scope by token type def's for example required in cpp.
+		this.compiler = compiler;														// compiler options.
 		this.language = language;
 
 		// Word boundaries.
@@ -245,6 +394,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// The default callback.
 		// this.callback = function(char, is_escaped, is_preprocessor) { return false; }
 
+		// @deprecated this callback is DEPRECATED
 		// The on parenth callback.
 		// This callback is called when a parentheses closes and the token before the opening parenth is not a keyword unless it is a keyword that is allowed by the `allowed_keywords_before_type_defs` array.
 		// - The on parenth close will not be called when the token before the parenth opening is a keyword.
@@ -259,6 +409,12 @@ vhighlight.Tokenizer = class Tokenizer {
 		// - The parameter token, is the type def token after the matched keyword.
 		// this.on_type_def_keyword = function(token) {};
 
+		// On parenth opening callback.
+		// The callback can return a token that will be seen as the primary type(def) token, when nothing is returned the passed token will be used for checkings in type(defs).
+		// The callback should not append the current char or token, the ")" will be appended after the callback,
+		// The batch has already been appended before this, call making the last token the token before the "(", this token is also passed as parameter.
+		// this.on_parenth_open = function (token_before_parenth) {};
+
 		// The on post type def modifier end callback.
 		// This callback is called when you can parse the post modifiers after a type definition, so for example when the "{" is reached after a type def.
 		// However this callback is not called for a type def detected by "type_def_keywords", that should be handled with the "on_type_def_keyword" callback.
@@ -268,6 +424,11 @@ vhighlight.Tokenizer = class Tokenizer {
  
 		// Init vars that should be reset before each tokenize.
 		this.reset();
+
+		// Some alias attributes.
+		this.is_js = this.language === "JS";
+		this.is_py = this.language === "Python";
+		this.is_cpp = this.language === "C++";
 
 	}
 
@@ -285,6 +446,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.is_regex = false;								// is currently a regex string "/hello/".
 		this.is_preprocessor = false;						// is currently a preprocessor statement.
 		this.is_comment_keyword = false;					// is currently a "@keyword" inside a comment.
+		this.is_comment_keyword_multi_line = false;			// is @keyword inside multi line.
 		this.is_comment_codeblock = false;					// is currently a "`somefunc()`" codeblock inside a comment.
 		this.parenth_depth = 0;								// parentheses depth "( )".
 		this.bracket_depth = 0;								// bracket depth "[ ]".
@@ -296,7 +458,6 @@ vhighlight.Tokenizer = class Tokenizer {
 															// @warning: The token type def on non indent languages must be assigned before the curly depth increase otherwise it will cause undefined behaviour.
 		this.line_indent = 0;								// the indent of the current line, a space and tab both count for 1 indent.
 		this.start_of_line = true;							// is at the start of the line, whitespace at the start of the line does not disable the flag.
-		this.do_on_type_def_keyword = false;				// do the next on type def keyword callback.
 		this.prev_nw_token_data = null;						// the previous non whitespace or linebreak token data.
 		this.is_post_type_def_modifier = false;				// is between the closing parentheses and the opening curly or semicolon.
 		this.post_type_def_modifier_type_def_token = null;	// the type def token from that for the on post type def modifier end callback.
@@ -305,18 +466,122 @@ vhighlight.Tokenizer = class Tokenizer {
 															// @warning: only assigned when `is_type_language` is `true` and the keyword is not one of the `allowed_keywords_before_type_defs`.
 		this.last_non_whiste_space_line_break_token = null;	// the last non whitespace non line break token that was appended.
 
+		this.after_dot_is_type_js = false;					// used to assign type to the token after the . inside an extends so for like "MyClass" in "extends mylib.MyClass".
+		this.func_end_queue = [];							// used to detect the end of a function, currently only in js.
+
+		this.inside_parameters = [];						// flags for tokens currently inside parameters.
+		this.preprocess_code = true;						// preprocess the code or only execute the callback and do nothing else.
+
+		// Variables from the main loop iterate_code func().
+		this.iter_code_is_comment = false;
+		this.iter_code_is_multi_line_comment = false;
+		this.iter_code_string_char = null;
+		this.iter_code_is_regex = false; 								
+		this.iter_code_is_preprocessor = false; 							
+		this.iter_code_prev_non_whitespace_char = null; 					
+		this.iter_code_multi_line_comment_check_close_from_index = null;	
+		this.iter_code_inside_template_curly_depth = 0;					
+		this.iter_code_inside_template_curly_end = [];					
+		this.iter_code_forced_multi_line_comment_end = null;				
+
 		// Performance.
 		// this.get_prev_token_time = 0;
 		// this.append_token_time = 0;
 	}
 
+	// Restore or set state for line by line highlighting method also used in the monaco editor.
+	// This only supports a line-by-line basis, not anything else.
+	// The retrieved and restored states will always be cloned without references to the original state.
+	state(state = null) {
+
+		// Retrieve state.
+		if (state == null) {
+			const data = {
+				// tokens: this.tokens,
+				// added_tokens: this.added_tokens,
+				// index: this.index,
+				prev_char: this.prev_char,
+				next_char: this.next_char,
+				// batch: this.batch,
+				// line: this.line,
+				is_comment: this.is_comment,
+				is_str: this.is_str,
+				is_regex: this.is_regex,
+				is_preprocessor: this.is_preprocessor,
+				is_comment_keyword: this.is_comment_keyword,
+				is_comment_keyword_multi_line: this.is_comment_keyword_multi_line,
+				is_comment_codeblock: this.is_comment_codeblock,
+				parenth_depth: this.parenth_depth,
+				bracket_depth: this.bracket_depth,
+				curly_depth: this.curly_depth,
+				// template_depth: this.template_depth,
+				next_token: this.next_token,
+				// offset: this.offset,
+				parents: this.parents,
+				// line_indent: this.line_indent,
+				// start_of_line: this.start_of_line,
+				prev_nw_token_data: this.prev_nw_token_data,
+				is_post_type_def_modifier: this.is_post_type_def_modifier,
+				post_type_def_modifier_type_def_token: this.post_type_def_modifier_type_def_token,
+				is_keyword_before_parentheses: this.is_keyword_before_parentheses,
+				last_non_whiste_space_line_break_token: this.last_non_whiste_space_line_break_token,
+				after_dot_is_type_js: this.after_dot_is_type_js,
+				func_end_queue: this.func_end_queue,
+				inside_parameters: this.inside_parameters,
+				preprocess_code: this.preprocess_code,
+
+				iter_code_is_comment: this.iter_code_is_comment,
+				iter_code_is_multi_line_comment: this.iter_code_is_multi_line_comment,
+				iter_code_string_char: this.iter_code_string_char,
+				iter_code_is_regex: this.iter_code_is_regex,
+				iter_code_is_preprocessor: this.iter_code_is_preprocessor,
+				iter_code_prev_non_whitespace_char: this.iter_code_prev_non_whitespace_char,
+				// iter_code_multi_line_comment_check_close_from_index: this.iter_code_multi_line_comment_check_close_from_index,
+				iter_code_inside_template_curly_depth: this.iter_code_inside_template_curly_depth,
+				iter_code_inside_template_curly_end: this.iter_code_inside_template_curly_end,
+				iter_code_forced_multi_line_comment_end: this.iter_code_forced_multi_line_comment_end,
+			};
+			if (this.derived_retrieve_state) {
+				this.derived_retrieve_state(data);
+			}
+			return new vhighlight.TokenizerState(vhighlight.internal.deep_copy(data));
+		}
+
+		// Restore state.
+		const keys = Object.keys(state.data);
+		for (let i = 0; i < keys.length; i++) {
+			if (typeof state.data[keys[i]] === "object" && state.data[keys[i]] != null) {
+				this[keys[i]] = vhighlight.internal.deep_copy(state.data[keys[i]]);
+			}
+			else {
+				this[keys[i]] = state.data[keys[i]];
+			}
+		}
+	}
+
+	// Generate a random string.
+	_random = function(length = 32) {
+	    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+	    let result = "";
+	    for (let i = 0; i < length; i++) {
+	        result += chars.charAt(Math.floor(Math.random() * chars.length));
+	    }
+	    return result;
+	}
+
 	// Add a parent.
-	add_parent(token) {
+	add_parent(token, curly_depth = null, parenth_depth = null) {
 		if (token.data.length > 0) {
 			if (this.is_indent_language) {
-				this.parents.push([token, this.line_indent]);
+				this.parents.push({token: token, indent: this.line_indent});
 			} else {
-				this.parents.push([token, this.curly_depth]);
+				if (curly_depth == null) {
+					curly_depth = this.curly_depth;
+				}
+				if (parenth_depth == null) {
+					parenth_depth = this.parenth_depth;
+				}
+				this.parents.push({token: token, curly: curly_depth, parenth: parenth_depth}); // also add parenth for js in case of `class MyClass extends someFunc({}) { ... }`
 			}
 		}
 	}
@@ -325,7 +590,7 @@ vhighlight.Tokenizer = class Tokenizer {
 	assign_parents(token) {
 		token.parents = [];
 		this.parents.iterate((item) => {
-			token.parents.push(item[0]);
+			token.parents.push(item.token);
 		})
 	}
 
@@ -333,37 +598,150 @@ vhighlight.Tokenizer = class Tokenizer {
 	copy_parents() {
 		let copy = [];
 		this.parents.iterate((item) => {
-			copy.push([item[0], item[1]]);
+			copy.push({...item});
 		})
 		return copy;
 	}
 
 	// Get the last token.
 	// Returns null when there is no last token.
-	get_last_token() {
+	get_last_token(exclude = []) {
 		return this.tokens.iterate_tokens_reversed((token) => {
-			return token;
+			if (token.data != "" && (exclude.length === 0 || !exclude.includes(token.data))) {
+				return token;
+			}
 		})
+	}
+
+	// Fetch the previous token before another token.
+	get_prev_token_by_token(token, exclude = [" ", "\t", "\n"], also_check_current_token = false, exclude_comments = false) {
+		if (token === "last") {
+			if (this.tokens[this.line] == null) {
+				token = null;
+			} else {
+				token = this.tokens[this.line];
+				if (token) { token = token.last() };
+			}
+		}
+		if (token === null) {
+			return null;
+		}
+		let line = token.line;
+		let col = token.col;
+		const get_prev = () => {
+			if (line < 0) { return null; }
+			else if (col === 0) {
+				if (line === 0) { return null; }
+				--line;
+				col = this.tokens[line].length - 1;
+				return this.tokens[line][col];
+			}
+			--col;
+			return this.tokens[line][col];	
+		}
+		if (also_check_current_token) {
+			do {
+				if (exclude_comments && token.is_comment) {
+					continue;
+				}
+				else if (
+					token.data != "" && !exclude.includes(token.data)
+				) {
+					return token;
+				}
+			}
+			while ((token = get_prev()) != null);
+		} else {
+			while ((token = get_prev()) != null) {
+				if (exclude_comments && token.is_comment) {
+					continue;
+				}
+				else if (
+					token.data != "" && !exclude.includes(token.data)
+				) {
+					return token;
+				}
+			}
+		}
+		return null;
+	}
+
+	// Fetch the next token after another token.
+	get_next_token_by_token(token, exclude = [" ", "\t", "\n"], exclude_comments = false) {
+		if (token === null) { return null; }
+		let line = token.line, col = token.col;
+		const get_next = () => {
+			if (line > this.line) { return null; }
+			else if (col === this.tokens[line].length - 1) {
+				if (line === this.line) { return null; }
+				++line;
+				col = 0;
+				return this.tokens[line][col];
+			}
+			++col;
+			return this.tokens[line][col];	
+		}
+		while ((token = get_next()) != null) {
+			if (exclude_comments && token.is_comment) {
+				continue;
+			}
+			else if (
+				token.data != "" && !exclude.includes(token.data)
+			) {
+				return token;
+			}
+		}
+		return null;
 	}
 
 	// Fetch the first non whitespace token going backwards from the specified index.
 	// So it also tests the specified index. If the previous token data is excluded it checks one further back.
+	// Also supports index as an {line, col} object.
+	// @warning: When the index is an object with line col, then the line col is the current position whicg will be decreased and returned, so do not decrease already.
 	get_prev_token(index, exclude = [" ", "\t", "\n"], exclude_comments = false) {
 		// const now = Date.now();
-		return this.tokens.iterate_tokens_reversed((token) => {
-			if (token.index <= index) {
-				if (exclude_comments && token.token === "comment") {
-					return null;
+		if (index === null) { return null; }
+		else if (typeof index === "object") {
+			const get_prev = () => {
+				if (index.line < 0) { return null; }
+				else if (index.col === 0) {
+					if (index.line === 0) { return null; }
+					--index.line;
+					index.col = this.tokens[index.line].length - 1;
+					return this.tokens[index.line][index.col];
 				}
-				if (!exclude.includes(token.data)) {
+				--index.col;
+				return this.tokens[index.line][index.col];	
+			}
+			let token;
+			while ((token = get_prev()) != null) {
+				if (exclude_comments && token.is_comment) {
+					continue;
+				}
+				else if (
+					token.data != "" && !exclude.includes(token.data)
+				) {
 					return token;
 				}
 			}
-		})
+			return null;
+		}
+		else {
+			return this.tokens.iterate_tokens_reversed((token) => {
+				if (token.index <= index) {
+					if (exclude_comments && token.is_comment) {
+						return null;
+					}
+					if (token.data != "" && !exclude.includes(token.data)) {
+						return token;
+					}
+				}
+			})
+		}
 		// this.get_prev_token_time += Date.now() - now;
 		// return res;
 	}
-	
+
 	// Check if a string contains a word boundary character.
 	str_includes_word_boundary(str) {
 		for (let i = 0; i < this.word_boundaries.length; i++) {
@@ -410,6 +788,14 @@ vhighlight.Tokenizer = class Tokenizer {
 	        ++y;
 	    }
 	    return true;
+	}
+	eq_first_of(array, start_index = 0) {
+	    for (let i = 0; i < array.length; i++) {
+	    	if (this.eq_first(array[i], start_index)) {
+	    		return i;
+	    	}
+	    }
+	    return null;
 	}
 
 	// Do a forward lookup by iterating the code from a start index.
@@ -635,8 +1021,39 @@ vhighlight.Tokenizer = class Tokenizer {
 			token.index = this.added_tokens;
 			++this.added_tokens;
 			if (this.tokens[token.line] === undefined) {
+				token.col = 0;
 				this.tokens[token.line] = [token];
 			} else {
+				token.col = this.tokens[token.line].length;
+				this.tokens[token.line].push(token);
+			}
+		})
+	}
+
+	// Assign new tokens to tokenizer.
+	// Tokens with the attribute `remove = true` will not be assigned.
+	assign_tokens(tokens) {
+		this.tokens = new vhighlight.Tokens();
+		this.line = 0;
+		this.offset = 0;
+		this.added_tokens = 0;
+		tokens.iterate_tokens((token) => {
+			if (token.remove === true) {
+				return null;
+			}
+			token.line = this.line;
+			if (token.is_line_break) {
+				++this.line;
+			}
+			token.offset = this.offset;
+			this.offset += token.data.length;
+			token.index = this.added_tokens;
+			++this.added_tokens;
+			if (this.tokens[token.line] === undefined) {
+				token.col = 0;
+				this.tokens[token.line] = [token];
+			} else {
+				token.col = this.tokens[token.line].length;
 				this.tokens[token.line].push(token);
 			}
 		})
@@ -674,6 +1091,115 @@ vhighlight.Tokenizer = class Tokenizer {
 			return clean;
 		}
 		return clean;	
+	}
+
+	// Assign token as type or type_def.
+	assign_token_as_type(token) {
+		token.token = "type";
+
+		// Add depths.
+		// @warning not reliable since it might be assigned after a parenth etc.
+		// @todo remove reliance on this from JSCompiler.
+		// token.curly_depth = this.curly_depth;
+		// token.parenth_depth = this.parenth_depth;
+		// token.bracket_depth = this.bracket_depth;
+	}
+	assign_token_as_type_def(token, opts = {start_token: null}) {
+		token.token = "type_def"
+
+		// When the type def is a constructor, then assign a reference to the parent.
+		// This is useful and libris depends on this.
+		if (
+			token.parents != null && token.parents.length > 0 &&
+			((this.is_js && token.data === "constructor") || (this.is_py && token.data === "__init__"))
+		) {
+			const class_parent = token.parents[0];
+			class_parent.constructor_index = token.index;
+		}
+
+		// Add depths.
+		// @warning not reliable since it might be assigned after a parenth etc.
+		// @todo remove reliance on this from Libris and JSCompiler.
+		// token.curly_depth = this.curly_depth;
+		// token.parenth_depth = this.parenth_depth;
+		// token.bracket_depth = this.bracket_depth;
+
+		// Compiler options.
+		// Adds attributes: curly_depth parenth_depth bracket_depth
+		if (this.compiler) {
+
+			// Set start token.
+			let start_token = token;
+			if (opts.start_token != null) {
+				start_token = opts.start_token;
+			}
+
+			// Try a little lookback to see if earlier tokens are also part of the function (only in js).
+			else if (this.is_js) {
+				let prev = token;
+				let must_be_keyword = false;
+				let allow_next = false;
+				while ((prev = this.get_prev_token_by_token(prev, [" ", "\t", "\n"])) != null) {
+
+					// Always allow next.
+					if (allow_next) {
+						start_token = prev;
+						allow_next = false;
+					}
+
+					// Keywords before.
+					else if (prev.token === "keyword") {
+						must_be_keyword = true;
+						start_token = prev;
+					} else if (must_be_keyword) {
+						break;
+					}
+
+					// Assignemtn using dot.
+					else if (prev.data === ".") {
+						start_token = prev;
+						allow_next = true;
+					}
+
+					// Stop.
+					else {
+						break;
+					}
+				}
+			}
+
+			// Get indent before start token.
+			let prev = start_token;
+			let indent = "";
+			while ((prev = this.get_prev_token_by_token(prev, [])) != null) {
+				if (prev.is_whitespace && !prev.is_line_break) {
+					indent += prev.data;
+				} else {
+					break;
+				}
+			}
+
+			// Assign func id.
+			const func_id = this._random(16);
+			start_token.func_id = func_id;
+
+			// Also assign to start token.
+			start_token.curly_depth = this.curly_depth;
+			start_token.parenth_depth = this.parenth_depth;
+			start_token.bracket_depth = this.bracket_depth;
+
+			// Assign indent.
+			start_token.indent = indent;
+
+			// Append.
+			this.func_end_queue.push({
+				func_id: func_id,
+				curly_depth: this.curly_depth,
+				parenth_depth: this.parenth_depth,
+				bracket_depth: this.bracket_depth,
+				token: start_token,
+			});
+		}
 	}
 
 	// Append a token.
@@ -727,12 +1253,6 @@ vhighlight.Tokenizer = class Tokenizer {
 			}
 		}
 
-		// Set parents.
-		else if (this.do_on_type_def_keyword !== true && token === "type_def") {
-			this.assign_parents(obj);
-			this.add_parent(obj);
-		}
-
 		// Update offset.
 		this.offset += this.batch.length;
 
@@ -742,26 +1262,27 @@ vhighlight.Tokenizer = class Tokenizer {
 		}
 
 		// Concat to previous token.
+		// DEPRECATED THIS IS NO LONGER SUPPORTED SINCE WHITE SPACE AND OTHERS MUST BE DETECTED IN RETRIEVING PREV TOKENS.
 		// - Do this after the update offset.
 		// - The concated tokens must not be excluded and either both be a word boundary or both be whitespace.
 		// - Whitespace tokens must remain all whitespace since certain checks require a check if a token is whitespace only.
 		// - Never concat tokens when the token is defined, even when the last and current tokens are the same. Since certain checks require a check for a specific operator, such as `parse_pre_func_tokens()` in `vhighlight.cpp`.
-		if (token === null && (obj.is_word_boundary === true || obj.is_whitespace === true)) {
-			const line_tokens = this.tokens[this.line];
-			if (line_tokens !== undefined) {
-				const last = line_tokens[line_tokens.length - 1];
-				if (
-					last !== undefined &&
-					last.is_word_boundary === obj.is_word_boundary && 
-					last.is_whitespace === obj.is_whitespace && 
-					(last.data.length > 1 || !this.excluded_word_boundary_joinings.includes(last.data)) &&
-					!this.excluded_word_boundary_joinings.includes(obj.data)
-				) {
-					last.data += obj.data;
-					return null; // STOP.
-				}
-			}
-		}
+		// if (token === null && (obj.is_word_boundary === true || obj.is_whitespace === true)) {
+		// 	const line_tokens = this.tokens[this.line];
+		// 	if (line_tokens !== undefined) {
+		// 		const last = line_tokens[line_tokens.length - 1];
+		// 		if (
+		// 			last !== undefined &&
+		// 			last.is_word_boundary === obj.is_word_boundary && 
+		// 			last.is_whitespace === obj.is_whitespace && 
+		// 			(last.data.length > 1 || !this.excluded_word_boundary_joinings.includes(last.data)) &&
+		// 			!this.excluded_word_boundary_joinings.includes(obj.data)
+		// 		) {
+		// 			last.data += obj.data;
+		// 			return null; // STOP.
+		// 		}
+		// 	}
+		// }
 
 		// Increment added tokens after concat to previous tokens.
 		++this.added_tokens;
@@ -773,14 +1294,70 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Append token.
 		if (this.tokens[this.line] === undefined) {
+			obj.col = 0;
 			this.tokens[this.line] = [obj];
 		} else {
+			obj.col = this.tokens[this.line].length;
 			this.tokens[this.line].push(obj);
 		}
 
 		// Set the last non whitespace or linebreak token.
 		if (obj.is_whitespace !== true && obj.is_line_break !== true) {
 			this.last_non_whiste_space_line_break_token = obj;
+		}
+
+		// Set parents.
+		if (token === "type_def") {
+			this.assign_parents(obj);
+			this.assign_token_as_type_def(obj);
+			if (this.on_type_def_keyword === undefined) {
+				this.add_parent(obj); // only when callback is undefined otherwise the parent might be added duplicate.
+			}
+		}
+
+		// Assign depths on type and type defs and any of the depth word boundaries.
+		// This is required for parsing the parameters, however for type tokens it is also required for the js compiler.
+		if (token === "type" || token === "type_def") {
+			// @warning not reliable since it might be assigned after a parenth etc.
+			obj.curly_depth = this.curly_depth;
+			obj.parenth_depth = this.parenth_depth;
+			obj.bracket_depth = this.bracket_depth;
+		} else {
+			switch (obj.data) {
+				case "[": case "]":
+				case "{": case "}":
+				case "(": case ")":
+					obj.curly_depth = this.curly_depth;
+					obj.parenth_depth = this.parenth_depth;
+					obj.bracket_depth = this.bracket_depth;
+					break;
+				default:
+					break;
+			}
+		}
+
+		// Set curly depth when compiler is enabled.
+		if (this.compiler) {
+
+			// Check closing functions.
+			if (obj.data === "}" && (this.is_js || this.is_cpp)) {
+				let dropped = [];
+				this.func_end_queue.iterate((item) => {
+					if (
+						obj.curly_depth === item.curly_depth && 
+						obj.parenth_depth === item.parenth_depth && 
+						obj.bracket_depth === item.bracket_depth 
+					) {
+						obj.func_id = item.func_id;
+						item.token.func_end = {line: obj.line, col: obj.col}
+						return false;
+					}
+					else {
+						dropped.push(item);
+					}
+				})
+				this.func_end_queue = dropped;
+			}
 		}
 
 		// Performance.
@@ -800,6 +1377,20 @@ vhighlight.Tokenizer = class Tokenizer {
 			return null;
 		}
 		let appended_token;
+
+		// After dot is type for js from extends, so for like "MyClass" in "extends mylib.MyClass".
+		if (
+			this.after_dot_is_type_js && 
+			this.batch !== "extends" && 
+			this.batch !== "." && 
+			this.batch !== " " && 
+			this.batch !== "\n" && 
+			this.batch !== "\t" && 
+			this.code.charAt(this.index) !== "."
+		) {
+			token = "type";
+			this.after_dot_is_type_js = false;
+		}
 
 		// Do not parse tokens.
 		if (token == false) {
@@ -824,24 +1415,21 @@ vhighlight.Tokenizer = class Tokenizer {
 			else if (extended.is_word_boundary === true || this.word_boundaries.includes(this.batch)) {
 				appended_token = this.append_token(null, {is_word_boundary: true});
 				this.next_token = null;
-				this.do_on_type_def_keyword = false;
 			}
 
 			// Reset next token when the batch is a keyword for example in "constexpr inline X".
 			else if (this.keywords.includes(this.batch)) {
 				appended_token = this.append_token("keyword");
 				this.next_token = null;
-				this.do_on_type_def_keyword = false;
 			}
 
 			// Append as next token.
 			else {
 				appended_token = this.append_token(this.next_token, extended);
-				this.next_token = null;
-				if (this.do_on_type_def_keyword === true && this.on_type_def_keyword !== undefined) {
+				if (this.next_token === "type_def" && this.on_type_def_keyword !== undefined) {
 					this.on_type_def_keyword(appended_token);
 				}
-				this.do_on_type_def_keyword = false;
+				this.next_token = null;
 			}
 		}
 		
@@ -858,36 +1446,18 @@ vhighlight.Tokenizer = class Tokenizer {
 				) {
 
 					// Some languages as c++ can also use certain type def keywords such as `struct` to initialize a variable, e.g. `struct passwd pass;`.
-					// Therefore it should be checked if the first character after the name of the initialized type def or type starts with an alphabetical character or not.
-					// When it is an alphabetical character then it is not a type definition but a type.
-					let is_type_def = true;
-					if (this.language === "C++" && this.batch === "struct") {
-						let first, second, third;
-						if (
-							(first = this.get_first_non_whitespace(this.index, true)) != null &&
-							(second = this.get_first_whitespace(first, true)) != null &&
-							(third = this.get_first_non_whitespace(second, true)) != null &&
-							this.is_alphabetical(this.code.charAt(third))
-						) {
-							is_type_def = false;
-						}
-					}
-
-					// Add as type def.
-					if (is_type_def) {
-						this.next_token = "type_def"
-						this.do_on_type_def_keyword = this.on_type_def_keyword !== undefined;
-					} 
-
-					// Add as type.
-					else {
-						this.next_token = "type"
-					}
+					// But those classes should handle that in the `on_type_def_keyword` callback. Do not handle it here.
+					this.next_token = "type_def";
+					
 				}
 				
 				// Next tokens.
 				else if (this.type_keywords.includes(this.batch)) {
-					this.next_token = "type";
+					if (this.is_js && this.batch === "extends") {
+						this.after_dot_is_type_js = true;
+					} else {
+						this.next_token = "type";
+					}
 				}
 				
 				// Append.
@@ -1012,8 +1582,21 @@ vhighlight.Tokenizer = class Tokenizer {
 		let is_preprocessor = false; 							// only used for languages that have preprocessor statements such as cpp.
 		let prev_non_whitespace_char = null; 					// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
 		let multi_line_comment_check_close_from_index = null;	// the start index of the multi line comment because when a user does something like /*// my comment */ the comment would originally immediately terminate because of the /*/.
-		let inside_template_string_code = null;					// is inside the ${} code of a js template string, the value will be assigned to the opening string char.
-		let inside_template_curly_depth = 0;
+		let inside_template_curly_depth = 0;					// the {} depth when inside a js template string.
+		let inside_template_curly_end = [];						// the array of end depths when currently inside a template string.
+		let forced_multi_line_comment_end = null;				// the end comment match for langs like python which can hold both """ and ''' for multi line comments.
+		if (info_obj === this) {
+			is_comment = this.iter_code_is_comment;
+			is_multi_line_comment = this.iter_code_is_multi_line_comment;
+			string_char = this.iter_code_string_char;
+			is_regex = this.iter_code_is_regex;
+			is_preprocessor = this.iter_code_is_preprocessor;
+			prev_non_whitespace_char = this.iter_code_prev_non_whitespace_char;
+			// multi_line_comment_check_close_from_index = this.iter_code_multi_line_comment_check_close_from_index;
+			inside_template_curly_depth = this.iter_code_inside_template_curly_depth;
+			inside_template_curly_end = this.iter_code_inside_template_curly_end;
+			forced_multi_line_comment_end = this.iter_code_forced_multi_line_comment_end;
+		}
 
 		// Iterate.
 		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
@@ -1025,7 +1608,9 @@ vhighlight.Tokenizer = class Tokenizer {
 			const char = this.code.charAt(info_obj.index);
 
 			// Set next and previous.
-			info_obj.prev_char = this.code.charAt(info_obj.index - 1);
+			if (info_obj.index > 0) { // to make prev char compatible with TokenizerState.
+				info_obj.prev_char = this.code.charAt(info_obj.index - 1);
+			}
 			info_obj.next_char = this.code.charAt(info_obj.index + 1);
 
 			// Set prev non whitespace char.
@@ -1059,83 +1644,15 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (res != null) { return res; }
 				continue;
 			}
-			
-			// Open strings.
-			if (
-				this.allow_strings &&
-				!is_escaped &&
-				!is_comment &&
-				!is_multi_line_comment &&
-				!is_regex &&
-				string_char == null &&
-				(
-					char == '"' || 
-					char == "'" || 
-					char == '`'
-				)
-			) {
-				string_char = char;
-				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
 
-			// Close strings.
-			else if (
-				!is_escaped &&
-				string_char != null &&
-				char == string_char
-			) {
-				string_char = null;
-				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// Inside strings.
-			else if (string_char != null) {
-
-				// Close string by js ${} template string.
-				if (this.language === "JS" && char === "$" && info_obj.next_char === "{") {
-					inside_template_string_code = string_char;
-					inside_template_curly_depth = 0;
-					string_char = null;
-					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
-
-				// Inside string.
-				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// The end of js ${} code inside a template string.
-			if (inside_template_string_code !== null) {
-				if (string_char == null && char === "{") {
-					++inside_template_curly_depth;
-				} else if (string_char == null && char === "}") {
-					--inside_template_curly_depth;
-
-					// Re-open the string.
-					if (inside_template_curly_depth === 0) {
-						string_char = inside_template_string_code;
-						inside_template_string_code = null;
-						const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-						if (res != null) { return res; }
-						continue;			
-					}
-				}
-			}
-			
 			// Open comments.
+			// Comments must be checked before string, due to the multi line comment `"""` from python.
 			if (
 				!is_escaped &&
 				!is_comment &&
 				!is_multi_line_comment &&
 				!is_regex
-				// && string_char == null
+				&& string_char == null
 			) {
 				
 				// Single line comments.
@@ -1155,14 +1672,22 @@ vhighlight.Tokenizer = class Tokenizer {
 				
 				
 				// Multi line comments.
+				let is_array_index;
 				if (
 					this.multi_line_comment_start !== false &&
+					(this.multi_line_comment_only_at_start === false || prev_non_whitespace_char === "\n" || prev_non_whitespace_char === "") &&
 					(
-						(this.multi_line_comment_start.length === 1 && char === this.multi_line_comment_start) ||
-						(this.multi_line_comment_start.length !== 1 && this.eq_first(this.multi_line_comment_start, info_obj.index))
+						(!this.multi_line_comment_start_is_array && this.multi_line_comment_start.length === 1 && char === this.multi_line_comment_start) ||
+						(!this.multi_line_comment_start_is_array && this.multi_line_comment_start.length !== 1 && this.eq_first(this.multi_line_comment_start, info_obj.index)) ||
+						(this.multi_line_comment_start_is_array && (is_array_index = this.eq_first_of(this.multi_line_comment_start, info_obj.index)) !== null)
 					)
 				) {
-					multi_line_comment_check_close_from_index = info_obj.index + this.multi_line_comment_start.length + this.multi_line_comment_end.length; // also add mlcomment end length since the mlc close looks backwards.
+					if (this.multi_line_comment_start_is_array) {
+						forced_multi_line_comment_end = this.multi_line_comment_start[is_array_index];
+						multi_line_comment_check_close_from_index = info_obj.index + forced_multi_line_comment_end.length * 2; // also add mlcomment end length since the mlc close looks backwards.
+					} else {
+						multi_line_comment_check_close_from_index = info_obj.index + this.multi_line_comment_start.length + this.multi_line_comment_end.length; // also add mlcomment end length since the mlc close looks backwards.
+					}
 					is_multi_line_comment = true;
 					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
 					if (res != null) { return res; }
@@ -1188,14 +1713,88 @@ vhighlight.Tokenizer = class Tokenizer {
 				!is_escaped &&
 				info_obj.index >= multi_line_comment_check_close_from_index &&
 				(
-					(this.multi_line_comment_end.length === 1 && char == this.multi_line_comment_end) ||
-					(this.multi_line_comment_end.length !== 1 && this.eq_first(this.multi_line_comment_end, info_obj.index - (this.multi_line_comment_end.length - 1)))
+					(!this.multi_line_comment_start_is_array && this.multi_line_comment_end.length === 1 && char == this.multi_line_comment_end) ||
+					(!this.multi_line_comment_start_is_array && this.multi_line_comment_end.length !== 1 && this.eq_first(this.multi_line_comment_end, info_obj.index - (this.multi_line_comment_end.length - 1))) ||
+					(this.multi_line_comment_start_is_array && forced_multi_line_comment_end !== null && this.eq_first(forced_multi_line_comment_end, info_obj.index - (forced_multi_line_comment_end.length - 1)))
 				)
 			) {
+				forced_multi_line_comment_end = null;
 				is_multi_line_comment = false;
 				const res = callback(char, false, is_comment, true, is_regex, is_escaped, is_preprocessor);
 				if (res != null) { return res; }
 				continue;
+			}
+			
+			
+			// Open strings.
+			if (
+				(this.allow_strings || (this.allow_strings_double_quote && char === '"')) &&
+				!is_escaped &&
+				!is_comment &&
+				!is_multi_line_comment &&
+				!is_regex &&
+				string_char === null &&
+				(
+					char == '"' || 
+					char == "'" || 
+					char == '`'
+				)
+			) {
+				string_char = char;
+				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+				if (res != null) { return res; }
+				continue;
+			}
+
+			// Close strings.
+			else if (
+				!is_escaped &&
+				string_char !== null &&
+				char === string_char
+			) {
+				string_char = null;
+				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+				if (res != null) { return res; }
+				continue;
+			}
+
+			// Inside strings.
+			else if (string_char !== null) {
+
+				// Close string by js ${} template string.
+				if (string_char === "`" && this.is_js && char === "$" && info_obj.next_char === "{") {
+					if (inside_template_curly_end.length === 0) {
+						inside_template_curly_depth = 0;
+					}
+					inside_template_curly_end.push(inside_template_curly_depth);
+					string_char = null;
+					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+					if (res != null) { return res; }
+					continue;
+				}
+
+				// Inside string.
+				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+				if (res != null) { return res; }
+				continue;
+			}
+
+			// The end of js ${} code inside a template string.
+			if (inside_template_curly_end.length !== 0) {
+				if (string_char === null && char === "{") {
+					++inside_template_curly_depth;
+				} else if (string_char === null && char === "}") {
+					--inside_template_curly_depth;
+
+					// Re-open the string.
+					if (inside_template_curly_end[inside_template_curly_end.length - 1] === inside_template_curly_depth) {
+						--inside_template_curly_end.length;
+						string_char = "`";
+						const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
+						if (res != null) { return res; }
+						continue;			
+					}
+				}
 			}
 			
 			// Inside comments.
@@ -1221,6 +1820,8 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 				if (
 					prev != null &&
+					prev !== "<" && // for JSX 
+					this.code.charAt(info_obj.index + 1) !== ">" && // for JSX
 					(
 						prev == "\n" || prev == "," || prev == "(" ||
 						prev == "[" || prev == "{" || prev == ":" ||
@@ -1254,6 +1855,20 @@ vhighlight.Tokenizer = class Tokenizer {
 			
 			
 		}
+
+		// Cache variables when info_ob is this, for state control.
+		if (info_obj === this) {
+			this.iter_code_is_comment = is_comment;
+			this.iter_code_is_multi_line_comment = is_multi_line_comment;
+			this.iter_code_string_char = string_char;
+			this.iter_code_is_regex = is_regex;
+			this.iter_code_is_preprocessor = is_preprocessor;
+			this.iter_code_prev_non_whitespace_char = prev_non_whitespace_char;
+			// this.iter_code_multi_line_comment_check_close_from_index = multi_line_comment_check_close_from_index;
+			this.iter_code_inside_template_curly_depth = inside_template_curly_depth;
+			this.iter_code_inside_template_curly_end = inside_template_curly_end;
+			this.iter_code_forced_multi_line_comment_end = forced_multi_line_comment_end;
+		}
 		return null;
 	};
 
@@ -1267,6 +1882,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		stop_callback = undefined,
 		build_html = false,
 		is_insert_tokens = false,
+		state = null,
 	} = {}) {
 
 		// Reset.
@@ -1275,6 +1891,11 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Derived reset.
 		if (this.derived_reset !== undefined) {
 			this.derived_reset();
+		}
+
+		// Set state.
+		if (state) {
+			this.state(state);
 		}
 
 		// Assign code when not already assigned.
@@ -1316,7 +1937,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		// Append previous batch when switching comment, string, regex, to something else.
 		const auto_append_batch_switch = (default_append = true) => {
 			if (this.is_comment_keyword) {
-				this.append_batch("comment_keyword", {is_comment: true});
+				this.append_batch("comment_keyword", {is_comment: true, is_multi_line_comment: this.is_comment_keyword_multi_line});
 			} else if (this.is_comment_codeblock) {
 				append_comment_codeblock_batch();
 			} else if (this.is_comment) {
@@ -1343,32 +1964,51 @@ vhighlight.Tokenizer = class Tokenizer {
 		let start_of_line_last_line = null;
 		const stopped = this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
 
-			// Start of line.
-			// Set start of line flag and line indent for parent closings on indent languages.
-			// The start of line flag must still be true for the first non whitespace character.
-			if (disable_start_of_line === false && (this.start_of_line || start_of_line_last_line != this.line)) {
+			// The derived tokenizer can disable automatic processing of code for example
+			// Inside a <script> tag in html.
+			// If enabled only execute the callback and nothing more.
+			if (!this.preprocess_code) {
+				this.callback(char, is_escaped, this.is_preprocessor)
+				return null;
+			}
+
+			// Set start of line flag.
+			if (disable_start_of_line) {
+				disable_start_of_line = false;
+				this.start_of_line = false;
+			}
+			else if (this.start_of_line || start_of_line_last_line != this.line) {
+				this.start_of_line = true;
 
 				// Allow whitespace at the line start.
 				if (char === " " || char === "\t") {
 					++this.line_indent;
-				}
-
-				// Set the last line disabling the start_of_line flag for next characters.
-				else {
-
-					// Close parent, exclude whitespace only lines.
-					if (this.is_indent_language === true && char !== "\n") {
-						while (this.parents.length > 0 && this.parents[this.parents.length - 1][1] === this.line_indent) {
-							--this.parents.length;
-						}
-					}
-
-					// Set disable start of line flag for the next char.
+					disable_start_of_line = false;
+				}	
+				else if (char !== "\n") {
 					disable_start_of_line = true;
 					start_of_line_last_line = this.line;
 				}
-			} else if (disable_start_of_line) {
-				this.start_of_line = false;
+			}
+
+			// Close parent, exclude whitespace only lines.
+			if (
+				this.start_of_line && 
+				this.is_indent_language && 
+				char !== " " && char !== "\t" && char !== "\n" &&
+				char !== this.single_line_comment_start &&
+				char !== this.multi_line_comment_start &&
+				this.parents.length > 0 &&
+				this.parents[this.parents.length - 1].indent >= this.line_indent
+			) {
+				let parents = [];
+				this.parents.iterate((item) => {
+					if (item.indent >= this.line_indent) {
+						return null;
+					}
+					parents.push(item);
+				})
+				this.parents = parents;
 			}
 
 			//
@@ -1435,6 +2075,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (!local_is_comment && !is_multi_line_comment) {
 					this.is_comment = false;
 					this.is_comment_keyword = false;
+					this.is_comment_keyword_multi_line = false;
 					// this.is_comment_codeblock = false; // may be multi line.
 				}
 				if (!local_is_regex) {
@@ -1476,6 +2117,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 				// During comment.
 				else {
+					const is_not_ui_escaped = this.prev_char !== "\\"; // it not escaped when writed by text editor so any \\ before counts as escaped regardless of double.
 
 					// End of comment codeblock.
 					if (this.is_comment_codeblock && char === "`" && this.next_char !== "`") {
@@ -1485,24 +2127,26 @@ vhighlight.Tokenizer = class Tokenizer {
 					}
 
 					// Start of comment codeblock.
-					else if (this.allow_comment_codeblock && !this.is_comment_codeblock && char === "`") {
+					else if (this.allow_comment_codeblock && is_not_ui_escaped && !this.is_comment_codeblock && char === "`") {
 						auto_append_batch_switch();
 						this.is_comment_codeblock = true;
 						this.batch += char;
 					}
 
 					// Check for @ keywords.
-					else if (this.allow_comment_keyword && !this.is_comment_codeblock && char === "@" && !is_escaped) {
+					else if (this.allow_comment_keyword && !this.is_comment_codeblock && char === "@" && is_not_ui_escaped) {
 						auto_append_batch_switch();
 						this.is_comment_keyword = true;
+						this.is_comment_keyword_multi_line = is_multi_line_comment;
 						this.batch += char;
 					}
 
 					// Check for end of @ keywords.
 					// Some word boundaries are allowed inside comment keywords, such as "-", "_", "/". This is required for Libris and it also makes sense.
-					else if (this.is_comment_keyword && (char !== "-" && char !== "_" && char !== "/" && this.word_boundaries.includes(char))) {
+					else if (this.is_comment_keyword && is_not_ui_escaped && (char !== "-" && char !== "_" && char !== "/" && this.word_boundaries.includes(char))) {
 						auto_append_batch_switch();
 						this.is_comment_keyword = false;	
+						this.is_comment_keyword_multi_line = false;
 						this.batch += char;
 					}
 
@@ -1595,9 +2239,14 @@ vhighlight.Tokenizer = class Tokenizer {
 
 					// Remove parent.
 					if (this.is_indent_language === false) {
-						while (this.parents.length > 0 && this.parents[this.parents.length - 1][1] === this.curly_depth) {
-							--this.parents.length;
-						}
+						let parents = [];
+						this.parents.iterate((item) => {
+							if (item.curly === this.curly_depth && item.parenth === this.parenth_depth) {
+								return null;
+							}
+							parents.push(item);
+						})
+						this.parents = parents;
 					}
 				}
 				
@@ -1656,6 +2305,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				if (this.is_comment_keyword) {
 					this.append_batch("comment_keyword", {is_comment: true});
 					this.is_comment_keyword = false;
+					this.is_comment_keyword_multi_line = false;
 				}
 				else if (this.is_comment_codeblock) {
 					append_comment_codeblock_batch();
@@ -1665,6 +2315,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					this.append_batch("comment", {is_comment: true});
 					this.is_comment = false;
 					this.is_comment_keyword = false;
+					this.is_comment_keyword_multi_line = false;
 					this.is_comment_codeblock = false;
 				}
 				
@@ -1721,11 +2372,351 @@ vhighlight.Tokenizer = class Tokenizer {
 					// fallthrough.
 				}
 
+				// On opening parenth.
+				// Also resume when callback is not defined to catch parameters from type defs detected by type def keywords when callback is not defined as in python.
+				else if (char === "(") {
+
+					// Get last token and execute callback.
+					let token = this.append_batch();
+					token = this.get_prev_token_by_token("last", [" ", "\t", "\n"], true, true); // also check current token and exclude comments.
+					let added_inside_parameters = false;
+					if (token) {
+
+						// Check callback.
+						if (token.token !== "type_def" && this.on_parenth_open !== undefined) { // skip when the token is already a type def, this can happen because of type def keywords such as "def" in python.
+							const res = this.on_parenth_open(token);
+							if (res) {
+								token = res;
+							}
+						}
+
+						// Check if the token is assigned as a type or type def.
+						if (token != null && this.allow_parameters && (token.token === "type_def" || token.token === "type")) {
+							if (this.is_js) {
+								token.is_assignment_parameters = undefined;
+							}
+							token.parameters = [];
+							this.inside_parameters.append({
+								is_type_def: token.token === "type_def",
+								curly_depth: this.curly_depth,
+								bracket_depth: this.bracket_depth,
+								parenth_depth: this.parenth_depth - 1, // minus one since +- is done before any callbacks, required to detect close.
+								token: token,
+								parenth_tokens: [],
+								parenth_tokens_correct_depth: [],
+							});
+							added_inside_parameters = true;
+						}
+					}
+
+					// Append word boundary.
+					this.batch += char;
+					const added_token = this.append_batch(false, {is_word_boundary: true});
+					if (added_inside_parameters) {
+						this.inside_parameters.last().opening_parenth_token = added_token;
+					}
+					return null;
+				}
+
+				// Check inside parameters from line-by-line mode.
+				// Must be after on opening parenth since type(defs) can still be inside param values.
+				// Must be before "Highlight parameters".
+				else if (
+					this.inside_parameters.length > 0 &&
+					this.word_boundaries.includes(char)
+				) {
+					const inside_param = this.inside_parameters.last();
+					const type_token = inside_param.token;
+
+					// Detect assignment parameters.
+					if (
+						this.is_js &&
+						inside_param.is_type_def &&
+						type_token.is_assignment_parameters === undefined &&
+						char === "{"
+					) {
+						const prev = this.get_last_token([" ", "\t", "\n"]);
+						if (prev && prev === inside_param.opening_parenth_token) {
+							type_token.is_assignment_parameters = true;
+						}
+					}
+
+					// The at correct depth flag, to be a direct child of the type def params.
+					// Nested parameter values using () {} etc will not be at correct depth to parse as params.
+					
+
+					// Check the last token to determine if the current batch is a parameter.
+					let prev;
+
+					if (
+						inside_param.bracket_depth === this.bracket_depth &&
+						(inside_param.curly_depth === this.curly_depth || (type_token.is_assignment_parameters && inside_param.curly_depth + 1 === this.curly_depth)) &&
+						(this.parenth_depth === inside_param.parenth_depth + 1 || this.parenth_depth === inside_param.parenth_depth) && // also not +1 to catch the last param before the closing ) which has normal depth.
+						(
+							(prev = this.get_prev_token_by_token("last", [" ", "\t", "\n"], true, true)) == null || // also check current last token and exclude comments.
+							prev.data === "(" ||
+							prev.data === "," ||
+							(type_token.is_assignment_parameters && prev.data === "{") ||
+							(this.is_type_language && (prev.token === "keyword" || prev.token === "type" || prev.token === "operator" || prev.data === ">"))
+						)
+					) {
+						const token = this.append_batch();
+						if (inside_param.is_type_def && token != null && token.token == null && !token.is_word_boundary && !token.is_whitespace && !token.is_line_break) {
+							if (!this.is_type_language || (
+								this.is_type_language &&
+								(prev.token === "keyword" || prev.token === "type" || prev.token === "operator" || prev.data === ">")
+							)) {
+								token.token = "parameter";
+							} else if (this.is_type_language) {
+								token.token = "type";
+							}
+						}
+					}
+
+					// Remove inside parameter flag.
+					let is_end = false;
+					if (
+						char === ")" &&
+						inside_param.parenth_depth === this.parenth_depth &&
+						inside_param.bracket_depth === this.bracket_depth &&
+						inside_param.curly_depth === this.curly_depth
+					) {
+
+						// Flag as end.
+						is_end = true;
+
+						// Append token.
+						const token = this.append_batch();
+
+						// Assign last param without value as parameter token.
+						if (inside_param.is_type_def && token != null && token.token == null && !token.is_word_boundary && !token.is_whitespace && !token.is_line_break) {
+							token.token = "parameter";
+						}
+
+						// Pop from inside parameters array.
+						--this.inside_parameters.length;
+
+						// Enable the is post type def modifier flag.
+						this.is_post_type_def_modifier = true;
+						this.post_type_def_modifier_type_def_token = type_token;
+
+						// ---------------------------------------------------------
+						// Parse parameters.
+
+						// Variables.
+						const at_correct_depth_flags = [];
+						const parameter_tokens = [];
+
+						// Slice the full parameter tokens, and the parameter tokens at correct depths for parameter parsing.
+						const last_token = this.get_last_token();
+						const correct_depth = new vhighlight.NestedDepth(type_token.is_assignment_parameters ? 1 : 0, 0, 1);
+						const parameter_depth = new vhighlight.NestedDepth(0, 0, 1);
+						const current_depth = new vhighlight.NestedDepth(0, 0, 0);
+						
+						let line = type_token.line, col = type_token.col;
+						while (line < this.tokens.length) {
+							++col;
+							if (col >= this.tokens[line].length) {
+								++line;
+								col = 0;
+							}
+							const token = this.tokens[line][col];
+							if (token != null) {
+								current_depth.process_token(token);
+								if (parameter_depth.gte(current_depth) && (parameter_tokens.length > 0 || token.data !== "(")) {
+									parameter_tokens.append(token);
+									at_correct_depth_flags.append(correct_depth.eq(current_depth) && (at_correct_depth_flags.length > 0 || (token.data !== "(" && token.data !== "{")));
+								}
+								if (token === last_token) {
+									break;
+								}
+							} else { break; }
+						}
+
+
+						// Create the array with parameters and assign the token_param to the tokens.
+						let mode = 1; // 1 for key 2 for value.
+						const params = [];
+
+						// Initialize a parameter object.
+						const init_param = () => {
+							return {
+								name: null, 	// the parameter name.
+								index: null, 	// the parameter index.
+								value: [], 		// the default value tokens.
+								type: [], 		// the type tokens.
+							};
+						}
+
+						// Append a parameter object.
+						const append_param = (param) => {
+							if (param !== undefined) {
+								param.type = this.trim_tokens(param.type);
+								param.value = this.trim_tokens(param.value);
+								param.index = params.length;
+								if (param.name != null) {
+									params.push(param);
+								}
+							};
+						}
+
+						// Check if the next parenth token is a assignment operator.
+						// Returns `null` when the there is no next assignment operator directly after the provided index.
+						const get_next_assignment_operator = (parenth_index) => {
+							let next, next_i = parenth_index + 1;
+							while ((next = parameter_tokens[next_i]) != null) {
+								if (next.data.length === 1 && next.data === "=") {
+									if (parameter_tokens[next_i - 1] != null && parameter_tokens[next_i - 1].token === "operator") {
+										return null;
+									}
+									return next;
+								} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
+									return null;
+								}
+								++next_i;
+							}
+							return null;
+						}
+
+						// Iterate the parenth tokens.
+						const is_type_def = type_token.token === "type_def";
+						const is_decorator = type_token.is_decorator === true;
+
+						let param;
+						let is_type = true;
+						let index = -1;
+						parameter_tokens.iterate(token => {
+							++index;
+							const at_correct_depth = at_correct_depth_flags[index];
+
+							// Skip on the closing assignment param tokens.
+							// Already skipped by at correct depth.
+							// if (type_token.is_assignment_parameters && token.index >= closing_assignment_parameter_curly_index) {
+							// 	return null;
+							// }
+
+							// Set key and value flags.
+							if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
+								append_param(param);
+								param = init_param();
+								mode = 1;
+								is_type = true;
+							}
+							else if (at_correct_depth && token.is_word_boundary === true && token.data === "=") {
+								mode = 2;
+							}
+
+							// When key.
+							else if (mode === 1) {
+
+								// Init param.
+								if (param === undefined) {
+									param = init_param();
+								}
+
+								// Skip tokens.
+								if (
+									at_correct_depth === false
+								) {
+									return null;
+								}
+
+								// Assign as type.
+								if (
+									is_type &&
+									(
+										token.token === "keyword" ||
+										token.token === "type" ||
+										token.is_whitespace === true ||
+										token.token === "operator" ||
+										token.data === "." ||
+										token.data === ":" ||
+										token.data === "<" ||
+										token.data === ">" ||
+										token.data === "*" ||
+										token.data === "&"
+									)
+								) {
+									param.type.push(token);
+
+									// Revert incorrect parameter token to "type" token.
+									// For example in cpp func `myfunc(T t) {}`.
+									// if (token.token === "parameter") {
+									// 	token.token = "type";
+									// }
+								}
+
+								// Assign as key.
+								else {
+									is_type = false;
+									const allow_assignment = (
+										token.token === "type_def" ||
+										token.token === "parameter" ||
+										(token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]")
+									);
+
+									// On a type definition always assign to parameter.
+									// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
+									// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
+									if (allow_assignment && (is_type_def || (this.is_js && type_token === null))) {
+										if (token.is_whitespace === true || token.is_word_boundary === true) {
+											return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+										}
+										param.name = token.data.trim();
+									}
+
+									// When the token is a type there must be a "=" after this tokens.
+									// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
+									else if (!is_type_def && (allow_assignment || is_decorator)) {
+										const next = get_next_assignment_operator(index);
+										if (next != null && allow_assignment) {
+											if (token.is_whitespace === true || token.is_word_boundary === true) {
+												return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+											}
+											param.name = token.data.trim();
+										}
+										else if (next == null && is_decorator) {
+											param.value.push(token);
+										}
+									}
+								}
+							}
+
+							// When value.
+							else if (
+								mode === 2 && 
+								(is_type_def || is_decorator)
+							) {
+								param.value.push(token);
+							}
+						})
+
+						// Add last param.
+						append_param(param);
+
+						// Assign parsed parameters, the plain parameter tokens are also used in Libris.
+						type_token.parameters = params; 
+						type_token.parameter_tokens = parameter_tokens; 
+					}
+
+					// Do not append batch here so the user defined callback can still process the word boundary.
+
+					// Append word boundary.
+					// @deprecated.
+					// this.append_batch();
+					// this.batch += char;
+					// this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator or white space.
+					// return null;
+				}
+
+				/*	V1 parameters.
 				// Highlight parameters.
-				// @todo check if there are any post keywords between the ")" and "{" for c like langauges. Assign them to the type def token as "post_modifiers".
-				// @todo check if there are any pre keywords between before the "funcname(", ofc exclude "function" etc, cant rely on the type def tokens. Assign them to the type def token as "pre_modifiers".
+				// Only supported in one-time highlighting, not when using line-by-line mode.
 				// @todo when using a lot of tuple like functions `(() => {})()` which are often used in typescript, this becomes waaaaayy to slow.
-				else if (this.allow_parameters && char === ")") {
+				else if (
+					this.allow_parameters &&
+					char === ")"
+				) {
 
 					// ---------------------------------------------------------
 
@@ -1751,7 +2742,7 @@ vhighlight.Tokenizer = class Tokenizer {
 
 					// Get the tokens inside the parentheses at the correct pareth depth and skip all word boundaries except ",".
 					let parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
-					let is_assignment_parameters = false, first_token = true;
+					let closing_assignment_parameter_curly_index = null;
 					const found = this.tokens.iterate_tokens_reversed((token) => {
 
 						// Set depths.
@@ -1765,6 +2756,9 @@ vhighlight.Tokenizer = class Tokenizer {
 								}
 								--parenth_depth;
 							} else if (token.data === "}") {
+								if (curly_depth === 0) {
+									closing_assignment_parameter_curly_index = token.index; // so it will be set to he last closing } therefore it can also skip the tokens from like "} = {}".
+								}
 								++curly_depth;
 							} else if (token.data === "{") {
 								--curly_depth;
@@ -1775,31 +2769,50 @@ vhighlight.Tokenizer = class Tokenizer {
 							}
 						}
 
-						// Check if are js assignment params defined like `myfunc({param = ...})`.
-						if (first_token && (token.data.length > 1 || (token.data != " " && token.data != "\t" && token.data != "\n"))) {
-							is_assignment_parameters = token.data.length === 1 && token.data === "}";
-							first_token = false;
-						}
-
+						// Set correct depth so only the tokens within the correct depth will be parsed.
+						token.tmp_curly_depth = curly_depth;
+						token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0;
+						// token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0 && curly_depth <= 0;
+						
 						// Append token.
-						token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0 && ((is_assignment_parameters && curly_depth <= 1) || curly_depth <= 0);
 						parenth_tokens.push(token);
 					});
 
-					// Opening parenth not found.
-					if (opening_parenth_token == null) {
-						parenth_tokens.iterate_reversed((token) => { delete token.at_correct_depth; });
-						return finalize();
+					// Check if the params are js assignment params defined like `myfunc({param = ...})`.
+					let is_assignment_parameters = false;
+					parenth_tokens.iterate_reversed((token) => {
+						if (token.data === "{") {
+							is_assignment_parameters = true;
+							return true;
+						} else if (token.is_whitespace !== true) {
+							return true;
+						}
+					})
+
+					// Update the at correct depth attribute.
+					if (is_assignment_parameters === false) {
+						closing_assignment_parameter_curly_index = null;
+						parenth_tokens.iterate((token) => {
+							token.at_correct_depth = token.at_correct_depth && token.tmp_curly_depth <= 0;
+						})
+					} else {
+						parenth_tokens.iterate((token) => {
+							token.at_correct_depth = token.at_correct_depth && token.tmp_curly_depth <= 1;
+						})
 					}
 
-					// Get the token offset of the last } when it are assignment parameters.
-					let closing_assignment_parameter_curly_offset = -1;
-					if (is_assignment_parameters) {
-						closing_assignment_parameter_curly_offset = parenth_tokens.iterate((token) => {
-							if (token.data.length === 1 && token.data === "}") {
-								return token.offset;
-							}
-						})
+					// Remove new attibutes.
+					const clean_parent_tokens = () => {
+						parenth_tokens.iterate_reversed((token) => {
+							delete token.at_correct_depth;
+							delete token.tmp_curly_depth;
+						});
+					}
+
+					// Opening parenth not found.
+					if (opening_parenth_token == null) {
+						clean_parent_tokens();
+						return finalize();
 					}
 
 					// ---------------------------------------------------------
@@ -1810,9 +2823,9 @@ vhighlight.Tokenizer = class Tokenizer {
 					let type_token;
 
 					// Get token before the opening parenth.
-					const token_before_opening_parenth = this.get_prev_token(opening_parenth_token.index - 1, [" ", "\t", "\n"]);
+					const token_before_opening_parenth = this.get_prev_token_by_token(opening_parenth_token, [" ", "\t", "\n"]);
 					if (token_before_opening_parenth == null) {
-						parenth_tokens.iterate_reversed((token) => { delete token.at_correct_depth; });
+						clean_parent_tokens();
 						return finalize();
 					}
 
@@ -1821,7 +2834,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Except for certain keywords that are allowed in some languages.
 					const is_keyword = token_before_opening_parenth.token === "keyword";
 					if (is_keyword && this.allowed_keywords_before_type_defs.includes(token_before_opening_parenth.data) === false) {
-						parenth_tokens.iterate_reversed((token) => { delete token.at_correct_depth; });
+						clean_parent_tokens();
 						return finalize();
 					}
 
@@ -1855,9 +2868,10 @@ vhighlight.Tokenizer = class Tokenizer {
 
 						// Assign parents to the type token.
 						// But only when the callback has not already assigned parents.
-						if (type_token.parents === undefined && type_token.is_decorator !== true && (this.parents.length === 0 || this.parents[this.parents.length - 1][0] !== type_token)) {
-							this.assign_parents(type_token)	;
-						}
+						if (type_token.parents === undefined && type_token.is_decorator !== true && (this.parents.length === 0 || this.parents[this.parents.length - 1].token !== type_token)) {
+							this.assign_parents(type_token);
+							this.assign_token_as_type_def(type_token); // since this must be done after parents are assigned, and since they weren't assigned to this as well.
+						};
 
 					}
 
@@ -1916,6 +2930,12 @@ vhighlight.Tokenizer = class Tokenizer {
 						--i;
 						const at_correct_depth = token.at_correct_depth;
 						delete token.at_correct_depth;
+						delete token.tmp_curly_depth;
+
+						// Skip on the closing assignment param tokens.
+						if (is_assignment_parameters && token.index >= closing_assignment_parameter_curly_index) {
+							return null;
+						}
 
 						// Set key and value flags.
 						if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
@@ -1953,7 +2973,7 @@ vhighlight.Tokenizer = class Tokenizer {
 								// On a type definition always assign to parameter.
 								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
 								// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
-								if ((is_type_def || (this.language === "JS" && type_token === null)) && allow_assignment) {
+								if ((is_type_def || (this.is_js && type_token === null)) && allow_assignment) {
 									if (token.is_whitespace === true || token.is_word_boundary === true) {
 										return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
 									}
@@ -1972,7 +2992,7 @@ vhighlight.Tokenizer = class Tokenizer {
 										param.name = token.data.trim();
 										token.token = "parameter";
 									}
-									else if (next === null && is_decorator && closing_assignment_parameter_curly_offset !== token.offset) {
+									else if (next === null && is_decorator) {
 										param.value.push(token);
 									}
 								}
@@ -1982,8 +3002,7 @@ vhighlight.Tokenizer = class Tokenizer {
 						// When value.
 						else if (
 							mode === 2 && 
-							(is_type_def || is_decorator) && 
-							closing_assignment_parameter_curly_offset !== token.offset
+							(is_type_def || is_decorator)
 						) {
 							param.value.push(token);
 						}
@@ -2010,6 +3029,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					// Append word boundary to tokens.
 					return finalize();
 				}
+				*/
 
 				// Call the handler.
 				// And append the character when not already appended by the handler.
@@ -2021,7 +3041,7 @@ vhighlight.Tokenizer = class Tokenizer {
 					if (this.word_boundaries.includes(char)) {
 						this.append_batch();
 						this.batch += char;
-						this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
+						this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator or white space.
 					}
 					
 					// Add to batch till a word boundary is reached.
@@ -2047,355 +3067,13 @@ vhighlight.Tokenizer = class Tokenizer {
 			this.tokens.push([]);
 		}
 
-		// console.log(`append_token time: ${this.append_token_time}ms.`);
-		// console.log(`get_prev_token time: ${this.get_prev_token_time}ms.`);
-
 		// Build html.
 		if (build_html) {
 			return this.build_html();
 		}
 
 		// Return tokens.
-		else  {
-			return this.tokens;
-		}
-	}
-
-	// Partial tokenize.
-	/*	@docs: {
-		@title Partial tokenize
-		@description: Partially tokenize text based on edited lines.
-		@warning: the `parents`, `pre_modifiers`, `post_modifiers`, `templates` and `requires` attributes on the type def tokens will not be correct when using `partial_tokenize()`.
-		@parameter: {
-			@name: code
-			@type: string
-			@description: The new code data.
-		}
-		@parameter: {
-			@name: edits_start
-			@type: string
-			@description: The start line from where the edits took place.
-		}
-		@parameter: {
-			@name: edits_end
-			@type: string
-			@description: The end line till where the edits took place.
-		}
-		@parameter: {
-			@name: line_additions.
-			@type: string
-			@description: The number of line additions (positive) or the number of line deletions (negative).
-		}
-		@parameter: {
-			@name: tokens
-			@type: array[object]
-			@description: The old tokens.
-		}
-	} */
-	partial_tokenize({
-		code = null,
-		edits_start = null,
-		edits_end = null,
-		line_additions = 0,
-		tokens = [],
-		build_html = false,
-	}) {
-
-		// Assign code when not assigned.
-		// So the user can also assign it to the tokenizer without cause two copies.
-		if (code !== null) {
-			this.code = code;
-		}
-
-		// Reset.
-		this.reset();
-
-		// Derived reset.
-		if (this.derived_reset !== undefined) {
-			this.derived_reset();
-		}
-
-		// Args.
-		if (line_additions === undefined || isNaN(line_additions)) {
-			line_additions = 0;
-		}
-
-		// Vars.
-		let scope_start = 0; 		// the line where the scope around the new edits starts.
-		let scope_start_offset = 0; // the index offset of the scope start from the new code.
-		let scope_end = null; 		// the line where the scope around the new edits ends.
-		let scope_end_offset = 0;   // the index offset of the scope end from the new code.
-		let now;
-
-		// ---------------------------------------------------------
-		// Find the scope start.
-		// now = Date.now();
-
-		// console.log("code:",this.code);
-		// console.log("edits_start:",edits_start);
-		// console.log("edits_end:",edits_end);
-
-		// Iterate backwards to find the scope start line.
-		// Do not stop if another string, comment, regex or preprocessor has just ended on the line that the start scope has been detected.
-		// Start one line before the edits_start since a "{" or "}" may already be on that line which can cause issues when editing a func def.
-		if (edits_start != 0) {
-
-			// Find start scope by type def tokens.
-			if (this.seperate_scope_by_type_def === true) {
-				let parenth_depth = 0, bracket_depth = 0;
-				tokens.iterate_reversed(0, edits_start, (line_tokens) => {
-
-					// Skip on empty line tokens.
-					if (line_tokens.length === 0) {
-						return null;
-					}
-
-					// Vars.
-					let found_separator = null;
-
-					// Check if the line contains a scope separator.
-					line_tokens.iterate_reversed((token) => {
-
-						// Depths.
-						if (token.token === undefined && token.data === "(") {
-							--parenth_depth;
-						}
-						else if (token.token === undefined && token.data === ")") {
-							++parenth_depth;
-						}
-						else if (token.token === undefined && token.data === "[") {
-							--bracket_depth;
-						}
-						else if (token.token === undefined && token.data === "]") {
-							++bracket_depth;
-						}
-
-						// Found type def at zero depth.
-						else if (token.token === "type_def" && depth === 0) {
-							found_separator = token.line;
-							return true;
-						}
-					})
-
-					// Do not stop when the first token is a comment, string etc because it may resume on the next line.
-					const first_token = line_tokens[0];
-					if (
-						found_separator !== null &&
-						first_token.token !== "comment" &&
-						first_token.token !== "string" &&
-						first_token.token !== "token_regex" &&
-						first_token.token !== "preprocessor"
-					) {
-						scope_start = first_token.line;
-						scope_start_offset = first_token.offset;
-						return true;
-					}
-				})
-			}
-
-			// Find start scope by scope seperators.
-			else {
-				let use_curly = false;
-				let curly_depth = 0;
-				const scope_separators = [];
-				this.scope_separators.iterate((item) => {
-					if (item == "{" && item == "}") { use_curly = true; }
-					else { scope_separators.push(item); }
-				})
-				tokens.iterate_reversed(0, edits_start, (line_tokens) => {
-
-					// Skip on empty line tokens.
-					if (line_tokens.length === 0) {
-						return null;
-					}
-
-					// Vars.
-					let found_separator = null;
-
-					// Check if the line contains a scope separator.
-					line_tokens.iterate_reversed((token) => {
-
-						// Opening curly.
-						if (use_curly && token.token === undefined && token.data === "{") {
-							if (curly_depth === 0) {
-								found_separator = token.line;
-								return true;
-							}
-							--curly_depth;
-						}
-
-						// Closing curly.
-						else if (use_curly && token.token === undefined && token.data === "}") {
-							++curly_depth;
-						}
-
-						// Any other scope seperators.
-						else if (
-							(token.token === undefined || token.token === "operator") &&
-							token.data.length === 1 &&
-							this.scope_separators.includes(token.data)
-						) {
-							found_separator = token.line;
-							return true;
-						}
-					})
-
-					// Do not stop when the first token is a comment, string etc because it may resume on the next line.
-					const first_token = line_tokens[0];
-					if (
-						found_separator !== null &&
-						first_token.token !== "comment" &&
-						first_token.token !== "string" &&
-						first_token.token !== "token_regex" &&
-						first_token.token !== "preprocessor"
-					) {
-						scope_start = first_token.line;
-						scope_start_offset = first_token.offset;
-						// console.log(scope_start);
-						return true;
-					}
-				})
-			}
-		}
-		
-		// console.log("scope_start_offset:",scope_start_offset);
-		// console.log("scope_start:",scope_start);
-		// console.log("Find the scope start:", Date.now() - now, "ms.");
-
-		// ---------------------------------------------------------
-		// Start the tokenizer with a stop callback
-		// now = Date.now();
-
-		// Chech if the line tokens of two lines match for the stop callback.
-		const match_lines = (x, y) => {
-			if (x.length !== y.length) {
-				return false;
-			}
-			if (x.length <= 1) { // prevent line break lines.
-				return false;
-			}
-			for (let i = 0; i < x.length; i++) {
-				const x_token = x[i];
-				const y_token = y[i];
-				if (
-					x_token.token !== y_token.token ||
-					x_token.data !== y_token.data 
-				) {
-					return false;
-				}
-			}
-			return true;
-		}
-
-		// The stop callback to check if the just tokenized line is the same as the original line.
-		// This works correctly when first typing an unfinished string etc and then later terminating it.
-		// Also resume when the original line tokens at the adjusted line does not exist since then multiple new lines have been added.
-		let insert_start_line = scope_start;
-		let insert_end_line = null;
-		let curly_depth = 0, bracket_depth = 0, parenth_depth = 0;
-		const stop_callback = (line, line_tokens) => {
-
-			// The bracket, curly and parentheses depth must all be zero to capture the full scope.
-			line_tokens.iterate((token) => {
-				if (token.token === undefined && token.data.length === 1) {
-					if (token.data === "{") { ++curly_depth; }
-					else if (token.data === "}") { --curly_depth; }
-					else if (token.data === "(") { ++parenth_depth; }
-					else if (token.data === ")") { --parenth_depth; }
-					else if (token.data === "[") { ++bracket_depth; }
-					else if (token.data === "]") { --bracket_depth; }
-				}
-			})
-
-			// Stop when not all depths are zero.
-			if (curly_depth !== 0 || bracket_depth !== 0 || parenth_depth !== 0) {
-				return false;
-			}
-
-			// Check if the lines match.
-			line += scope_start;
-			const adjusted_line = line - line_additions;
-			if (line > edits_end && tokens[adjusted_line] !== undefined && match_lines(tokens[adjusted_line], line_tokens)) {
-				insert_end_line = adjusted_line;
-				return true;
-			}
-			return false;
-		};
-
-		// Tokenize.
-		this.code = this.code.substr(scope_start_offset, this.code.length - scope_start_offset);
-		const insert_tokens = this.tokenize({stop_callback: stop_callback});
-
-		// console.log("SCOPE:", this.code);
-		// console.log("Tokenized lines:",insert_tokens.length);
-		// console.log("insert_tokens:",insert_tokens)
-		// console.log("Highlight the edits:", Date.now() - now, "ms.");
-
-		// ---------------------------------------------------------
-		// Insert tokens
-		// now = Date.now();
-
-		// console.log("insert_start_line:",insert_start_line);
-		// console.log("insert_end_line:",insert_end_line);
-		// console.log("line_additions:",line_additions);
-
-		// Initialize combined tokens.
-		let combined_tokens = new vhighlight.Tokens();
-
-		// Insert tokens into the current tokens from start line till end line.
-		// So the new tokens will old start till end lines will be removed and the new tokens will be inserted in its place.
-		// The start line will be removed, and the end line will be removed as well.
-		let insert = true;
-		let line_count = 0, token_index = 0, offset = 0;;
-		for (let line = 0; line < tokens.length; line++) {
-			if (insert && line == insert_start_line) {
-				insert = false;
-				insert_tokens.iterate((line_tokens) => {
-					line_tokens.iterate((token) => {
-						token.line = line_count;
-						token.index = token_index;
-						token.offset = offset;
-						offset += token.data.length;
-						++token_index;
-					});
-					++line_count;
-					combined_tokens.push(line_tokens);
-				})
-			}
-			else if (line < insert_start_line || (insert_end_line !== null && line > insert_end_line)) {
-				const line_tokens = tokens[line];
-				line_tokens.iterate((token) => {
-					token.line = line_count;
-					token.index = token_index;
-					token.offset = offset;
-					offset += token.data.length;
-					++token_index;
-				});
-				++line_count;
-				combined_tokens.push(line_tokens);
-			}
-		}
-		
-		// When the last line has no content then append an enmpty line token array since there actually is a line there.
-		const last_line = combined_tokens[combined_tokens.length - 1];
-		if (last_line === undefined || (last_line.length > 0 && last_line[last_line.length - 1].is_line_break)) {
-			combined_tokens.push([]);
-		}
-
-		// console.log("line_count:",line_count);
-		// console.log("combined_tokens:",combined_tokens);
-		// console.log("Combine the tokens:", Date.now() - now, "ms.");
-
-		// Assign to tokens.
-		this.tokens = combined_tokens;
-
-		// Build html.
-		if (build_html) {
-			return this.build_html();
-		}
-
-		// Return tokens.
-		else  {
+		else {
 			return this.tokens;
 		}
 	}
@@ -2408,6 +3086,8 @@ vhighlight.Tokenizer = class Tokenizer {
 		lt = "<", 
 		gt = ">",
 		trim = false, // remove whitespace including newlines at the start and end.
+		line_containers = false,
+		line_break = "\n",
 	} = {}) {
 
 		// Vars.
@@ -2415,6 +3095,7 @@ vhighlight.Tokenizer = class Tokenizer {
 			tokens = this.tokens;
 		}
 		let html = "";
+		let is_codeblock = false;
 
 		// Build a token's html.
 		const build_token = (token) => {
@@ -2424,7 +3105,17 @@ vhighlight.Tokenizer = class Tokenizer {
 				} else {
 					html += token.data;
 				}
+			} else if (token.token === "line") {
+				html += line_break;
 			} else {
+
+				// Insert codeblock start for markdown tokenizers.
+				if (token.is_codeblock_start === true) {
+					html += `${lt}span class='token_codeblock'${gt}`;
+					is_codeblock = true;
+				}
+
+				// Add token.
 				let class_ = "";
 				if (token.token !== undefined) {
 					class_ = `class="${token_prefix}${token.token}"`;
@@ -2434,15 +3125,27 @@ vhighlight.Tokenizer = class Tokenizer {
 				} else {
 					html += `${lt}span ${class_}${gt}${token.data}${lt}/span${gt}`
 				}
+
+				// Insert codeblock end for markdown tokenizers.
+				if (token.is_codeblock_end === true) {
+					html += `${lt}/span${gt}`;
+					is_codeblock = false;
+				}
 			}
 		}
 
 		// Build tokens.
 		const build_tokens = (tokens) => {
+			if (line_containers) {
+				html += `${lt}span class='token_line_container'${gt}`
+			}
+			if (is_codeblock) {
+				html += `${lt}span class='token_codeblock'${gt}`;
+			}
 			let start = true;
 			let end = null;
 			if (trim) {
-				for (let i = tokens.length - 1; i >= 0; i++) {
+				for (let i = tokens.length - 1; i >= 0; i--) {
 					const token = tokens[i];
 					if (token.is_whitespace === true || token.is_line_break === true) {
 						end = i;
@@ -2460,10 +3163,15 @@ vhighlight.Tokenizer = class Tokenizer {
 				}
 				build_token(token);
 			});
+			if (is_codeblock) {
+				html += `${lt}/span${gt}`
+			}
+			if (line_containers) {
+				html += `${lt}/span${gt}`
+			}
 		}
 		
 		// Iterate an array with token objects.
-		// console.log("TOKENS:", tokens);
 		if (tokens.length > 0) {
 			let start = true;
 			if (Array.isArray(tokens[0])) {

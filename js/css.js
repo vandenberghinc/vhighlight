@@ -243,14 +243,9 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 			],
 			multi_line_comment_start: "/*",
 			multi_line_comment_end: "*/",
+			allow_parameters: false,
 
-			// Attributes for partial tokenizing.
-			scope_separators: [
-				"{", 
-				"}", 
-			],
-
-			// Language, must never be changed it is used by dependents, such as vdocs.
+			// Language, must never be changed it is used by dependents, such as Libris.
 			language: "CSS",
 		});
 
@@ -287,159 +282,157 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 		].join("|");
 		this.numeric_regex = new RegExp(`^-?\\d+(\\.\\d+)?(${numeric_suffixes})*$`);
 
-		// Set callback.
-		this.callback = (char, is_escaped) => {
-			
-			// At keywords such as "@keyframes".
-			if (char == "@") {
-				const end = this.get_first_word_boundary(this.index + 1);
-				this.append_batch();
-				this.append_forward_lookup_batch("keyword", this.code.substr(this.index, end - this.index));
-				this.resume_on_index(end - 1);
-				return true;
-			}
+	}
 
-			// Hex colors.
-			if (this.batch == "" && char == "#") {
-				const end = this.get_first_word_boundary(this.index + 1);
-				this.append_batch();
-				this.append_forward_lookup_batch("string", this.code.substr(this.index, end - this.index));
-				this.resume_on_index(end - 1);
-				return true;
-			}
-
-			// Css class definitions.
-			else if (char == "{") {
-				this.append_batch();
-				let index = this.added_tokens - 1;
-				while (true) {
-					const prev = this.get_prev_token(index, [" ", ",", "\t", ":"]);
-					if (prev == null || prev.data == "\n") {
-						break;
-					}
-					else if (
-						(prev.token == "string") || // for "#myid" which will otherwise be treated as hex strings.
-						(prev.token == "keyword" && prev.data.charAt(0) != "@") ||
-						(prev.token === undefined && 
-							(
-								prev.data == "#" || 
-								prev.data == "." || 
-								prev.data == "*" || 
-								prev.data == "-" || 
-								this.is_alphabetical(prev.data.charAt(0))
-							)
-						)
-					) {
-						const pprev = this.tokens[prev.index - 1];
-						if (pprev != null && pprev.data == ":") {
-							prev.token = "keyword";
-							// pprev.token = "keyword";
-							// const ppprev = this.tokens[pprev.index - 1];
-							// if (ppprev != null && ppprev.data == ":") {
-							// 	ppprev.token = "keyword";
-							// }
-						} else {
-							prev.token = "type_def";
-						}
-					}
-					index = prev.index - 1;
-				}
-			}
-
-			// CSS style attribute, curly depth is higher then 1 with pattern "^\s*XXX:" or ";\s*XXX:".
-			else if (this.curly_depth > 0 && char == ":") {
-				this.append_batch();
-				let index = this.added_tokens - 1;
-				let edits = [];
-				let finished = false;
-				while (true) {
-					const prev = this.get_prev_token(index, [" ", "\t"]);
-					if (prev == null) {
-						break;
-					}
-					else if (prev.data == "\n" || prev.data == ";") {
-						finished = true;
-						break;
-					}
-					else if (prev.token === undefined/* || prev.data == "-"*/) {
-						edits.push(prev);
-					}
-					index = prev.index - 1;
-					// console.log(edits);
-				}
-				if (finished) {
-					for (let i = 0; i < edits.length; i++) {
-						edits[i].token = "keyword";
-					}
-					
-					// Set style start and end.
-					this.style_start = this.index;
-					for (let i = this.index + 1; i < this.code.length; i++) {
-						const c = this.code.charAt(i);
-						if (c == "\n") {
-							this.style_start = null;
-							break;
-						} else if (c == ";") {
-							this.style_end = i;
-							break;
-						}
-					}
-				}
-			}
-
-			// Numerics.
-			else if (char == "%" && this.numeric_regex.test(this.batch + char)) {
-				this.batch += char;
-				this.append_batch("numeric");
-				return true;
-			}
-			else if (this.word_boundaries.includes(char) && this.numeric_regex.test(this.batch)) {
-				this.append_batch("numeric");
-			}
-
-			// Style attribute value keywords.
-			// Basically every token that does not have an assigned token and does not contain a word boundary except for "-" between the style start and end.
-			// Must be after numerics.
-			else if (this.style_end != null && this.index >= this.style_end) {
-				this.append_batch();
-				let index = this.added_tokens - 1;
-				let finished = false;
-				const edits = [];
-				while (true) {
-					const prev = this.get_prev_token(index, [" ", "\t"]);
-					if (prev == null || prev == "\n") {
-						break;
-					}
-					else if (prev.data == ":") {
-						finished = true;
-						break;
-					}
-					else if (prev.token === undefined && !this.str_includes_word_boundary(prev.data)) {
-						edits.push(prev);
-					}
-					index = prev.index - 1;
-				}
-				if (finished) {
-					for (let i = 0; i < edits.length; i++) {
-						edits[i].token = "keyword";
-					}
-				}
-				this.style_end = null;
-			}
-
-			// Nothing done.
-			return false;
+	// Set callback.
+	callback(char, is_escaped) {
+		
+		// At keywords such as "@keyframes".
+		if (char == "@") {
+			const end = this.get_first_word_boundary(this.index + 1);
+			this.append_batch();
+			this.append_forward_lookup_batch("keyword", this.code.substr(this.index, end - this.index));
+			this.resume_on_index(end - 1);
+			return true;
 		}
 
-		// Set on parenth close.
-		this.on_parenth_close = ({
-			token_before_opening_parenth = token_before_opening_parenth,
-			after_parenth_index = after_parenth_index,
-		}) => {
-			if (token_before_opening_parenth != null && token_before_opening_parenth.token === undefined) {
-				token_before_opening_parenth.token = "type";
-				return token_before_opening_parenth;
+		// Hex colors.
+		if (this.batch == "" && char == "#") {
+			const end = this.get_first_word_boundary(this.index + 1);
+			this.append_batch();
+			this.append_forward_lookup_batch("string", this.code.substr(this.index, end - this.index));
+			this.resume_on_index(end - 1);
+			return true;
+		}
+
+		// Css class definitions.
+		else if (char == "{") {
+			this.append_batch();
+			let index = this.added_tokens - 1;
+			while (true) {
+				const prev = this.get_prev_token(index, [" ", ",", "\t", ":"]);
+				if (prev == null || prev.data == "\n") {
+					break;
+				}
+				else if (
+					(prev.token == "string") || // for "#myid" which will otherwise be treated as hex strings.
+					(prev.token == "keyword" && prev.data.charAt(0) != "@") ||
+					(prev.token === undefined && 
+						(
+							prev.data == "#" || 
+							prev.data == "." || 
+							prev.data == "*" || 
+							prev.data == "-" || 
+							this.is_alphabetical(prev.data.charAt(0))
+						)
+					)
+				) {
+					const pprev = this.tokens[prev.index - 1];
+					if (pprev != null && pprev.data == ":") {
+						prev.token = "keyword";
+						// pprev.token = "keyword";
+						// const ppprev = this.tokens[pprev.index - 1];
+						// if (ppprev != null && ppprev.data == ":") {
+						// 	ppprev.token = "keyword";
+						// }
+					} else {
+						prev.token = "type_def";
+					}
+				}
+				index = prev.index - 1;
 			}
+		}
+
+		// CSS style attribute, curly depth is higher then 1 with pattern "^\s*XXX:" or ";\s*XXX:".
+		else if (this.curly_depth > 0 && char == ":") {
+			this.append_batch();
+			let index = this.added_tokens - 1;
+			let edits = [];
+			let finished = false;
+			while (true) {
+				const prev = this.get_prev_token(index, [" ", "\t"]);
+				if (prev == null) {
+					break;
+				}
+				else if (prev.data == "\n" || prev.data == ";") {
+					finished = true;
+					break;
+				}
+				else if (prev.token === undefined/* || prev.data == "-"*/) {
+					edits.push(prev);
+				}
+				index = prev.index - 1;
+				// console.log(edits);
+			}
+			if (finished) {
+				for (let i = 0; i < edits.length; i++) {
+					edits[i].token = "keyword";
+				}
+				
+				// Set style start and end.
+				this.style_start = this.index;
+				for (let i = this.index + 1; i < this.code.length; i++) {
+					const c = this.code.charAt(i);
+					if (c == "\n") {
+						this.style_start = null;
+						break;
+					} else if (c == ";") {
+						this.style_end = i;
+						break;
+					}
+				}
+			}
+		}
+
+		// Numerics.
+		else if (char == "%" && this.numeric_regex.test(this.batch + char)) {
+			this.batch += char;
+			this.append_batch("numeric");
+			return true;
+		}
+		else if (this.word_boundaries.includes(char) && this.numeric_regex.test(this.batch)) {
+			this.append_batch("numeric");
+		}
+
+		// Style attribute value keywords.
+		// Basically every token that does not have an assigned token and does not contain a word boundary except for "-" between the style start and end.
+		// Must be after numerics.
+		else if (this.style_end != null && this.index >= this.style_end) {
+			this.append_batch();
+			let index = this.added_tokens - 1;
+			let finished = false;
+			const edits = [];
+			while (true) {
+				const prev = this.get_prev_token(index, [" ", "\t"]);
+				if (prev == null || prev == "\n") {
+					break;
+				}
+				else if (prev.data == ":") {
+					finished = true;
+					break;
+				}
+				else if (prev.token === undefined && !this.str_includes_word_boundary(prev.data)) {
+					edits.push(prev);
+				}
+				index = prev.index - 1;
+			}
+			if (finished) {
+				for (let i = 0; i < edits.length; i++) {
+					edits[i].token = "keyword";
+				}
+			}
+			this.style_end = null;
+		}
+
+		// Nothing done.
+		return false;
+	}
+
+	// On parenth open.
+	on_parenth_open(token) {
+		if (!token.is_word_boundary && token.token === undefined) {
+			this.assign_token_as_type(token);
+			return token;
 		}
 	}
 
@@ -449,6 +442,12 @@ vhighlight.CSS = class CSS extends vhighlight.Tokenizer {
 		// Start and end of css style attribute index, start begins after the ":" and the end is at the ";".
 		this.style_start = null;
 		this.style_end = null;
+	}
+
+	// Derived retrieve state.
+	derived_retrieve_state(data) {
+		data.style_start = this.style_start;
+		data.style_end = this.style_end;
 	}
 }
 

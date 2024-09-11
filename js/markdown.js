@@ -21,22 +21,84 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			// Attributes for partial tokenizing.
 			scope_separators: [],
 
-			// Language, must never be changed it is used by dependents, such as vdocs.
+			// Language, must never be changed it is used by dependents, such as Libris.
 			language: "Markdown",
 		});
 
+		// Params.
+		this.insert_codeblocks = insert_codeblocks;
+		this.allow_markdown_bold_italic = true;
+
 		// Set callback.
-		this.callback = (char, a, b, c, d, is_escaped) => {
+		this.callback = Markdown.create_callback().bind(this);
+		this.derived_reset = Markdown.create_derived_reset().bind(this);
+		this.derived_retrieve_state = Markdown.create_derived_retrieve_state().bind(this);
+	}
+
+	// Create callback.
+	static create_callback() {
+		return function(char, a, b, c, d, is_escaped) {
 			
 			// Start of line excluding whitespace.
-			let start_of_line = false;
-			if (this.current_line != this.line && !this.is_whitespace(char)) {
-				start_of_line = true;
-				this.current_line = this.line;
+			// let start_of_line = false;
+			// if (this.current_line != this.line && !this.is_whitespace(char)) {
+			// 	start_of_line = true;
+			// 	this.current_line = this.line;
+			// }
+
+			// Inside multi line codeblock from TokenizerState.
+			if (this.md_inside_codeblock != null) {
+
+				// Do a forward lookup till the next "`".
+				let closing_index = this.code.indexOf("```", this.index);
+				let found_close = true;
+				if (closing_index === -1) {
+					closing_index = this.code.length;
+					found_close = false;
+				}
+
+				// Slice the code.
+				const code = this.code.substr(this.index, closing_index - this.index);
+
+				// Get tokenizer.
+				let tokenizer = vhighlight.init_tokenizer(this.md_inside_codeblock)
+
+				// Insert codeblock tokens.
+				if (this.insert_codeblocks) {
+
+					// Highlight.
+					if (tokenizer != null) {
+						tokenizer.code = code;
+						const tokens = tokenizer.tokenize({is_insert_tokens: true, state: this.md_inside_codeblock_state});
+						this.md_inside_codeblock_state = tokenizer.state();
+						this.concat_tokens(tokens);
+					} else {
+						this.append_forward_lookup_batch(this.allow_comment_codeblock ? "codeblock" : null, code);
+					}
+					if (found_close) {
+						this.append_forward_lookup_batch("keyword", "```", {is_codeblock_end: true});
+					}
+				}
+
+				// Put the codeblock into a single token.
+				else {
+					this.batch = code;
+					this.append_batch(this.allow_comment_codeblock ? "codeblock" : null, {language: tokenizer == null ? null : tokenizer.language});
+				}
+
+				// Foud close.
+				if (found_close) {
+					this.md_inside_codeblock = null;
+					this.md_inside_codeblock_state = null;
+				}
+
+				// Set resume index.
+				this.resume_on_index(closing_index + 3);
+				return true;
 			}
 
 			// Headings.
-			if (start_of_line && char == "#") {
+			if (this.start_of_line && char == "#") {
 
 				// Append batch by word boundary.
 				this.append_batch();
@@ -108,9 +170,46 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				}
 			}
 
+			// Metadata start.
+			else if (
+				this.start_of_line &&
+				this.md_inside_metadata === null &&
+				char === "-" &&
+				this.code.charAt(this.index + 1) === "-" &&
+				this.code.charAt(this.index + 2) === "-"
+			) {
+				this.md_inside_metadata = true;
+			}
+
+			// Inside metadata.
+			else if (this.md_inside_metadata) {
+
+				// Key end.
+				if (char === ":") {
+					const last = this.get_last_token();
+					if (last && last.is_line_break) {
+						this.append_batch("keyword");
+					}
+				}
+
+				// Metadata end.
+				else if (
+					this.start_of_line &&
+					char === "-" &&
+					this.code.charAt(this.index + 1) === "-" &&
+					this.code.charAt(this.index + 2) === "-"
+				) {
+					this.md_inside_metadata = false;
+				}
+
+				// Not catched.
+				return false;
+			}
+
 			// Bold text.
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
+				this.allow_markdown_bold_italic &&
 				(
 					(char == "*" && this.next_char == "*") ||
 					(char == "_" && this.next_char == "_")
@@ -121,8 +220,11 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				// Find closing char.
 				let closing_index = null;
 				for (let i = this.index + 2; i < this.code.length; i++) {
-					const c = this.code.charAt(i);
-					if (c == char && !this.is_escaped(i)) {
+					if (
+						this.code.charAt(i) == char &&
+						(this.code.charAt(i - 1) == null || !this.is_whitespace(this.code.charAt(i - 1))) &&
+						!this.is_escaped(i)
+					) {
 						closing_index = i;
 						break;
 					}
@@ -145,6 +247,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			// Italic text.
 			// It may not have whitespace after the "*" or "_" in order to seperate it from an unordered list.
 			else if (
+				this.allow_markdown_bold_italic &&
 				(char == "*" || char == "_") &&
 				!this.is_whitespace(this.next_char)
 			) {
@@ -152,8 +255,11 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				// Find closing char.
 				let closing_index = null;
 				for (let i = this.index + 1; i < this.code.length; i++) {
-					const c = this.code.charAt(i);
-					if (c == char && !this.is_escaped(i)) {
+					if (
+						this.code.charAt(i) == char &&
+						(this.code.charAt(i - 1) == null || !this.is_whitespace(this.code.charAt(i - 1))) &&
+						!this.is_escaped(i)
+					) {
 						closing_index = i;
 						break;
 					}
@@ -174,7 +280,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			}
 
 			// Block quote.
-			else if (start_of_line && char == ">") {
+			else if (this.start_of_line && char == ">") {
 				this.append_batch();
 				this.batch = char;
 				this.append_batch("keyword");
@@ -184,7 +290,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			// Unordered list.
 			// It must have whitespace after the "*" in order to seperate it from bold or italic text.
 			else if (
-				start_of_line && 
+				this.start_of_line && 
 				(char == "-" || char == "*" || char == "+") && 
 				this.is_whitespace(this.next_char)
 			) {
@@ -195,7 +301,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			}
 
 			// Ordered list.
-			else if (start_of_line && this.is_numerical(char)) {
+			else if (this.start_of_line && this.is_numerical(char)) {
 
 				// Do a forward lookup to check if there are only numerical chars and then a dot.
 				let batch = char;
@@ -277,7 +383,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			}
 
 			// Single line code block.
-			else if (char == "`" && this.next_char != "`" && this.prev_char != "`") {
+			else if (this.prev_char !== "\\" && char == "`" && this.next_char != "`" && this.prev_char != "`") {
 
 				// Do a forward lookup till the next "`".
 				let closing_index = null;
@@ -291,7 +397,7 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				if (closing_index == null) { return false; }
 
 				// Add token.
-				this.append_forward_lookup_batch("codeblock", this.code.substr(this.index, closing_index - this.index + 1));
+				this.append_forward_lookup_batch("codeline", this.code.substr(this.index, closing_index - this.index + 1));
 
 				// Set resume index.
 				this.resume_on_index(closing_index);
@@ -299,7 +405,8 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 			}
 
 			// Multi line code block.
-			else if (char == "`" && this.next_char == "`" && this.code.charAt(this.index + 2) == "`") {
+			// Only do not define the token `codeblock` when `allow_comment_codeblock` is `false`, do still highlight the code itself. Libris depends on this behaviour.
+			else if (this.prev_char !== "\\" && char == "`" && this.next_char == "`" && this.code.charAt(this.index + 2) == "`") {
 
 				// Do a forward lookup till the next "`".
 				let closing_index = null;
@@ -319,7 +426,11 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 						language += c;
 					}
 				}
-				if (closing_index == null) { return false; }
+				if (closing_index == null) {
+					this.md_inside_codeblock = language;
+					closing_index = this.code.length + 3;
+					// return false;
+				}
 
 				// Slice the code.
 				const start = this.index + 3 + language.length;
@@ -327,36 +438,45 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 				let tokenizer = language == "" ? null : vhighlight.init_tokenizer(language)
 
 				// Insert codeblock tokens.
-				if (insert_codeblocks) {
+				if (this.insert_codeblocks) {
 
 					// Highlight.
 					let result = null;
 					if (tokenizer != null) {
 						tokenizer.code = code;
 						result = tokenizer.tokenize({is_insert_tokens: true})
+						if (closing_index == null) {
+							this.md_inside_codeblock_state = tokenizer.state();
+						}
 					}
 
 					// Add tokens.
-					this.append_forward_lookup_batch("keyword", "```");
+					this.append_forward_lookup_batch("keyword", "```", {is_codeblock_start: true});
 					if (result == null) {
-						this.append_forward_lookup_batch("codeblock", language + code);
+						this.append_forward_lookup_batch(this.allow_comment_codeblock ? "codeblock" : null, language + code);
 					} else {
 						this.append_forward_lookup_batch("keyword", language);
 						this.concat_tokens(result);
 					}
-					this.append_forward_lookup_batch("keyword", "```");
+					this.append_forward_lookup_batch("keyword", "```", {is_codeblock_end: true});
 				}
 
 				// Put the codeblock into a single token.
 				else {
 					this.batch = code;
-					this.append_batch("codeblock", {language: tokenizer == null ? null : tokenizer.language});
+					this.append_batch(this.allow_comment_codeblock ? "codeblock" : null, {language: tokenizer == null ? null : tokenizer.language});
 				}
 
 				// Set resume index.
 				this.resume_on_index(closing_index);
 				return true;
 				
+			}
+
+			// Replace escaped ` code line/block.
+			else if (char === "\\" && this.next_char === "`") {
+				// do not append the \\.
+				return true;
 			}
 
 
@@ -366,8 +486,21 @@ vhighlight.Markdown = class Markdown extends vhighlight.Tokenizer {
 	}
 
 	// Reset attributes that should be reset before each tokenize.
-	derived_reset() {
-		this.current_line = null; // curent line to detect start of the line.
+	static create_derived_reset() {
+		return function () {
+			this.md_inside_codeblock = null; // inside a current markdown codeblock, used in TokenizerState line-by-line mode, assigned with the language name of the codeblock.
+			this.md_inside_codeblock_state = null; // the tokenizer state from the markdown codeblock.
+			this.md_inside_metadata = null;
+		}
+	}
+
+	// Derived retrieve state.
+	static create_derived_retrieve_state() {
+		return function (data) {
+			data.md_inside_codeblock = this.md_inside_codeblock;
+			data.md_inside_codeblock_state = this.md_inside_codeblock_state;
+			data.md_inside_metadata = this.md_inside_metadata;
+		}
 	}
 }
 

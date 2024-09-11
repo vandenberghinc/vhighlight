@@ -1,1 +1,0 @@
-this.parse_blocks.iterate((iter_block) => {});
