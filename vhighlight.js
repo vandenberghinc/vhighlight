@@ -4341,7 +4341,13 @@ else if (token.token==="type"){
 inherited_types.push({
 type:"public",
 token:token,
+tokens:[token],
+full_name:token.data,
 });
+}else if (!token.is_whitespace&&inherited_types.length>0){
+const last=inherited_types.last();
+last.tokens=[token, ...last.tokens];
+last.full_name=token.data+last.full_name;
 }
 })
 if (success&&inherited_types.length>0){

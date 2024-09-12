@@ -67,19 +67,29 @@ const join_array_tokens_data = (tokens, joiner = "") => {
     return data.join(joiner);
 }
 const debug_tokens = (tokens) => {
+    // console.log(tokens)
+    // console.log(JSON.stringify(tokens,null,4))
 
-    // Dump parents.
+    // Dump classes.
     tokens.iterate_tokens((token) => {
         if (token.token === "type_def") {
-            // if (!Array.isArray(token.parents)) {
-            //     console.log(token.data, "<no parents>");
-            // } else {
-            //     console.log(token.data, join_array_tokens_data([...token.parents, token], "."));
-            // }
-            console.log(token.data, token.parameter_tokens);
-            console.log(token.data, token.is_assignment_parameters);
+            // console.log(token)
+            console.log(JSON.stringify(token,null,4))
         }
     })
+
+    // Dump parents.
+    // tokens.iterate_tokens((token) => {
+    //     if (token.token === "type_def") {
+    //         // if (!Array.isArray(token.parents)) {
+    //         //     console.log(token.data, "<no parents>");
+    //         // } else {
+    //         //     console.log(token.data, join_array_tokens_data([...token.parents, token], "."));
+    //         // }
+    //         console.log(token.data, token.parameter_tokens);
+    //         console.log(token.data, token.is_assignment_parameters);
+    //     }
+    // })
 
     // Dump paremeters.
     // tokens.iterate_tokens((token) => {
