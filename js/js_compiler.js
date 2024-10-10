@@ -10,6 +10,7 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 
 	// Imports.
 	const libfs = require("fs");
+	const babel = require('@babel/core');
 	const { parse: babel_parse } = require('@babel/parser');
 	const babel_traverse = require('@babel/traverse').default;
 
@@ -1049,10 +1050,16 @@ if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
 		extract_globals(code) {
 
 			// Parse the code into an AST
-		    const ast = babel_parse(code, {
-		        sourceType: 'module',
-		        plugins: ['jsx']
-		    });
+			const {ast} = babel.transformSync(code, {
+				sourceType: 'module',
+				// plugins: ['@babel/plugin-syntax-jsx'], // Include necessary plugins
+				ast: true, // If you need the AST
+				code: false, // Set to false if you don't need the transformed code
+			});
+	    	// const ast = babel_parse(code, {
+		    //     sourceType: 'module',
+		    //     plugins: ['jsx']
+		    // });
 
 		    const globals = {
 		        variables: new Set(),

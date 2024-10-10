@@ -285,7 +285,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		allow_parameters = true,
 		allow_decorators = false,
 		allowed_keywords_before_type_defs = [],
-		excluded_word_boundary_joinings = [],
+		// excluded_word_boundary_joinings = [],
 		is_indent_language = false,
 		is_type_language = false,
 		
@@ -378,18 +378,18 @@ vhighlight.Tokenizer = class Tokenizer {
 		];
 
 		// Word boundaries that will not be joined to the previous word boundary token.
-		this.excluded_word_boundary_joinings = [
-			"{", "}", "[", "]", "(", ")", "<", ">", // default scopes, never remove any items from this since a lot of other files / libs depend on this.
-			",", "=", // required for parsing parameters.
-		]
-		.concat(this.scope_separators) // always exclude default {}[]() for vide.
-		.concat(excluded_word_boundary_joinings)
-		this.excluded_word_boundary_joinings = this.excluded_word_boundary_joinings.reduce((accumulator, val) => { // drop duplicates.
-			if (!accumulator.includes(val)) {
-				accumulator.push(val);
-			}
-			return accumulator;
-		}, []);
+		// this.excluded_word_boundary_joinings = [
+		// 	"{", "}", "[", "]", "(", ")", "<", ">", // default scopes, never remove any items from this since a lot of other files / libs depend on this.
+		// 	",", "=", // required for parsing parameters.
+		// ]
+		// .concat(this.scope_separators) // always exclude default {}[]() for vide.
+		// .concat(excluded_word_boundary_joinings)
+		// this.excluded_word_boundary_joinings = this.excluded_word_boundary_joinings.reduce((accumulator, val) => { // drop duplicates.
+		// 	if (!accumulator.includes(val)) {
+		// 		accumulator.push(val);
+		// 	}
+		// 	return accumulator;
+		// }, []);
 
 		// The default callback.
 		// this.callback = function(char, is_escaped, is_preprocessor) { return false; }
@@ -473,16 +473,7 @@ vhighlight.Tokenizer = class Tokenizer {
 		this.preprocess_code = true;						// preprocess the code or only execute the callback and do nothing else.
 
 		// Variables from the main loop iterate_code func().
-		this.iter_code_is_comment = false;
-		this.iter_code_is_multi_line_comment = false;
-		this.iter_code_string_char = null;
-		this.iter_code_is_regex = false; 								
-		this.iter_code_is_preprocessor = false; 							
-		this.iter_code_prev_non_whitespace_char = null; 					
-		this.iter_code_multi_line_comment_check_close_from_index = null;	
-		this.iter_code_inside_template_curly_depth = 0;					
-		this.iter_code_inside_template_curly_end = [];					
-		this.iter_code_forced_multi_line_comment_end = null;				
+		this.iterator = undefined;
 
 		// Performance.
 		// this.get_prev_token_time = 0;
@@ -530,16 +521,7 @@ vhighlight.Tokenizer = class Tokenizer {
 				inside_parameters: this.inside_parameters,
 				preprocess_code: this.preprocess_code,
 
-				iter_code_is_comment: this.iter_code_is_comment,
-				iter_code_is_multi_line_comment: this.iter_code_is_multi_line_comment,
-				iter_code_string_char: this.iter_code_string_char,
-				iter_code_is_regex: this.iter_code_is_regex,
-				iter_code_is_preprocessor: this.iter_code_is_preprocessor,
-				iter_code_prev_non_whitespace_char: this.iter_code_prev_non_whitespace_char,
-				// iter_code_multi_line_comment_check_close_from_index: this.iter_code_multi_line_comment_check_close_from_index,
-				iter_code_inside_template_curly_depth: this.iter_code_inside_template_curly_depth,
-				iter_code_inside_template_curly_end: this.iter_code_inside_template_curly_end,
-				iter_code_forced_multi_line_comment_end: this.iter_code_forced_multi_line_comment_end,
+				iterator: this.iterator,
 			};
 			if (this.derived_retrieve_state) {
 				this.derived_retrieve_state(data);
@@ -804,25 +786,24 @@ vhighlight.Tokenizer = class Tokenizer {
 		if (typeof query === "string") {
 			query = [query];
 		}
-		const info_obj = {index: null};
-		const query_match = () => {
+		const query_match = (state) => {
 			for (let i = 0; i < query.length; i++) {
-				if (this.eq_first(query[i], info_obj.index)) {
+				if (this.eq_first(query[i], state.index)) {
 					return true;
 				}
 			}
 			return false;
 		}
-		return this.iterate_code(info_obj, index, null, (char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor) => {
+		return this.iterate_code(index, null, state => {
 			if (
-				(exclude_str === false || is_str === false) &&
-				(exclude_comment === false || (is_comment === false && is_multi_line_comment === false)) &&
-				(exclude_regex === false || is_regex === false) &&
-				(exclude_preprocessor === false || is_preprocessor === false) &&
-				(exclude_escaped === false || is_escaped === false) &&
-				query_match()
+				(exclude_str === false || state.is_str === false) &&
+				(exclude_comment === false || (state.is_comment === false && state.is_multi_line_comment === false)) &&
+				(exclude_regex === false || state.is_regex === false) &&
+				(exclude_preprocessor === false || state.is_preprocessor === false) &&
+				(exclude_escaped === false || state.is_escaped === false) &&
+				query_match(state)
 			) {
-				return info_obj.index;
+				return state.index;
 			}
 		});
 	}
@@ -1556,320 +1537,31 @@ vhighlight.Tokenizer = class Tokenizer {
 
 		// Set index.
 		this.index = index;
+		this.iterator.state.index = index;
 	}
 
 	// Iterate code function.
 	// The callback can take params (index, char, is_str, is_comment, is_multi_line_comment, is_regex, is_escaped).
 	// When the callback returns a non null value the iteration will stop and that value will be returned.
-	iterate_code(info_obj = {index: 0, prev_char: null, next_char: null}, start = null, end = null, callback) {
-		//
-		// DO NOT ASSIGN ANY "this" ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
-		//
-		
-		// Default start and end.
-		if (start == null) {
-			start = 0;
-		}
-		if (end == null) {
-			end = this.code.length;
-		}
-
-		// Vars.
-		let is_comment = false;
-		let is_multi_line_comment = false;
-		let string_char = null;
-		let is_regex = false; 									// only used for langauges that can define a regex as /hello/ such as js.
-		let is_preprocessor = false; 							// only used for languages that have preprocessor statements such as cpp.
-		let prev_non_whitespace_char = null; 					// the previous non whitespace character, EXCLUDING newlines, used to check at start of line.
-		let multi_line_comment_check_close_from_index = null;	// the start index of the multi line comment because when a user does something like /*// my comment */ the comment would originally immediately terminate because of the /*/.
-		let inside_template_curly_depth = 0;					// the {} depth when inside a js template string.
-		let inside_template_curly_end = [];						// the array of end depths when currently inside a template string.
-		let forced_multi_line_comment_end = null;				// the end comment match for langs like python which can hold both """ and ''' for multi line comments.
-		if (info_obj === this) {
-			is_comment = this.iter_code_is_comment;
-			is_multi_line_comment = this.iter_code_is_multi_line_comment;
-			string_char = this.iter_code_string_char;
-			is_regex = this.iter_code_is_regex;
-			is_preprocessor = this.iter_code_is_preprocessor;
-			prev_non_whitespace_char = this.iter_code_prev_non_whitespace_char;
-			// multi_line_comment_check_close_from_index = this.iter_code_multi_line_comment_check_close_from_index;
-			inside_template_curly_depth = this.iter_code_inside_template_curly_depth;
-			inside_template_curly_end = this.iter_code_inside_template_curly_end;
-			forced_multi_line_comment_end = this.iter_code_forced_multi_line_comment_end;
-		}
-
-		// Iterate.
-		for (info_obj.index = start; info_obj.index < end; info_obj.index++) {
-			//
-			// DO NOT ASSIGN ANY "this" ATTRIBUTES IN THIS FUNC SINCE IT IS ALSO CALLED BY OTHER FUNCS THAN "tokenize()".
-			//
-
-			// Get char.
-			const char = this.code.charAt(info_obj.index);
-
-			// Set next and previous.
-			if (info_obj.index > 0) { // to make prev char compatible with TokenizerState.
-				info_obj.prev_char = this.code.charAt(info_obj.index - 1);
-			}
-			info_obj.next_char = this.code.charAt(info_obj.index + 1);
-
-			// Set prev non whitespace char.
-			if (info_obj.prev_char != " " && info_obj.prev_char != "\t") {
-				prev_non_whitespace_char = info_obj.prev_char;
-			}
-
-			// Set is escaped.
-			const is_escaped = this.is_escaped(info_obj.index);
-
-			// Start of preprocessors.
-			if (
-				this.allow_preprocessors && 
-				!is_preprocessor && 
-				(prev_non_whitespace_char == "\n" || info_obj.index === 0) && 
-				char == "#"
-			) {
-				is_preprocessor = true;
-				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// End of preprocessors.
-			else if (
-				is_preprocessor && 
-				(char == "\n" && prev_non_whitespace_char != "\\") 
-			) {
-				is_preprocessor = false;
-				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// Open comments.
-			// Comments must be checked before string, due to the multi line comment `"""` from python.
-			if (
-				!is_escaped &&
-				!is_comment &&
-				!is_multi_line_comment &&
-				!is_regex
-				&& string_char == null
-			) {
-				
-				// Single line comments.
-				if (
-					this.single_line_comment_start !== false && 
-					(
-						(this.single_line_comment_start.length === 1 && char === this.single_line_comment_start) ||
-						(this.single_line_comment_start.length !== 1 && this.eq_first(this.single_line_comment_start, info_obj.index))
-					)
-				) {
-					is_preprocessor = false; // a single line comment in the preprocessor line terminates the preprocessor statement.
-					is_comment = true;
-					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
-				
-				
-				// Multi line comments.
-				let is_array_index;
-				if (
-					this.multi_line_comment_start !== false &&
-					(this.multi_line_comment_only_at_start === false || prev_non_whitespace_char === "\n" || prev_non_whitespace_char === "") &&
-					(
-						(!this.multi_line_comment_start_is_array && this.multi_line_comment_start.length === 1 && char === this.multi_line_comment_start) ||
-						(!this.multi_line_comment_start_is_array && this.multi_line_comment_start.length !== 1 && this.eq_first(this.multi_line_comment_start, info_obj.index)) ||
-						(this.multi_line_comment_start_is_array && (is_array_index = this.eq_first_of(this.multi_line_comment_start, info_obj.index)) !== null)
-					)
-				) {
-					if (this.multi_line_comment_start_is_array) {
-						forced_multi_line_comment_end = this.multi_line_comment_start[is_array_index];
-						multi_line_comment_check_close_from_index = info_obj.index + forced_multi_line_comment_end.length * 2; // also add mlcomment end length since the mlc close looks backwards.
-					} else {
-						multi_line_comment_check_close_from_index = info_obj.index + this.multi_line_comment_start.length + this.multi_line_comment_end.length; // also add mlcomment end length since the mlc close looks backwards.
-					}
-					is_multi_line_comment = true;
-					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
-				
-			}
-			
-			// End single line comments.
-			else if (
-				is_comment &&
-				!is_escaped && char == "\n"
-			) {
-				is_comment = false;
-				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-			
-			// End multi line comments.
-			else if (
-				is_multi_line_comment &&
-				!is_escaped &&
-				info_obj.index >= multi_line_comment_check_close_from_index &&
-				(
-					(!this.multi_line_comment_start_is_array && this.multi_line_comment_end.length === 1 && char == this.multi_line_comment_end) ||
-					(!this.multi_line_comment_start_is_array && this.multi_line_comment_end.length !== 1 && this.eq_first(this.multi_line_comment_end, info_obj.index - (this.multi_line_comment_end.length - 1))) ||
-					(this.multi_line_comment_start_is_array && forced_multi_line_comment_end !== null && this.eq_first(forced_multi_line_comment_end, info_obj.index - (forced_multi_line_comment_end.length - 1)))
-				)
-			) {
-				forced_multi_line_comment_end = null;
-				is_multi_line_comment = false;
-				const res = callback(char, false, is_comment, true, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-			
-			
-			// Open strings.
-			if (
-				(this.allow_strings || (this.allow_strings_double_quote && char === '"')) &&
-				!is_escaped &&
-				!is_comment &&
-				!is_multi_line_comment &&
-				!is_regex &&
-				string_char === null &&
-				(
-					char == '"' || 
-					char == "'" || 
-					char == '`'
-				)
-			) {
-				string_char = char;
-				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// Close strings.
-			else if (
-				!is_escaped &&
-				string_char !== null &&
-				char === string_char
-			) {
-				string_char = null;
-				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// Inside strings.
-			else if (string_char !== null) {
-
-				// Close string by js ${} template string.
-				if (string_char === "`" && this.is_js && char === "$" && info_obj.next_char === "{") {
-					if (inside_template_curly_end.length === 0) {
-						inside_template_curly_depth = 0;
-					}
-					inside_template_curly_end.push(inside_template_curly_depth);
-					string_char = null;
-					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
-
-				// Inside string.
-				const res = callback(char, true, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-
-			// The end of js ${} code inside a template string.
-			if (inside_template_curly_end.length !== 0) {
-				if (string_char === null && char === "{") {
-					++inside_template_curly_depth;
-				} else if (string_char === null && char === "}") {
-					--inside_template_curly_depth;
-
-					// Re-open the string.
-					if (inside_template_curly_end[inside_template_curly_end.length - 1] === inside_template_curly_depth) {
-						--inside_template_curly_end.length;
-						string_char = "`";
-						const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-						if (res != null) { return res; }
-						continue;			
-					}
-				}
-			}
-			
-			// Inside comments.
-			else if (is_comment || is_multi_line_comment) {
-				const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-				if (res != null) { return res; }
-				continue;
-			}
-			
-			// Statements should reuse the "if" not "else if" after the start of the comment check.
-			// Since that does not always match in the first if statement.
-			// End of comment checks can still use "else if".
-			
-			// Check the start of a regex definition "/hello/", must check the previous char.
-			if (this.allow_slash_regexes && !is_escaped && !is_regex && char == "/") {
-				let prev = null;
-				for (let p = info_obj.index - 1; p >= 0; p--) {
-					const c = this.code.charAt(p);
-					if (c != " " && c != "\t") {
-						prev = c;
-						break;
-					}
-				}
-				if (
-					prev != null &&
-					prev !== "<" && // for JSX 
-					this.code.charAt(info_obj.index + 1) !== ">" && // for JSX
-					(
-						prev == "\n" || prev == "," || prev == "(" ||
-						prev == "[" || prev == "{" || prev == ":" ||
-						this.operators.includes(prev)
-					)
-				) {
-					is_regex = true;
-					const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-					if (res != null) { return res; }
-					continue;
-				}
-			}
-			
-			// Inside / end of regex.
-			else if (is_regex) {
-				if (char == '/' && !is_escaped) {
-					is_regex = false;
-				}
-				const res = callback(char, false, is_comment, is_multi_line_comment, true, is_escaped, is_preprocessor); // always use true for is_regex to make sure the closing / is still treated as a regex.
-				if (res != null) { return res; }
-				continue;
-			}
-			
-			// Statements should reuse the "if" not "else if" after the start of the regex check.
-			// Since that does not always match in the first if statement.
-			// End of regex checks can still use "else if".
-			
-			// No string, comment or regex.
-			const res = callback(char, false, is_comment, is_multi_line_comment, is_regex, is_escaped, is_preprocessor);
-			if (res != null) { return res; }
-			
-			
-		}
-
-		// Cache variables when info_ob is this, for state control.
-		if (info_obj === this) {
-			this.iter_code_is_comment = is_comment;
-			this.iter_code_is_multi_line_comment = is_multi_line_comment;
-			this.iter_code_string_char = string_char;
-			this.iter_code_is_regex = is_regex;
-			this.iter_code_is_preprocessor = is_preprocessor;
-			this.iter_code_prev_non_whitespace_char = prev_non_whitespace_char;
-			// this.iter_code_multi_line_comment_check_close_from_index = multi_line_comment_check_close_from_index;
-			this.iter_code_inside_template_curly_depth = inside_template_curly_depth;
-			this.iter_code_inside_template_curly_end = inside_template_curly_end;
-			this.iter_code_forced_multi_line_comment_end = forced_multi_line_comment_end;
-		}
-		return null;
+	iterate_code(start, end, callback) {
+		const iterator = new vhighlight.Iterator({
+			code: null,
+			language: this.language,
+			tab_size: this.tab_size ?? 4,
+			start,
+			end,
+			callback,
+			single_line_comment_start: this.single_line_comment_start,
+			multi_line_comment_start: this.multi_line_comment_start,
+			multi_line_comment_end: this.multi_line_comment_end,
+			multi_line_comment_only_at_start: this.multi_line_comment_only_at_start,
+			allow_strings: this.allow_strings,
+			allow_strings_double_quote: this.allow_strings_double_quote,
+			allow_preprocessors: this.allow_preprocessors,
+			allow_slash_regexes: this.allow_slash_regexes,
+		});
+		iterator.code = code;
+		return iterator.iterate();
 	};
 
 	// Start the tokenizing.
@@ -1958,273 +1650,359 @@ vhighlight.Tokenizer = class Tokenizer {
 			return true;
 		}
 
-		// Iterate code.
-		let shebang_allowed = true;
+		// Initialize iterator.
 		let disable_start_of_line = false;
 		let start_of_line_last_line = null;
-		const stopped = this.iterate_code(this, null, null, (char, local_is_str, local_is_comment, is_multi_line_comment, local_is_regex, is_escaped, is_preprocessor) => {
+		if (this.iterator === undefined) {
+			this.iterator = new vhighlight.Iterator({
+				code: null,
+				language: this.language,
+				tab_size: this.tab_size ?? 4,
+				single_line_comment_start: this.single_line_comment_start,
+				multi_line_comment_start: this.multi_line_comment_start,
+				multi_line_comment_end: this.multi_line_comment_end,
+				multi_line_comment_only_at_start: this.multi_line_comment_only_at_start,
+				allow_strings: this.allow_strings,
+				allow_strings_double_quote: this.allow_strings_double_quote,
+				allow_preprocessors: this.allow_preprocessors,
+				allow_slash_regexes: this.allow_slash_regexes,
+			});
+			this.iterator.code = this.code;
+			this.iterator.end = this.code.length;
+			this.iterator.callback = state => {
 
-			// The derived tokenizer can disable automatic processing of code for example
-			// Inside a <script> tag in html.
-			// If enabled only execute the callback and nothing more.
-			if (!this.preprocess_code) {
-				this.callback(char, is_escaped, this.is_preprocessor)
-				return null;
-			}
+				const char = state.char;
+				this.index = state.index;
+				this.next_char = state.next_char;
+				this.prev_char = state.prev_char;
 
-			// Set start of line flag.
-			if (disable_start_of_line) {
-				disable_start_of_line = false;
-				this.start_of_line = false;
-			}
-			else if (this.start_of_line || start_of_line_last_line != this.line) {
-				this.start_of_line = true;
+				// The derived tokenizer can disable automatic processing of code for example
+				// Inside a <script> tag in html.
+				// If enabled only execute the callback and nothing more.
+				if (!this.preprocess_code) {
+					this.callback(char, state.is_escaped, this.is_preprocessor)
+					return null;
+				}
 
-				// Allow whitespace at the line start.
-				if (char === " " || char === "\t") {
-					++this.line_indent;
+				// Set start of line flag.
+				if (disable_start_of_line) {
 					disable_start_of_line = false;
-				}	
-				else if (char !== "\n") {
-					disable_start_of_line = true;
-					start_of_line_last_line = this.line;
+					this.start_of_line = false;
 				}
-			}
+				else if (this.start_of_line || start_of_line_last_line != this.line) {
+					this.start_of_line = true;
 
-			// Close parent, exclude whitespace only lines.
-			if (
-				this.start_of_line && 
-				this.is_indent_language && 
-				char !== " " && char !== "\t" && char !== "\n" &&
-				char !== this.single_line_comment_start &&
-				char !== this.multi_line_comment_start &&
-				this.parents.length > 0 &&
-				this.parents[this.parents.length - 1].indent >= this.line_indent
-			) {
-				let parents = [];
-				this.parents.iterate((item) => {
-					if (item.indent >= this.line_indent) {
-						return null;
-					}
-					parents.push(item);
-				})
-				this.parents = parents;
-			}
-
-			//
-			// Resume with if after "Start of line".
-			//
-
-			// Shebang.
-			if (this.line === 0 && this.start_of_line && char === "#" && this.next_char === "!") {
-
-				// Append previous batch.
-				this.append_batch();
-
-				// Do a lookup for the shebang.
-				let shebang = "";
-				let resume_index;
-				for (resume_index = this.index; resume_index < this.code.length; resume_index++) {
-					const c = this.code.charAt(resume_index);
-					if (c === "\n") {
-						break;
-					}
-					shebang += c;
-				}
-
-				// Get the last word boundary for the interpreter.
-				let last_word_boundary;
-				for (last_word_boundary = shebang.length - 1; last_word_boundary > 0; last_word_boundary--) {
-					if (this.word_boundaries.includes(shebang.charAt(last_word_boundary))) {
-						break;
+					// Allow whitespace at the line start.
+					if (char === " " || char === "\t") {
+						++this.line_indent;
+						disable_start_of_line = false;
+					}	
+					else if (char !== "\n") {
+						disable_start_of_line = true;
+						start_of_line_last_line = this.line;
 					}
 				}
 
-				// Append tokens.
-				if (last_word_boundary === 0) {
-					this.batch = shebang;
-					this.append_batch("comment");
-				} else {
-					++last_word_boundary;
-					this.batch = shebang.substr(0, last_word_boundary);
-					this.append_batch("comment");
-					this.batch = shebang.substr(last_word_boundary); // interpreter.
-					this.append_batch("keyword");
+				// Close parent, exclude whitespace only lines.
+				if (
+					this.start_of_line && 
+					this.is_indent_language && 
+					char !== " " && char !== "\t" && char !== "\n" &&
+					char !== this.single_line_comment_start &&
+					char !== this.multi_line_comment_start &&
+					this.parents.length > 0 &&
+					this.parents[this.parents.length - 1].indent >= this.line_indent
+				) {
+					let parents = [];
+					this.parents.iterate((item) => {
+						if (item.indent >= this.line_indent) {
+							return null;
+						}
+						parents.push(item);
+					})
+					this.parents = parents;
 				}
 
-				// Set resume on index.
-				this.resume_on_index(resume_index - 1);
-				return null;
-			}
+				//
+				// Resume with if after "Start of line".
+				//
 
-			// New line.
-			else if (!is_escaped && char == "\n") {
+				// Shebang.
+				if (this.line === 0 && this.start_of_line && char === "#" && this.next_char === "!") {
 
-				// Append previous batch, but snce newlines may be present in regexes, strings and comments, handle them correctly.
-				auto_append_batch_switch();
-				
-				// Append line token.
-				// this.batch += char;
-				// this.append_batch("line");
+					// Append previous batch.
+					this.append_batch();
 
-				// Terminate preprocessor, comments, and strings when active.
-				// This must happen after appending the line break batch since `append_token()` still uses the comment string etc flags for the line token.
-				if (!local_is_str) {
-					this.is_str = false;
-				}
-				if (!local_is_comment && !is_multi_line_comment) {
-					this.is_comment = false;
-					this.is_comment_keyword = false;
-					this.is_comment_keyword_multi_line = false;
-					// this.is_comment_codeblock = false; // may be multi line.
-				}
-				if (!local_is_regex) {
-					this.is_regex = false;
-				}
-				if (this.is_preprocessor && !is_preprocessor) {
-					this.is_preprocessor = false;
-					this.is_str = false; // also disable string in case of an unterminated < inside the #include preprocessor, since the flag is turned on inside the is preprocessor check.
-				}
-
-				// Append line token.
-				// Testing with after disabling the flags otherwise the newlines after a multi line comment will still count as a comment which it is not.
-				this.batch += char;
-				this.append_batch("line");
-
-				// Check if a stop callback is defined for the partial tokenize.
-				if (stop_callback !== undefined) {
-					const stop = stop_callback(this.line, this.tokens[this.line]);
-					if (stop) {
-						return true;
+					// Do a lookup for the shebang.
+					let shebang = "";
+					let resume_index;
+					for (resume_index = this.index; resume_index < this.code.length; resume_index++) {
+						const c = this.code.charAt(resume_index);
+						if (c === "\n") {
+							break;
+						}
+						shebang += c;
 					}
+
+					// Get the last word boundary for the interpreter.
+					let last_word_boundary;
+					for (last_word_boundary = shebang.length - 1; last_word_boundary > 0; last_word_boundary--) {
+						if (this.word_boundaries.includes(shebang.charAt(last_word_boundary))) {
+							break;
+						}
+					}
+
+					// Append tokens.
+					if (last_word_boundary === 0) {
+						this.batch = shebang;
+						this.append_batch("comment");
+					} else {
+						++last_word_boundary;
+						this.batch = shebang.substr(0, last_word_boundary);
+						this.append_batch("comment");
+						this.batch = shebang.substr(last_word_boundary); // interpreter.
+						this.append_batch("keyword");
+					}
+
+					// Set resume on index.
+					this.resume_on_index(resume_index - 1);
+					return null;
 				}
 
-				// Update vars.
-				this.start_of_line = true;
-				this.line_indent = 0;
-				++this.line;
-			}
-			
-			// Start of and during comment.
-			else if (local_is_comment || is_multi_line_comment) {
+				// New line.
+				else if (!state.is_escaped && char == "\n") {
 
-				// Start of comment.
-				if (!this.is_comment) {
+					// Append previous batch, but snce newlines may be present in regexes, strings and comments, handle them correctly.
 					auto_append_batch_switch();
-					this.is_comment = true;
+					
+					// Append line token.
+					// this.batch += char;
+					// this.append_batch("line");
+
+					// Terminate preprocessor, comments, and strings when active.
+					// This must happen after appending the line break batch since `append_token()` still uses the comment string etc flags for the line token.
+					if (!state.is_str) {
+						this.is_str = false;
+					}
+					if (!state.is_comment && !state.is_multi_line_comment) {
+						this.is_comment = false;
+						this.is_comment_keyword = false;
+						this.is_comment_keyword_multi_line = false;
+						// this.is_comment_codeblock = false; // may be multi line.
+					}
+					if (!state.is_regex) {
+						this.is_regex = false;
+					}
+					if (this.is_preprocessor && !state.is_preprocessor) {
+						this.is_preprocessor = false;
+						this.is_str = false; // also disable string in case of an unterminated < inside the #include preprocessor, since the flag is turned on inside the is preprocessor check.
+					}
+
+					// Append line token.
+					// Testing with after disabling the flags otherwise the newlines after a multi line comment will still count as a comment which it is not.
+					this.batch += char;
+					this.append_batch("line");
+
+					// Check if a stop callback is defined for the partial tokenize.
+					if (stop_callback !== undefined) {
+						const stop = stop_callback(this.line, this.tokens[this.line]);
+						if (stop) {
+							return true;
+						}
+					}
+
+					// Update vars.
+					this.start_of_line = true;
+					this.line_indent = 0;
+					++this.line;
+				}
+				
+				// Start of and during comment.
+				else if (state.is_comment || state.is_multi_line_comment) {
+
+					// Start of comment.
+					if (!this.is_comment) {
+						auto_append_batch_switch();
+						this.is_comment = true;
+						this.batch += char;
+					}
+
+					// During comment.
+					else {
+						const is_not_ui_escaped = this.prev_char !== "\\"; // it not escaped when writed by text editor so any \\ before counts as escaped regardless of double.
+
+						// End of comment codeblock.
+						if (this.is_comment_codeblock && char === "`" && this.next_char !== "`") {
+							this.batch += char;
+							auto_append_batch_switch();
+							this.is_comment_codeblock = false;
+						}
+
+						// Start of comment codeblock.
+						else if (this.allow_comment_codeblock && is_not_ui_escaped && !this.is_comment_codeblock && char === "`") {
+							auto_append_batch_switch();
+							this.is_comment_codeblock = true;
+							this.batch += char;
+						}
+
+						// Check for @ keywords.
+						else if (this.allow_comment_keyword && !this.is_comment_codeblock && char === "@" && is_not_ui_escaped) {
+							auto_append_batch_switch();
+							this.is_comment_keyword = true;
+							this.is_comment_keyword_multi_line = state.is_multi_line_comment;
+							this.batch += char;
+						}
+
+						// Check for end of @ keywords.
+						// Some word boundaries are allowed inside comment keywords, such as "-", "_", "/". This is required for Libris and it also makes sense.
+						else if (this.is_comment_keyword && is_not_ui_escaped && (char !== "-" && char !== "_" && char !== "/" && this.word_boundaries.includes(char))) {
+							auto_append_batch_switch();
+							this.is_comment_keyword = false;	
+							this.is_comment_keyword_multi_line = false;
+							this.batch += char;
+						}
+
+						// Append to batch.
+						else {
+							this.batch += char;
+						}
+					}
+				}
+				
+				// Start of and during string.
+				else if (state.is_str) {
+					if (!this.is_str) {
+
+						// Check for special prefix chars.
+						if (auto_append_batch_switch(false) === false) {
+							if (this.special_string_prefixes.includes(this.batch)) {
+								this.append_batch("keyword");
+							} else {
+								this.append_batch();
+							}
+						}
+						this.is_str = true;
+					}
+					this.batch += char;
+				}
+				
+				// Start of and during regex.
+				else if (state.is_regex) {
+					if (!this.is_regex) {
+						auto_append_batch_switch();
+						this.is_regex = true;
+					}
 					this.batch += char;
 				}
 
-				// During comment.
-				else {
-					const is_not_ui_escaped = this.prev_char !== "\\"; // it not escaped when writed by text editor so any \\ before counts as escaped regardless of double.
+				// Start of and during preprocessor.
+				else if (state.is_preprocessor) {
 
-					// End of comment codeblock.
-					if (this.is_comment_codeblock && char === "`" && this.next_char !== "`") {
-						this.batch += char;
+					// Append previous batch.
+					if (!this.is_preprocessor) {
 						auto_append_batch_switch();
-						this.is_comment_codeblock = false;
+						this.is_preprocessor = true;
 					}
 
-					// Start of comment codeblock.
-					else if (this.allow_comment_codeblock && is_not_ui_escaped && !this.is_comment_codeblock && char === "`") {
+					// Encountered a < > inside a preprocessor.
+					if (char == "<" && this.batch.replaceAll(" ", "").replaceAll("\t", "") == "#include") {
 						auto_append_batch_switch();
-						this.is_comment_codeblock = true;
+						this.is_str = true;
 						this.batch += char;
+					} else if (char == ">" && this.is_str) {
+						this.batch += char;
+						auto_append_batch_switch();
+						this.is_str = false;
 					}
 
-					// Check for @ keywords.
-					else if (this.allow_comment_keyword && !this.is_comment_codeblock && char === "@" && is_not_ui_escaped) {
-						auto_append_batch_switch();
-						this.is_comment_keyword = true;
-						this.is_comment_keyword_multi_line = is_multi_line_comment;
-						this.batch += char;
-					}
-
-					// Check for end of @ keywords.
-					// Some word boundaries are allowed inside comment keywords, such as "-", "_", "/". This is required for Libris and it also makes sense.
-					else if (this.is_comment_keyword && is_not_ui_escaped && (char !== "-" && char !== "_" && char !== "/" && this.word_boundaries.includes(char))) {
-						auto_append_batch_switch();
-						this.is_comment_keyword = false;	
-						this.is_comment_keyword_multi_line = false;
-						this.batch += char;
-					}
-
-					// Append to batch.
+					// Append to batch when no < > match.
 					else {
 						this.batch += char;
 					}
 				}
-			}
-			
-			// Start of and during string.
-			else if (local_is_str) {
-				if (!this.is_str) {
+				
+				// Is code.
+				else {
 
-					// Check for special prefix chars.
-					if (auto_append_batch_switch(false) === false) {
-						if (this.special_string_prefixes.includes(this.batch)) {
-							this.append_batch("keyword");
-						} else {
-							this.append_batch();
+					// Bracket depth.
+					if (char == "[") {
+						++this.bracket_depth;
+					} else if (char == "]") {
+						--this.bracket_depth;
+					}
+
+					// Curly depth.
+					if (char == "{") {
+						++this.curly_depth;
+
+						// Disable the is post type def modifier and call the callback when defined.
+						if (this.is_post_type_def_modifier) {
+							this.is_post_type_def_modifier = false;
+							if (this.on_post_type_def_modifier_end !== undefined) {
+								const last_token = this.get_last_token();
+								if (last_token != null) {
+									this.on_post_type_def_modifier_end(this.post_type_def_modifier_type_def_token, last_token);
+								}
+							}
+						}
+
+					} else if (char == "}") {
+						--this.curly_depth;
+
+						// Remove parent.
+						if (this.is_indent_language === false) {
+							let parents = [];
+							this.parents.iterate((item) => {
+								if (item.curly === this.curly_depth && item.parenth === this.parenth_depth) {
+									return null;
+								}
+								parents.push(item);
+							})
+							this.parents = parents;
 						}
 					}
-					this.is_str = true;
-				}
-				this.batch += char;
-			}
-			
-			// Start of and during regex.
-			else if (local_is_regex) {
-				if (!this.is_regex) {
-					auto_append_batch_switch();
-					this.is_regex = true;
-				}
-				this.batch += char;
-			}
+					
+					// Parentheses depth.
+					if (char == "(") {
+						++this.parenth_depth;
 
-			// Start of and during preprocessor.
-			else if (is_preprocessor) {
+						// Set the is keyword before parenth open token so it can be identifier by "callback()" in order not to highlight types inside parentheses of keywords before parentheses.
+						if (this.is_type_language) {
 
-				// Append previous batch.
-				if (!this.is_preprocessor) {
-					auto_append_batch_switch();
-					this.is_preprocessor = true;
-				}
+							// Enable flag.
+							if (
+								this.last_non_whiste_space_line_break_token !== null && 
+								this.last_non_whiste_space_line_break_token.token === "keyword" && 
+								this.allowed_keywords_before_type_defs.includes(this.last_non_whiste_space_line_break_token.data) === false
+							) {
+								this.is_keyword_before_parentheses = true;
+							}
+								
+							// Disable flag.
+							else {
+								this.is_keyword_before_parentheses = false;
+							}
+						}
 
-				// Encountered a < > inside a preprocessor.
-				if (char == "<" && this.batch.replaceAll(" ", "").replaceAll("\t", "") == "#include") {
-					auto_append_batch_switch();
-					this.is_str = true;
-					this.batch += char;
-				} else if (char == ">" && this.is_str) {
-					this.batch += char;
-					auto_append_batch_switch();
-					this.is_str = false;
-				}
+						//
+						// @todo when an indent languages does not always define type def tokens with a keyword then the opening parenth indent should be set here but for now it is not required.
+						//
 
-				// Append to batch when no < > match.
-				else {
-					this.batch += char;
-				}
-			}
-			
-			// Is code.
-			else {
+					} else if (char == ")") {
+						--this.parenth_depth;
+					}
 
-				// Bracket depth.
-				if (char == "[") {
-					++this.bracket_depth;
-				} else if (char == "]") {
-					--this.bracket_depth;
-				}
-
-				// Curly depth.
-				if (char == "{") {
-					++this.curly_depth;
+					// Template depth.
+					// Cant be used since "x < y" is allowed.
+					// if (char == "<") {
+					// 	++this.template_depth;
+					// } else if (char == ">") {
+					// 	--this.template_depth;
+					// }
 
 					// Disable the is post type def modifier and call the callback when defined.
-					if (this.is_post_type_def_modifier) {
+					// But only when the char is ';' of a type definition header, the type defs that include a body will be catched by the opening "{"
+					if (this.is_post_type_def_modifier && char === ";") {
 						this.is_post_type_def_modifier = false;
 						if (this.on_post_type_def_modifier_end !== undefined) {
 							const last_token = this.get_last_token();
@@ -2233,306 +2011,581 @@ vhighlight.Tokenizer = class Tokenizer {
 							}
 						}
 					}
+					
+					// End of comment.
+					// Should proceed with the callback since the next character needs to be parsed.
+					if (this.is_comment_keyword) {
+						this.append_batch("comment_keyword", {is_comment: true});
+						this.is_comment_keyword = false;
+						this.is_comment_keyword_multi_line = false;
+					}
+					else if (this.is_comment_codeblock) {
+						append_comment_codeblock_batch();
+						this.is_comment_codeblock = false;
+					}
+					else if (this.is_comment) {
+						this.append_batch("comment", {is_comment: true});
+						this.is_comment = false;
+						this.is_comment_keyword = false;
+						this.is_comment_keyword_multi_line = false;
+						this.is_comment_codeblock = false;
+					}
+					
+					// End of string.
+					// Should proceed with the callback since the next character needs to be parsed.
+					else if (this.is_str) {
+						this.append_batch("string");
+						this.is_str = false;
+					}
+					
+					// End of regex.
+					// Should proceed with the callback since the next character needs to be parsed.
+					else if (this.is_regex) {
+						this.append_batch("string");
+						this.is_regex = false;
+					}
 
-				} else if (char == "}") {
-					--this.curly_depth;
+					// End of preprocessor.
+					// Should proceed with the callback since the next character needs to be parsed.
+					else if (this.is_preprocessor) {
+						this.append_batch("preprocessor");
+						this.is_preprocessor = false;
+					}
 
-					// Remove parent.
-					if (this.is_indent_language === false) {
-						let parents = [];
-						this.parents.iterate((item) => {
-							if (item.curly === this.curly_depth && item.parenth === this.parenth_depth) {
-								return null;
+					//
+					// Stop the else if loop after here since the end of string / comment should be parsed as a new char.
+					// Also `auto_append_batch()` is no longer required after here.
+					//
+
+					// Parse decorators.
+					if (this.allow_decorators && char === "@") {
+
+						// Append previous batch.
+						this.append_batch();
+
+						// Do a forward lookup to find the first word boundary.
+						let batch = "@";
+						for (let i = this.index + 1; i < this.code.length; i++) {
+							const c = this.code.charAt(i);
+							if (this.word_boundaries.includes(c)) {
+								break;
 							}
-							parents.push(item);
-						})
-						this.parents = parents;
-					}
-				}
-				
-				// Parentheses depth.
-				if (char == "(") {
-					++this.parenth_depth;
-
-					// Set the is keyword before parenth open token so it can be identifier by "callback()" in order not to highlight types inside parentheses of keywords before parentheses.
-					if (this.is_type_language) {
-
-						// Enable flag.
-						if (
-							this.last_non_whiste_space_line_break_token !== null && 
-							this.last_non_whiste_space_line_break_token.token === "keyword" && 
-							this.allowed_keywords_before_type_defs.includes(this.last_non_whiste_space_line_break_token.data) === false
-						) {
-							this.is_keyword_before_parentheses = true;
+							batch += c;
 						}
-							
-						// Disable flag.
-						else {
-							this.is_keyword_before_parentheses = false;
+
+						// When there is at least one char used in the decorator then parse it as a decorator.
+						if (batch.length > 1) {
+							this.batch = batch;
+							this.append_batch("type", {is_decorator: true, parameters: []});
+							this.index += batch.length - 1;
+							return null;
 						}
+
+						// fallthrough.
 					}
 
-					//
-					// @todo when an indent languages does not always define type def tokens with a keyword then the opening parenth indent should be set here but for now it is not required.
-					//
+					// On opening parenth.
+					// Also resume when callback is not defined to catch parameters from type defs detected by type def keywords when callback is not defined as in python.
+					else if (char === "(") {
 
-				} else if (char == ")") {
-					--this.parenth_depth;
-				}
+						// Get last token and execute callback.
+						let token = this.append_batch();
+						token = this.get_prev_token_by_token("last", [" ", "\t", "\n"], true, true); // also check current token and exclude comments.
+						let added_inside_parameters = false;
+						if (token) {
 
-				// Template depth.
-				// Cant be used since "x < y" is allowed.
-				// if (char == "<") {
-				// 	++this.template_depth;
-				// } else if (char == ">") {
-				// 	--this.template_depth;
-				// }
+							// Check callback.
+							if (token.token !== "type_def" && this.on_parenth_open !== undefined) { // skip when the token is already a type def, this can happen because of type def keywords such as "def" in python.
+								const res = this.on_parenth_open(token);
+								if (res) {
+									token = res;
+								}
+							}
 
-				// Disable the is post type def modifier and call the callback when defined.
-				// But only when the char is ';' of a type definition header, the type defs that include a body will be catched by the opening "{"
-				if (this.is_post_type_def_modifier && char === ";") {
-					this.is_post_type_def_modifier = false;
-					if (this.on_post_type_def_modifier_end !== undefined) {
-						const last_token = this.get_last_token();
-						if (last_token != null) {
-							this.on_post_type_def_modifier_end(this.post_type_def_modifier_type_def_token, last_token);
+							// Check if the token is assigned as a type or type def.
+							if (token != null && this.allow_parameters && (token.token === "type_def" || token.token === "type")) {
+								if (this.is_js) {
+									token.is_assignment_parameters = undefined;
+								}
+								token.parameters = [];
+								this.inside_parameters.append({
+									is_type_def: token.token === "type_def",
+									curly_depth: this.curly_depth,
+									bracket_depth: this.bracket_depth,
+									parenth_depth: this.parenth_depth - 1, // minus one since +- is done before any callbacks, required to detect close.
+									token: token,
+									parenth_tokens: [],
+									parenth_tokens_correct_depth: [],
+								});
+								added_inside_parameters = true;
+							}
 						}
-					}
-				}
-				
-				// End of comment.
-				// Should proceed with the callback since the next character needs to be parsed.
-				if (this.is_comment_keyword) {
-					this.append_batch("comment_keyword", {is_comment: true});
-					this.is_comment_keyword = false;
-					this.is_comment_keyword_multi_line = false;
-				}
-				else if (this.is_comment_codeblock) {
-					append_comment_codeblock_batch();
-					this.is_comment_codeblock = false;
-				}
-				else if (this.is_comment) {
-					this.append_batch("comment", {is_comment: true});
-					this.is_comment = false;
-					this.is_comment_keyword = false;
-					this.is_comment_keyword_multi_line = false;
-					this.is_comment_codeblock = false;
-				}
-				
-				// End of string.
-				// Should proceed with the callback since the next character needs to be parsed.
-				else if (this.is_str) {
-					this.append_batch("string");
-					this.is_str = false;
-				}
-				
-				// End of regex.
-				// Should proceed with the callback since the next character needs to be parsed.
-				else if (this.is_regex) {
-					this.append_batch("string");
-					this.is_regex = false;
-				}
 
-				// End of preprocessor.
-				// Should proceed with the callback since the next character needs to be parsed.
-				else if (this.is_preprocessor) {
-					this.append_batch("preprocessor");
-					this.is_preprocessor = false;
-				}
-
-				//
-				// Stop the else if loop after here since the end of string / comment should be parsed as a new char.
-				// Also `auto_append_batch()` is no longer required after here.
-				//
-
-				// Parse decorators.
-				if (this.allow_decorators && char === "@") {
-
-					// Append previous batch.
-					this.append_batch();
-
-					// Do a forward lookup to find the first word boundary.
-					let batch = "@";
-					for (let i = this.index + 1; i < this.code.length; i++) {
-						const c = this.code.charAt(i);
-						if (this.word_boundaries.includes(c)) {
-							break;
+						// Append word boundary.
+						this.batch += char;
+						const added_token = this.append_batch(false, {is_word_boundary: true});
+						if (added_inside_parameters) {
+							this.inside_parameters.last().opening_parenth_token = added_token;
 						}
-						batch += c;
-					}
-
-					// When there is at least one char used in the decorator then parse it as a decorator.
-					if (batch.length > 1) {
-						this.batch = batch;
-						this.append_batch("type", {is_decorator: true, parameters: []});
-						this.index += batch.length - 1;
 						return null;
 					}
 
-					// fallthrough.
-				}
+					// Check inside parameters from line-by-line mode.
+					// Must be after on opening parenth since type(defs) can still be inside param values.
+					// Must be before "Highlight parameters".
+					else if (
+						this.inside_parameters.length > 0 &&
+						this.word_boundaries.includes(char)
+					) {
+						const inside_param = this.inside_parameters.last();
+						const type_token = inside_param.token;
 
-				// On opening parenth.
-				// Also resume when callback is not defined to catch parameters from type defs detected by type def keywords when callback is not defined as in python.
-				else if (char === "(") {
-
-					// Get last token and execute callback.
-					let token = this.append_batch();
-					token = this.get_prev_token_by_token("last", [" ", "\t", "\n"], true, true); // also check current token and exclude comments.
-					let added_inside_parameters = false;
-					if (token) {
-
-						// Check callback.
-						if (token.token !== "type_def" && this.on_parenth_open !== undefined) { // skip when the token is already a type def, this can happen because of type def keywords such as "def" in python.
-							const res = this.on_parenth_open(token);
-							if (res) {
-								token = res;
+						// Detect assignment parameters.
+						if (
+							this.is_js &&
+							inside_param.is_type_def &&
+							type_token.is_assignment_parameters === undefined &&
+							char === "{"
+						) {
+							const prev = this.get_last_token([" ", "\t", "\n"]);
+							if (prev && prev === inside_param.opening_parenth_token) {
+								type_token.is_assignment_parameters = true;
 							}
 						}
 
-						// Check if the token is assigned as a type or type def.
-						if (token != null && this.allow_parameters && (token.token === "type_def" || token.token === "type")) {
-							if (this.is_js) {
-								token.is_assignment_parameters = undefined;
+						// The at correct depth flag, to be a direct child of the type def params.
+						// Nested parameter values using () {} etc will not be at correct depth to parse as params.
+						
+
+						// Check the last token to determine if the current batch is a parameter.
+						let prev;
+
+						if (
+							inside_param.bracket_depth === this.bracket_depth &&
+							(inside_param.curly_depth === this.curly_depth || (type_token.is_assignment_parameters && inside_param.curly_depth + 1 === this.curly_depth)) &&
+							(this.parenth_depth === inside_param.parenth_depth + 1 || this.parenth_depth === inside_param.parenth_depth) && // also not +1 to catch the last param before the closing ) which has normal depth.
+							(
+								(prev = this.get_prev_token_by_token("last", [" ", "\t", "\n"], true, true)) == null || // also check current last token and exclude comments.
+								prev.data === "(" ||
+								prev.data === "," ||
+								(type_token.is_assignment_parameters && prev.data === "{") ||
+								(this.is_type_language && (prev.token === "keyword" || prev.token === "type" || prev.token === "operator" || prev.data === ">"))
+							)
+						) {
+							const token = this.append_batch();
+							if (inside_param.is_type_def && token != null && token.token == null && !token.is_word_boundary && !token.is_whitespace && !token.is_line_break) {
+								if (!this.is_type_language || (
+									this.is_type_language &&
+									(prev.token === "keyword" || prev.token === "type" || prev.token === "operator" || prev.data === ">")
+								)) {
+									token.token = "parameter";
+								} else if (this.is_type_language) {
+									token.token = "type";
+								}
 							}
-							token.parameters = [];
-							this.inside_parameters.append({
-								is_type_def: token.token === "type_def",
-								curly_depth: this.curly_depth,
-								bracket_depth: this.bracket_depth,
-								parenth_depth: this.parenth_depth - 1, // minus one since +- is done before any callbacks, required to detect close.
-								token: token,
-								parenth_tokens: [],
-								parenth_tokens_correct_depth: [],
-							});
-							added_inside_parameters = true;
 						}
-					}
 
-					// Append word boundary.
-					this.batch += char;
-					const added_token = this.append_batch(false, {is_word_boundary: true});
-					if (added_inside_parameters) {
-						this.inside_parameters.last().opening_parenth_token = added_token;
-					}
-					return null;
-				}
+						// Remove inside parameter flag.
+						let is_end = false;
+						if (
+							char === ")" &&
+							inside_param.parenth_depth === this.parenth_depth &&
+							inside_param.bracket_depth === this.bracket_depth &&
+							inside_param.curly_depth === this.curly_depth
+						) {
 
-				// Check inside parameters from line-by-line mode.
-				// Must be after on opening parenth since type(defs) can still be inside param values.
-				// Must be before "Highlight parameters".
-				else if (
-					this.inside_parameters.length > 0 &&
-					this.word_boundaries.includes(char)
-				) {
-					const inside_param = this.inside_parameters.last();
-					const type_token = inside_param.token;
+							// Flag as end.
+							is_end = true;
 
-					// Detect assignment parameters.
-					if (
-						this.is_js &&
-						inside_param.is_type_def &&
-						type_token.is_assignment_parameters === undefined &&
-						char === "{"
-					) {
-						const prev = this.get_last_token([" ", "\t", "\n"]);
-						if (prev && prev === inside_param.opening_parenth_token) {
-							type_token.is_assignment_parameters = true;
-						}
-					}
+							// Append token.
+							const token = this.append_batch();
 
-					// The at correct depth flag, to be a direct child of the type def params.
-					// Nested parameter values using () {} etc will not be at correct depth to parse as params.
-					
-
-					// Check the last token to determine if the current batch is a parameter.
-					let prev;
-
-					if (
-						inside_param.bracket_depth === this.bracket_depth &&
-						(inside_param.curly_depth === this.curly_depth || (type_token.is_assignment_parameters && inside_param.curly_depth + 1 === this.curly_depth)) &&
-						(this.parenth_depth === inside_param.parenth_depth + 1 || this.parenth_depth === inside_param.parenth_depth) && // also not +1 to catch the last param before the closing ) which has normal depth.
-						(
-							(prev = this.get_prev_token_by_token("last", [" ", "\t", "\n"], true, true)) == null || // also check current last token and exclude comments.
-							prev.data === "(" ||
-							prev.data === "," ||
-							(type_token.is_assignment_parameters && prev.data === "{") ||
-							(this.is_type_language && (prev.token === "keyword" || prev.token === "type" || prev.token === "operator" || prev.data === ">"))
-						)
-					) {
-						const token = this.append_batch();
-						if (inside_param.is_type_def && token != null && token.token == null && !token.is_word_boundary && !token.is_whitespace && !token.is_line_break) {
-							if (!this.is_type_language || (
-								this.is_type_language &&
-								(prev.token === "keyword" || prev.token === "type" || prev.token === "operator" || prev.data === ">")
-							)) {
+							// Assign last param without value as parameter token.
+							if (inside_param.is_type_def && token != null && token.token == null && !token.is_word_boundary && !token.is_whitespace && !token.is_line_break) {
 								token.token = "parameter";
-							} else if (this.is_type_language) {
-								token.token = "type";
 							}
+
+							// Pop from inside parameters array.
+							--this.inside_parameters.length;
+
+							// Enable the is post type def modifier flag.
+							this.is_post_type_def_modifier = true;
+							this.post_type_def_modifier_type_def_token = type_token;
+
+							// ---------------------------------------------------------
+							// Parse parameters.
+
+							// Variables.
+							const at_correct_depth_flags = [];
+							const parameter_tokens = [];
+
+							// Slice the full parameter tokens, and the parameter tokens at correct depths for parameter parsing.
+							const last_token = this.get_last_token();
+							const correct_depth = new vhighlight.NestedDepth(type_token.is_assignment_parameters ? 1 : 0, 0, 1);
+							const parameter_depth = new vhighlight.NestedDepth(0, 0, 1);
+							const current_depth = new vhighlight.NestedDepth(0, 0, 0);
+							
+							let line = type_token.line, col = type_token.col;
+							while (line < this.tokens.length) {
+								++col;
+								if (col >= this.tokens[line].length) {
+									++line;
+									col = 0;
+								}
+								const token = this.tokens[line][col];
+								if (token != null) {
+									current_depth.process_token(token);
+									if (parameter_depth.gte(current_depth) && (parameter_tokens.length > 0 || token.data !== "(")) {
+										parameter_tokens.append(token);
+										at_correct_depth_flags.append(correct_depth.eq(current_depth) && (at_correct_depth_flags.length > 0 || (token.data !== "(" && token.data !== "{")));
+									}
+									if (token === last_token) {
+										break;
+									}
+								} else { break; }
+							}
+
+
+							// Create the array with parameters and assign the token_param to the tokens.
+							let mode = 1; // 1 for key 2 for value.
+							const params = [];
+
+							// Initialize a parameter object.
+							const init_param = () => {
+								return {
+									name: null, 	// the parameter name.
+									index: null, 	// the parameter index.
+									value: [], 		// the default value tokens.
+									type: [], 		// the type tokens.
+								};
+							}
+
+							// Append a parameter object.
+							const append_param = (param) => {
+								if (param !== undefined) {
+									param.type = this.trim_tokens(param.type);
+									param.value = this.trim_tokens(param.value);
+									param.index = params.length;
+									if (param.name != null) {
+										params.push(param);
+									}
+								};
+							}
+
+							// Check if the next parenth token is a assignment operator.
+							// Returns `null` when the there is no next assignment operator directly after the provided index.
+							const get_next_assignment_operator = (parenth_index) => {
+								let next, next_i = parenth_index + 1;
+								while ((next = parameter_tokens[next_i]) != null) {
+									if (next.data.length === 1 && next.data === "=") {
+										if (parameter_tokens[next_i - 1] != null && parameter_tokens[next_i - 1].token === "operator") {
+											return null;
+										}
+										return next;
+									} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
+										return null;
+									}
+									++next_i;
+								}
+								return null;
+							}
+
+							// Iterate the parenth tokens.
+							const is_type_def = type_token.token === "type_def";
+							const is_decorator = type_token.is_decorator === true;
+
+							let param;
+							let is_type = true;
+							let index = -1;
+							parameter_tokens.iterate(token => {
+								++index;
+								const at_correct_depth = at_correct_depth_flags[index];
+
+								// Skip on the closing assignment param tokens.
+								// Already skipped by at correct depth.
+								// if (type_token.is_assignment_parameters && token.index >= closing_assignment_parameter_curly_index) {
+								// 	return null;
+								// }
+
+								// Set key and value flags.
+								if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
+									append_param(param);
+									param = init_param();
+									mode = 1;
+									is_type = true;
+								}
+								else if (at_correct_depth && token.is_word_boundary === true && token.data === "=") {
+									mode = 2;
+								}
+
+								// When key.
+								else if (mode === 1) {
+
+									// Init param.
+									if (param === undefined) {
+										param = init_param();
+									}
+
+									// Skip tokens.
+									if (
+										at_correct_depth === false
+									) {
+										return null;
+									}
+
+									// Assign as type.
+									if (
+										is_type &&
+										(
+											token.token === "keyword" ||
+											token.token === "type" ||
+											token.is_whitespace === true ||
+											token.token === "operator" ||
+											token.data === "." ||
+											token.data === ":" ||
+											token.data === "<" ||
+											token.data === ">" ||
+											token.data === "*" ||
+											token.data === "&"
+										)
+									) {
+										param.type.push(token);
+
+										// Revert incorrect parameter token to "type" token.
+										// For example in cpp func `myfunc(T t) {}`.
+										// if (token.token === "parameter") {
+										// 	token.token = "type";
+										// }
+									}
+
+									// Assign as key.
+									else {
+										is_type = false;
+										const allow_assignment = (
+											token.token === "type_def" ||
+											token.token === "parameter" ||
+											(token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]")
+										);
+
+										// On a type definition always assign to parameter.
+										// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
+										// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
+										if (allow_assignment && (is_type_def || (this.is_js && type_token === null))) {
+											if (token.is_whitespace === true || token.is_word_boundary === true) {
+												return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+											}
+											param.name = token.data.trim();
+										}
+
+										// When the token is a type there must be a "=" after this tokens.
+										// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
+										else if (!is_type_def && (allow_assignment || is_decorator)) {
+											const next = get_next_assignment_operator(index);
+											if (next != null && allow_assignment) {
+												if (token.is_whitespace === true || token.is_word_boundary === true) {
+													return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
+												}
+												param.name = token.data.trim();
+											}
+											else if (next == null && is_decorator) {
+												param.value.push(token);
+											}
+										}
+									}
+								}
+
+								// When value.
+								else if (
+									mode === 2 && 
+									(is_type_def || is_decorator)
+								) {
+									param.value.push(token);
+								}
+							})
+
+							// Add last param.
+							append_param(param);
+
+							// Assign parsed parameters, the plain parameter tokens are also used in Libris.
+							type_token.parameters = params; 
+							type_token.parameter_tokens = parameter_tokens; 
 						}
+
+						// Do not append batch here so the user defined callback can still process the word boundary.
+
+						// Append word boundary.
+						// @deprecated.
+						// this.append_batch();
+						// this.batch += char;
+						// this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator or white space.
+						// return null;
 					}
 
-					// Remove inside parameter flag.
-					let is_end = false;
-					if (
-						char === ")" &&
-						inside_param.parenth_depth === this.parenth_depth &&
-						inside_param.bracket_depth === this.bracket_depth &&
-						inside_param.curly_depth === this.curly_depth
+					/*	V1 parameters.
+					// Highlight parameters.
+					// Only supported in one-time highlighting, not when using line-by-line mode.
+					// @todo when using a lot of tuple like functions `(() => {})()` which are often used in typescript, this becomes waaaaayy to slow.
+					else if (
+						this.allow_parameters &&
+						char === ")"
 					) {
-
-						// Flag as end.
-						is_end = true;
-
-						// Append token.
-						const token = this.append_batch();
-
-						// Assign last param without value as parameter token.
-						if (inside_param.is_type_def && token != null && token.token == null && !token.is_word_boundary && !token.is_whitespace && !token.is_line_break) {
-							token.token = "parameter";
-						}
-
-						// Pop from inside parameters array.
-						--this.inside_parameters.length;
-
-						// Enable the is post type def modifier flag.
-						this.is_post_type_def_modifier = true;
-						this.post_type_def_modifier_type_def_token = type_token;
 
 						// ---------------------------------------------------------
-						// Parse parameters.
 
-						// Variables.
-						const at_correct_depth_flags = [];
-						const parameter_tokens = [];
+						// Append batch by word boundary.
+						this.append_batch();
 
-						// Slice the full parameter tokens, and the parameter tokens at correct depths for parameter parsing.
-						const last_token = this.get_last_token();
-						const correct_depth = new vhighlight.NestedDepth(type_token.is_assignment_parameters ? 1 : 0, 0, 1);
-						const parameter_depth = new vhighlight.NestedDepth(0, 0, 1);
-						const current_depth = new vhighlight.NestedDepth(0, 0, 0);
-						
-						let line = type_token.line, col = type_token.col;
-						while (line < this.tokens.length) {
-							++col;
-							if (col >= this.tokens[line].length) {
-								++line;
-								col = 0;
-							}
-							const token = this.tokens[line][col];
-							if (token != null) {
-								current_depth.process_token(token);
-								if (parameter_depth.gte(current_depth) && (parameter_tokens.length > 0 || token.data !== "(")) {
-									parameter_tokens.append(token);
-									at_correct_depth_flags.append(correct_depth.eq(current_depth) && (at_correct_depth_flags.length > 0 || (token.data !== "(" && token.data !== "{")));
-								}
-								if (token === last_token) {
-									break;
-								}
-							} else { break; }
+						// Vars.
+						let opening_parenth_token;
+						let after_parenth_index;
+
+						// Append word boundary.
+						const finalize = () => {
+							this.batch += char;
+							this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
+							return null;
 						}
 
+						// ---------------------------------------------------------
+						// Get the opening parentheses.
+
+						// Check character after closing parentheses.
+						after_parenth_index = this.get_first_non_whitespace(this.index + 1, true);
+
+						// Get the tokens inside the parentheses at the correct pareth depth and skip all word boundaries except ",".
+						let parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
+						let closing_assignment_parameter_curly_index = null;
+						const found = this.tokens.iterate_tokens_reversed((token) => {
+
+							// Set depths.
+							if (token.token === undefined && token.data.length === 1) {
+								if (token.data === ")") {
+									++parenth_depth;
+								} else if (token.data === "(") {
+									if (parenth_depth === 0) {
+										opening_parenth_token = token;
+										return true;
+									}
+									--parenth_depth;
+								} else if (token.data === "}") {
+									if (curly_depth === 0) {
+										closing_assignment_parameter_curly_index = token.index; // so it will be set to he last closing } therefore it can also skip the tokens from like "} = {}".
+									}
+									++curly_depth;
+								} else if (token.data === "{") {
+									--curly_depth;
+								} else if (token.data === "]") {
+									++bracket_depth;
+								} else if (token.data === "[") {
+									--bracket_depth;
+								}
+							}
+
+							// Set correct depth so only the tokens within the correct depth will be parsed.
+							token.tmp_curly_depth = curly_depth;
+							token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0;
+							// token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0 && curly_depth <= 0;
+							
+							// Append token.
+							parenth_tokens.push(token);
+						});
+
+						// Check if the params are js assignment params defined like `myfunc({param = ...})`.
+						let is_assignment_parameters = false;
+						parenth_tokens.iterate_reversed((token) => {
+							if (token.data === "{") {
+								is_assignment_parameters = true;
+								return true;
+							} else if (token.is_whitespace !== true) {
+								return true;
+							}
+						})
+
+						// Update the at correct depth attribute.
+						if (is_assignment_parameters === false) {
+							closing_assignment_parameter_curly_index = null;
+							parenth_tokens.iterate((token) => {
+								token.at_correct_depth = token.at_correct_depth && token.tmp_curly_depth <= 0;
+							})
+						} else {
+							parenth_tokens.iterate((token) => {
+								token.at_correct_depth = token.at_correct_depth && token.tmp_curly_depth <= 1;
+							})
+						}
+
+						// Remove new attibutes.
+						const clean_parent_tokens = () => {
+							parenth_tokens.iterate_reversed((token) => {
+								delete token.at_correct_depth;
+								delete token.tmp_curly_depth;
+							});
+						}
+
+						// Opening parenth not found.
+						if (opening_parenth_token == null) {
+							clean_parent_tokens();
+							return finalize();
+						}
+
+						// ---------------------------------------------------------
+						// Parse the paramaters.
+
+
+						// The target type token to which the parameters will be assigned to.
+						let type_token;
+
+						// Get token before the opening parenth.
+						const token_before_opening_parenth = this.get_prev_token_by_token(opening_parenth_token, [" ", "\t", "\n"]);
+						if (token_before_opening_parenth == null) {
+							clean_parent_tokens();
+							return finalize();
+						}
+
+						// Do not continue when the token before the parent is a keyword, for statements like "if ()".
+						// Since that will never be a type or type def so also do not highlight the params etc.
+						// Except for certain keywords that are allowed in some languages.
+						const is_keyword = token_before_opening_parenth.token === "keyword";
+						if (is_keyword && this.allowed_keywords_before_type_defs.includes(token_before_opening_parenth.data) === false) {
+							clean_parent_tokens();
+							return finalize();
+						}
+
+						// When the token before the opening parenth token already is a decorator, type or type_def there is no need to call on parenth close.
+						// When type def keywords are used this is possible, and with decorators ofcourse.
+						if (
+							token_before_opening_parenth != null && 
+							(
+								token_before_opening_parenth.is_decorator === true ||
+								(token_before_opening_parenth.token === "type" && this.language !== "C++") || // except for c++ since type_keywords such as constexpr combined with a constructor can make the constructor name a type, since the constructor does not have a type.
+								token_before_opening_parenth.token === "type_def"
+							)
+						) {
+							type_token = token_before_opening_parenth;
+						}
+						
+						// Call the on parenth close.
+						else if (this.on_parenth_close !== undefined) {
+							type_token = this.on_parenth_close({
+								token_before_opening_parenth: token_before_opening_parenth,
+								after_parenth_index: after_parenth_index,
+							})
+						}
+
+						// Set flags for type def tokens.
+						if (type_token != null && type_token.token === "type_def") {
+
+							// Enable the is post type def modifier flag.
+							this.is_post_type_def_modifier = true;
+							this.post_type_def_modifier_type_def_token = type_token;
+
+							// Assign parents to the type token.
+							// But only when the callback has not already assigned parents.
+							if (type_token.parents === undefined && type_token.is_decorator !== true && (this.parents.length === 0 || this.parents[this.parents.length - 1].token !== type_token)) {
+								this.assign_parents(type_token);
+								this.assign_token_as_type_def(type_token); // since this must be done after parents are assigned, and since they weren't assigned to this as well.
+							};
+
+						}
 
 						// Create the array with parameters and assign the token_param to the tokens.
 						let mode = 1; // 1 for key 2 for value.
@@ -2563,37 +2616,38 @@ vhighlight.Tokenizer = class Tokenizer {
 						// Check if the next parenth token is a assignment operator.
 						// Returns `null` when the there is no next assignment operator directly after the provided index.
 						const get_next_assignment_operator = (parenth_index) => {
-							let next, next_i = parenth_index + 1;
-							while ((next = parameter_tokens[next_i]) != null) {
+							let next_i = parenth_index - 1, next;
+							while ((next = parenth_tokens[next_i]) != null) {
 								if (next.data.length === 1 && next.data === "=") {
-									if (parameter_tokens[next_i - 1] != null && parameter_tokens[next_i - 1].token === "operator") {
+									if (parenth_tokens[next_i - 1] != null && parenth_tokens[next_i - 1].token === "operator") {
 										return null;
 									}
 									return next;
 								} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
 									return null;
 								}
-								++next_i;
+								--next_i;
 							}
 							return null;
 						}
 
 						// Iterate the parenth tokens.
-						const is_type_def = type_token.token === "type_def";
-						const is_decorator = type_token.is_decorator === true;
+						const is_type_def = type_token != null && type_token.token === "type_def";
+						const is_decorator = type_token != null && type_token.is_decorator === true;
 
 						let param;
 						let is_type = true;
-						let index = -1;
-						parameter_tokens.iterate(token => {
-							++index;
-							const at_correct_depth = at_correct_depth_flags[index];
+						let i = parenth_tokens.length;
+						parenth_tokens.iterate_reversed((token) => {
+							--i;
+							const at_correct_depth = token.at_correct_depth;
+							delete token.at_correct_depth;
+							delete token.tmp_curly_depth;
 
 							// Skip on the closing assignment param tokens.
-							// Already skipped by at correct depth.
-							// if (type_token.is_assignment_parameters && token.index >= closing_assignment_parameter_curly_index) {
-							// 	return null;
-							// }
+							if (is_assignment_parameters && token.index >= closing_assignment_parameter_curly_index) {
+								return null;
+							}
 
 							// Set key and value flags.
 							if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
@@ -2621,61 +2675,36 @@ vhighlight.Tokenizer = class Tokenizer {
 									return null;
 								}
 
-								// Assign as type.
-								if (
-									is_type &&
-									(
-										token.token === "keyword" ||
-										token.token === "type" ||
-										token.is_whitespace === true ||
-										token.token === "operator" ||
-										token.data === "." ||
-										token.data === ":" ||
-										token.data === "<" ||
-										token.data === ">" ||
-										token.data === "*" ||
-										token.data === "&"
-									)
-								) {
+								// Assign to parameter.
+								if (is_type && (token.token === "keyword" || token.token === "type" || token.is_whitespace === true || token.token === "operator" || token.data.includes("."))) {
 									param.type.push(token);
-
-									// Revert incorrect parameter token to "type" token.
-									// For example in cpp func `myfunc(T t) {}`.
-									// if (token.token === "parameter") {
-									// 	token.token = "type";
-									// }
-								}
-
-								// Assign as key.
-								else {
+								} else {
 									is_type = false;
-									const allow_assignment = (
-										token.token === "type_def" ||
-										token.token === "parameter" ||
-										(token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]")
-									);
+									const allow_assignment = token.token === "type_def" || (token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]");
 
 									// On a type definition always assign to parameter.
 									// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
 									// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
-									if (allow_assignment && (is_type_def || (this.is_js && type_token === null))) {
+									if ((is_type_def || (this.is_js && type_token === null)) && allow_assignment) {
 										if (token.is_whitespace === true || token.is_word_boundary === true) {
 											return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
 										}
 										param.name = token.data.trim();
+										token.token = "parameter";
 									}
 
 									// When the token is a type there must be a "=" after this tokens.
 									// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
-									else if (!is_type_def && (allow_assignment || is_decorator)) {
-										const next = get_next_assignment_operator(index);
-										if (next != null && allow_assignment) {
+									else if (!is_type_def) {
+										const next = get_next_assignment_operator(i);
+										if (next !== null && allow_assignment) {
 											if (token.is_whitespace === true || token.is_word_boundary === true) {
 												return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
 											}
 											param.name = token.data.trim();
+											token.token = "parameter";
 										}
-										else if (next == null && is_decorator) {
+										else if (next === null && is_decorator) {
 											param.value.push(token);
 										}
 									}
@@ -2694,364 +2723,51 @@ vhighlight.Tokenizer = class Tokenizer {
 						// Add last param.
 						append_param(param);
 
-						// Assign parsed parameters, the plain parameter tokens are also used in Libris.
-						type_token.parameters = params; 
-						type_token.parameter_tokens = parameter_tokens; 
-					}
-
-					// Do not append batch here so the user defined callback can still process the word boundary.
-
-					// Append word boundary.
-					// @deprecated.
-					// this.append_batch();
-					// this.batch += char;
-					// this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator or white space.
-					// return null;
-				}
-
-				/*	V1 parameters.
-				// Highlight parameters.
-				// Only supported in one-time highlighting, not when using line-by-line mode.
-				// @todo when using a lot of tuple like functions `(() => {})()` which are often used in typescript, this becomes waaaaayy to slow.
-				else if (
-					this.allow_parameters &&
-					char === ")"
-				) {
-
-					// ---------------------------------------------------------
-
-					// Append batch by word boundary.
-					this.append_batch();
-
-					// Vars.
-					let opening_parenth_token;
-					let after_parenth_index;
-
-					// Append word boundary.
-					const finalize = () => {
-						this.batch += char;
-						this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator.
-						return null;
-					}
-
-					// ---------------------------------------------------------
-					// Get the opening parentheses.
-
-					// Check character after closing parentheses.
-					after_parenth_index = this.get_first_non_whitespace(this.index + 1, true);
-
-					// Get the tokens inside the parentheses at the correct pareth depth and skip all word boundaries except ",".
-					let parenth_depth = 0, curly_depth = 0, bracket_depth = 0, parenth_tokens = [];
-					let closing_assignment_parameter_curly_index = null;
-					const found = this.tokens.iterate_tokens_reversed((token) => {
-
-						// Set depths.
-						if (token.token === undefined && token.data.length === 1) {
-							if (token.data === ")") {
-								++parenth_depth;
-							} else if (token.data === "(") {
-								if (parenth_depth === 0) {
-									opening_parenth_token = token;
-									return true;
-								}
-								--parenth_depth;
-							} else if (token.data === "}") {
-								if (curly_depth === 0) {
-									closing_assignment_parameter_curly_index = token.index; // so it will be set to he last closing } therefore it can also skip the tokens from like "} = {}".
-								}
-								++curly_depth;
-							} else if (token.data === "{") {
-								--curly_depth;
-							} else if (token.data === "]") {
-								++bracket_depth;
-							} else if (token.data === "[") {
-								--bracket_depth;
+						// Assign params to the type def token.
+						if (is_type_def || is_decorator) {
+							type_token.parameters = params;
+							if (is_assignment_parameters === true) {
+								type_token.is_assignment_parameters = true;
 							}
+							type_token.parameter_tokens = []; // this must always be an array, even if it is empty and the first and last parentheses should not be added into this array, vdocs depends on this behaviour.
+							parenth_tokens.iterate_reversed((token) => {
+								type_token.parameter_tokens.push(token);
+							})
 						}
-
-						// Set correct depth so only the tokens within the correct depth will be parsed.
-						token.tmp_curly_depth = curly_depth;
-						token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0;
-						// token.at_correct_depth = parenth_depth === 0 && bracket_depth === 0 && curly_depth <= 0;
 						
-						// Append token.
-						parenth_tokens.push(token);
-					});
+						// ---------------------------------------------------------
+						// Append to batch.
 
-					// Check if the params are js assignment params defined like `myfunc({param = ...})`.
-					let is_assignment_parameters = false;
-					parenth_tokens.iterate_reversed((token) => {
-						if (token.data === "{") {
-							is_assignment_parameters = true;
-							return true;
-						} else if (token.is_whitespace !== true) {
-							return true;
-						}
-					})
-
-					// Update the at correct depth attribute.
-					if (is_assignment_parameters === false) {
-						closing_assignment_parameter_curly_index = null;
-						parenth_tokens.iterate((token) => {
-							token.at_correct_depth = token.at_correct_depth && token.tmp_curly_depth <= 0;
-						})
-					} else {
-						parenth_tokens.iterate((token) => {
-							token.at_correct_depth = token.at_correct_depth && token.tmp_curly_depth <= 1;
-						})
-					}
-
-					// Remove new attibutes.
-					const clean_parent_tokens = () => {
-						parenth_tokens.iterate_reversed((token) => {
-							delete token.at_correct_depth;
-							delete token.tmp_curly_depth;
-						});
-					}
-
-					// Opening parenth not found.
-					if (opening_parenth_token == null) {
-						clean_parent_tokens();
+						// Append word boundary to tokens.
 						return finalize();
 					}
+					*/
 
-					// ---------------------------------------------------------
-					// Parse the paramaters.
+					// Call the handler.
+					// And append the character when not already appended by the handler.
+					// Always use if so previous if statements can use a fallthrough.
+					if (this.callback === undefined || this.callback(char, state.is_escaped, this.is_preprocessor) !== true) {
 
-
-					// The target type token to which the parameters will be assigned to.
-					let type_token;
-
-					// Get token before the opening parenth.
-					const token_before_opening_parenth = this.get_prev_token_by_token(opening_parenth_token, [" ", "\t", "\n"]);
-					if (token_before_opening_parenth == null) {
-						clean_parent_tokens();
-						return finalize();
-					}
-
-					// Do not continue when the token before the parent is a keyword, for statements like "if ()".
-					// Since that will never be a type or type def so also do not highlight the params etc.
-					// Except for certain keywords that are allowed in some languages.
-					const is_keyword = token_before_opening_parenth.token === "keyword";
-					if (is_keyword && this.allowed_keywords_before_type_defs.includes(token_before_opening_parenth.data) === false) {
-						clean_parent_tokens();
-						return finalize();
-					}
-
-					// When the token before the opening parenth token already is a decorator, type or type_def there is no need to call on parenth close.
-					// When type def keywords are used this is possible, and with decorators ofcourse.
-					if (
-						token_before_opening_parenth != null && 
-						(
-							token_before_opening_parenth.is_decorator === true ||
-							(token_before_opening_parenth.token === "type" && this.language !== "C++") || // except for c++ since type_keywords such as constexpr combined with a constructor can make the constructor name a type, since the constructor does not have a type.
-							token_before_opening_parenth.token === "type_def"
-						)
-					) {
-						type_token = token_before_opening_parenth;
-					}
-					
-					// Call the on parenth close.
-					else if (this.on_parenth_close !== undefined) {
-						type_token = this.on_parenth_close({
-							token_before_opening_parenth: token_before_opening_parenth,
-							after_parenth_index: after_parenth_index,
-						})
-					}
-
-					// Set flags for type def tokens.
-					if (type_token != null && type_token.token === "type_def") {
-
-						// Enable the is post type def modifier flag.
-						this.is_post_type_def_modifier = true;
-						this.post_type_def_modifier_type_def_token = type_token;
-
-						// Assign parents to the type token.
-						// But only when the callback has not already assigned parents.
-						if (type_token.parents === undefined && type_token.is_decorator !== true && (this.parents.length === 0 || this.parents[this.parents.length - 1].token !== type_token)) {
-							this.assign_parents(type_token);
-							this.assign_token_as_type_def(type_token); // since this must be done after parents are assigned, and since they weren't assigned to this as well.
-						};
-
-					}
-
-					// Create the array with parameters and assign the token_param to the tokens.
-					let mode = 1; // 1 for key 2 for value.
-					const params = [];
-
-					// Initialize a parameter object.
-					const init_param = () => {
-						return {
-							name: null, 	// the parameter name.
-							index: null, 	// the parameter index.
-							value: [], 		// the default value tokens.
-							type: [], 		// the type tokens.
-						};
-					}
-
-					// Append a parameter object.
-					const append_param = (param) => {
-						if (param !== undefined) {
-							param.type = this.trim_tokens(param.type);
-							param.value = this.trim_tokens(param.value);
-							param.index = params.length;
-							if (param.name != null) {
-								params.push(param);
-							}
-						};
-					}
-
-					// Check if the next parenth token is a assignment operator.
-					// Returns `null` when the there is no next assignment operator directly after the provided index.
-					const get_next_assignment_operator = (parenth_index) => {
-						let next_i = parenth_index - 1, next;
-						while ((next = parenth_tokens[next_i]) != null) {
-							if (next.data.length === 1 && next.data === "=") {
-								if (parenth_tokens[next_i - 1] != null && parenth_tokens[next_i - 1].token === "operator") {
-									return null;
-								}
-								return next;
-							} else if (next.data.length !== 1 || (next.data !== " " && next.data !== "\t" && next.data === "\n")) {
-								return null;
-							}
-							--next_i;
+						// Is word boundary.
+						// Append old batch and word boundary char.
+						if (this.word_boundaries.includes(char)) {
+							this.append_batch();
+							this.batch += char;
+							this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator or white space.
 						}
-						return null;
-					}
-
-					// Iterate the parenth tokens.
-					const is_type_def = type_token != null && type_token.token === "type_def";
-					const is_decorator = type_token != null && type_token.is_decorator === true;
-
-					let param;
-					let is_type = true;
-					let i = parenth_tokens.length;
-					parenth_tokens.iterate_reversed((token) => {
-						--i;
-						const at_correct_depth = token.at_correct_depth;
-						delete token.at_correct_depth;
-						delete token.tmp_curly_depth;
-
-						// Skip on the closing assignment param tokens.
-						if (is_assignment_parameters && token.index >= closing_assignment_parameter_curly_index) {
-							return null;
+						
+						// Add to batch till a word boundary is reached.
+						else {
+							this.batch += char;
 						}
-
-						// Set key and value flags.
-						if (at_correct_depth && token.is_word_boundary === true && token.data === ",") {
-							append_param(param);
-							param = init_param();
-							mode = 1;
-							is_type = true;
-						}
-						else if (at_correct_depth && token.is_word_boundary === true && token.data === "=") {
-							mode = 2;
-						}
-
-						// When key.
-						else if (mode === 1) {
-
-							// Init param.
-							if (param === undefined) {
-								param = init_param();
-							}
-
-							// Skip tokens.
-							if (
-								at_correct_depth === false
-							) {
-								return null;
-							}
-
-							// Assign to parameter.
-							if (is_type && (token.token === "keyword" || token.token === "type" || token.is_whitespace === true || token.token === "operator" || token.data.includes("."))) {
-								param.type.push(token);
-							} else {
-								is_type = false;
-								const allow_assignment = token.token === "type_def" || (token.token === undefined && token.data !== "{" && token.data !== "}" && token.data !== "(" && token.data !== ")" && token.data !== "[" && token.data !== "]");
-
-								// On a type definition always assign to parameter.
-								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
-								// Also allow type def token null to assign params since this can be the case in annoumys js funcs like `iterate((item) => {})`;
-								if ((is_type_def || (this.is_js && type_token === null)) && allow_assignment) {
-									if (token.is_whitespace === true || token.is_word_boundary === true) {
-										return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
-									}
-									param.name = token.data.trim();
-									token.token = "parameter";
-								}
-
-								// When the token is a type there must be a "=" after this tokens.
-								// Check for token undefined since decorators should still assign the param.value when it is not an assignment operator.
-								else if (!is_type_def) {
-									const next = get_next_assignment_operator(i);
-									if (next !== null && allow_assignment) {
-										if (token.is_whitespace === true || token.is_word_boundary === true) {
-											return null; // skip inside here since word boundaries and whitespace are allowed inside decorator values.
-										}
-										param.name = token.data.trim();
-										token.token = "parameter";
-									}
-									else if (next === null && is_decorator) {
-										param.value.push(token);
-									}
-								}
-							}
-						}
-
-						// When value.
-						else if (
-							mode === 2 && 
-							(is_type_def || is_decorator)
-						) {
-							param.value.push(token);
-						}
-					})
-
-					// Add last param.
-					append_param(param);
-
-					// Assign params to the type def token.
-					if (is_type_def || is_decorator) {
-						type_token.parameters = params;
-						if (is_assignment_parameters === true) {
-							type_token.is_assignment_parameters = true;
-						}
-						type_token.parameter_tokens = []; // this must always be an array, even if it is empty and the first and last parentheses should not be added into this array, vdocs depends on this behaviour.
-						parenth_tokens.iterate_reversed((token) => {
-							type_token.parameter_tokens.push(token);
-						})
-					}
-					
-					// ---------------------------------------------------------
-					// Append to batch.
-
-					// Append word boundary to tokens.
-					return finalize();
-				}
-				*/
-
-				// Call the handler.
-				// And append the character when not already appended by the handler.
-				// Always use if so previous if statements can use a fallthrough.
-				if (this.callback === undefined || this.callback(char, is_escaped, this.is_preprocessor) !== true) {
-
-					// Is word boundary.
-					// Append old batch and word boundary char.
-					if (this.word_boundaries.includes(char)) {
-						this.append_batch();
-						this.batch += char;
-						this.append_batch(null, {is_word_boundary: true}); // do not use "false" as parameter "token" since the word boundary may be an operator or white space.
-					}
-					
-					// Add to batch till a word boundary is reached.
-					else {
-						this.batch += char;
 					}
 				}
+				return null;
 			}
-			return null;
-		});
+		}
+
+		// Iterate code.
+		const stopped = this.iterator.iterate();
 
 		// Append last batch.
 		auto_append_batch_switch();

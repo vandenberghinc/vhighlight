@@ -19,6 +19,7 @@ const libfs = require("fs")
 const source = libpath.dirname(__dirname);
 const includes = [
 	`${__dirname}/../js/highlight.js`,
+	`${__dirname}/../js/iterator.js`,
 	`${__dirname}/../js/tokenizer.js`,
 	`${__dirname}/../js/bash.js`,
 	`${__dirname}/../js/cpp.js`,

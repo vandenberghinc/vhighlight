@@ -52,7 +52,7 @@ new vlib.Path("/tmp/vhighlight.html").save_sync(html);
 // ---------------------------------------------------------
 // Imports.
 
-const vweb = require(`${process.env.PERSISTANCE}/private/dev/vinc/vweb/js/backend/vweb.js`);
+const vweb = require(`${process.env.PERSISTANCE}/private/dev/vinc/vweb/backend/vweb.js`);
 const vlib = require(`${process.env.PERSISTANCE}/private/dev/vinc/vlib/js/vlib.js`);
 // const vweb = require(`@vandenberghinc/vweb`);
 // const vlib = require(`@vandenberghinc/vlib`);
@@ -68,15 +68,15 @@ const join_array_tokens_data = (tokens, joiner = "") => {
 }
 const debug_tokens = (tokens) => {
     // console.log(tokens)
-    // console.log(JSON.stringify(tokens,null,4))
+    console.log(JSON.stringify(tokens,null,4))
 
     // Dump classes.
-    tokens.iterate_tokens((token) => {
-        if (token.token === "type_def") {
-            // console.log(token)
-            console.log(JSON.stringify(token,null,4))
-        }
-    })
+    // tokens.iterate_tokens((token) => {
+    //     if (token.token === "type_def") {
+    //         // console.log(token)
+    //         console.log(JSON.stringify(token,null,4))
+    //     }
+    // })
 
     // Dump parents.
     // tokens.iterate_tokens((token) => {

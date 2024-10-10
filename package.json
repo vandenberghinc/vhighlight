@@ -16,7 +16,12 @@
     },
     "author": "Daan van den Bergh",
     "dependencies": {
+        "@babel/core": "^7.25.2",
         "@babel/parser": "^7.24.4",
+        "@babel/plugin-syntax-jsx": "^7.24.7",
         "@babel/traverse": "^7.24.1"
+    },
+    "devDependencies": {
+        "playwright": "^1.47.2"
     }
 }
