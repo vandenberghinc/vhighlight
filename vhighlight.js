@@ -1,4 +1,6 @@
-const vhighlight={};
+const vhighlight={
+libpath:typeof __filename==="undefined"?undefined :__filename,
+};
 vhighlight.internal={};
 vhighlight.languages=function(){
 if (this._languages===undefined){
@@ -136,6 +138,7 @@ this.line=0;
 this.column=0;
 this.string_char=null;
 this.is_str=false;
+this.is_template_literal=false;
 this.is_comment=false;
 this.is_multi_line_comment=false;
 this.is_regex=false;
@@ -167,6 +170,7 @@ state.line=this.line;
 state.column=this.column;
 state.string_char=this.string_char;
 state.is_str=this.is_str;
+state.is_template_literal=this.is_template_literal;
 state.is_comment=this.is_comment;
 state.is_multi_line_comment=this.is_multi_line_comment;
 state.is_regex=this.is_regex;
@@ -517,6 +521,7 @@ state.inside_template_curly_depth=0;
 state.inside_template_curly_end.push(state.inside_template_curly_depth);
 state.string_char=null;
 state.is_str=false;
+state.is_template_literal=true;
 const res=this.callback(add_state());
 if (res!=null){
 state.index++
@@ -541,6 +546,7 @@ if (state.inside_template_curly_end[state.inside_template_curly_end.length-1]===
 const res=this.callback(add_state());
 state.string_char="`";
 state.is_str=true;
+state.is_template_literal=false;
 if (res!=null){
 state.index++
 return res;

@@ -6,7 +6,10 @@
 // ---------------------------------------------------------
 // Module vhighlight.
 
-const vhighlight = {};
+// @ts-ignore
+const vhighlight = {
+	libpath: typeof __filename === "undefined" ? undefined : __filename,
+};
 vhighlight.internal = {};
 
 // All languages.
